@@ -411,7 +411,7 @@ export const SpectrumVisualizer: React.FC<SpectrumVisualizerProps> = ({
         case 'retro_glow_meter': {
           const gaugeWidth = w / 2;
           const radius = Math.min(gaugeWidth * 0.38, h * 0.38);
-          const centerY = h * 0.68;
+          const centerY = h * 0.5;
           const colors = [accent, '#44e6a8'];
           for (let channelIdx = 0; channelIdx < 2; channelIdx++) {
             const centerX = gaugeWidth * (channelIdx + 0.5);
@@ -455,7 +455,7 @@ export const SpectrumVisualizer: React.FC<SpectrumVisualizerProps> = ({
             const needleAngle = Math.PI + 0.09 + arc * Math.min(1, level);
             ctx.beginPath();
             ctx.moveTo(centerX, centerY);
-            ctx.lineTo(centerX + Math.cos(needleAngle) * radius * 0.83, centerY + Math.sin(needleAngle) * radius * 0.83);
+            ctx.lineTo(centerX + Math.cos(needleAngle) * radius * 0.83 * 1.25, centerY + Math.sin(needleAngle) * radius * 0.83 * 1.25);
             ctx.strokeStyle = '#f8fafc';
             ctx.lineWidth = 1.8;
             ctx.shadowColor = color;
