@@ -65,6 +65,10 @@ export interface AudioSettingsState {
   isXtsProEnabled: boolean;
   tubeWarmth: boolean;
   eqGains: number[];
+  eqSubBoost: number;
+  eqBassBoost: number;
+  eqHighpass: number;
+  eqLowpass: number;
 }
 
 export interface PlaybackSettingsState {
@@ -183,7 +187,6 @@ export interface MusicPlayerStore {
   setLibrarySettings: (settings: Partial<LibrarySettings>) => void;
   setSettingsOpen: (open: boolean) => void;
   fetchTrackCoverArt: (filepath: string) => Promise<string | null>;
-  saveWindowSize: () => Promise<void>;
 
   updateTelemetry: (telemetry: AudioTelemetry) => void;
   updateScanStatus: (status: ScanStatus) => void;
@@ -239,6 +242,10 @@ const defaultAudioSettings: AudioSettingsState = {
   isXtsProEnabled: false,
   tubeWarmth: false,
   eqGains: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+  eqSubBoost: 0,
+  eqBassBoost: 0,
+  eqHighpass: 0,
+  eqLowpass: 0,
 };
 
 const defaultPlaybackSettings: PlaybackSettingsState = {
@@ -876,6 +883,17 @@ export const useMusicStore = create<MusicPlayerStore>((set, get) => ({
         is_xts_pro_enabled: next.isXtsProEnabled,
         tube_warmth: next.tubeWarmth,
       }).catch(() => {});
+      radioAudioService.setDspSettings({
+        isEqEnabled: next.isEqEnabled,
+        eqGains: next.eqGains,
+        subBoost: next.eqSubBoost,
+        bassBoost: next.eqBassBoost,
+        highpass: next.eqHighpass,
+        lowpass: next.eqLowpass,
+        isNormalizerEnabled: next.isNormalizerEnabled,
+        isXdssEnabled: next.isXdssEnabled,
+        isXtsProEnabled: next.isXtsProEnabled,
+      });
       return { audioSettings: next };
     });
   },
@@ -1084,17 +1102,6 @@ export const useMusicStore = create<MusicPlayerStore>((set, get) => ({
     }
     set({ currentCoverArt: null });
     return null;
-  },
-
-  saveWindowSize: async () => {
-    saveStoredSettings({
-      language: get().language,
-      appearance: get().appearance,
-      audioSettings: get().audioSettings,
-      playbackSettings: get().playbackSettings,
-      listeningStats: get().listeningStats,
-      librarySettings: get().librarySettings,
-    });
   },
 
   updateTelemetry: (telemetry: AudioTelemetry) => {

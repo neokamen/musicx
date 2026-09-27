@@ -21,7 +21,7 @@ import { BookmarkPlus, RotateCcw, Star } from "lucide-react";
 
 interface LayoutManagerProps {
   isEditing: boolean;
-  onRestoreWindowSize: (size: { width: number; height: number }, playerBarHeightRatio: number) => void;
+  onRestoreWindowSize: (size: { width: number; height: number }, playerBarHeightRatio: number, isStartupRestore?: boolean) => void | Promise<void>;
 }
 
 export const LayoutManager: React.FC<LayoutManagerProps> = ({ isEditing, onRestoreWindowSize }) => {
@@ -44,7 +44,7 @@ export const LayoutManager: React.FC<LayoutManagerProps> = ({ isEditing, onResto
     saveLayoutToStorage(layout);
   }, [layout]);
 
-  const applyFavorite = async (favorite: LayoutFavoriteSnapshot) => {
+  const applyFavorite = async (favorite: LayoutFavoriteSnapshot, isStartupRestore = false) => {
     setLayout(JSON.parse(JSON.stringify(favorite.layout)) as LayoutNode);
     setActiveFavoriteId(favorite.id);
     saveActiveLayoutFavoriteId(favorite.id);
@@ -63,14 +63,14 @@ export const LayoutManager: React.FC<LayoutManagerProps> = ({ isEditing, onResto
     }
     await store.setBitPerfectMode(favorite.bitPerfectMode).catch(() => {});
     await store.setVolume(favorite.volume).catch(() => {});
-    onRestoreWindowSize(favorite.windowSize, favorite.playerBarHeightRatio);
+    await onRestoreWindowSize(favorite.windowSize, favorite.playerBarHeightRatio, isStartupRestore);
   };
 
   useEffect(() => {
     const favoriteToApply = initialFavorite ?? startupFavorite;
     if (!applyStartupOnMount || !favoriteToApply || startupApplied.current) return;
     startupApplied.current = true;
-    void applyFavorite(favoriteToApply);
+    void applyFavorite(favoriteToApply, true);
   }, []);
 
   const captureWindowSize = async () => {
@@ -78,7 +78,7 @@ export const LayoutManager: React.FC<LayoutManagerProps> = ({ isEditing, onResto
       const { getCurrentWindow } = await import("@tauri-apps/api/window");
       const currentWindow = getCurrentWindow();
       const [physicalSize, scaleFactor] = await Promise.all([
-        currentWindow.outerSize(),
+        currentWindow.innerSize(),
         currentWindow.scaleFactor(),
       ]);
       return {

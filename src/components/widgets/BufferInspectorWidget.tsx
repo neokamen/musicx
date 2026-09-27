@@ -3,7 +3,7 @@ import type { BufferTelemetry } from "../../types/index.ts";
 import { onBufferTelemetry, setAudioBufferSize, getBufferTelemetry } from "../../services/api.ts";
 import { useMusicStore } from "../../store/index.ts";
 import { radioAudioService } from "../../services/radioAudioService.ts";
-import { formatDataSize } from "../../lib/formatBytes.ts";
+import { formatDataSizeParts } from "../../lib/formatBytes.ts";
 import {
   Sliders,
 } from "lucide-react";
@@ -226,6 +226,7 @@ export const BufferInspectorWidget: React.FC = () => {
     : 40 * 1024;
   const radioFillPercent = radioExpectedBps > 0 ? Math.min(100, (radioBytesPerSecond / radioExpectedBps) * 100) : 0;
   const displayFillPercent = isRadioMode ? radioFillPercent : telemetry.buffer_fill_percent;
+  const sessionDataParts = formatDataSizeParts(radioSessionBytes);
   const activeSegments = Math.min(
     SEGMENTS_COUNT,
     Math.max(0, Math.round((displayFillPercent / 100) * SEGMENTS_COUNT))
@@ -296,11 +297,12 @@ export const BufferInspectorWidget: React.FC = () => {
           <div className="flex items-baseline gap-1 my-1">
             <span
               className={`text-2xl font-bold tracking-tighter font-mono ${
-                isDsp
+                isRadioMode
+                  ? "text-white"
+                  : isDsp
                   ? "text-emerald-300 drop-shadow-[0_0_8px_rgba(34,197,94,0.3)]"
                   : "text-audiophile-text"
               }`}
-              style={{ color: isRadioMode && !isDsp ? appearance.accentColor : undefined }}
             >
               {isRadioMode ? (radioBytesPerSecond / 1024).toFixed(0) : telemetry.buffer_fill_percent.toFixed(1)}
             </span>
@@ -332,13 +334,18 @@ export const BufferInspectorWidget: React.FC = () => {
           </div>
           <div className="flex items-baseline gap-1 my-1">
             {isRadioMode ? (
-              <span
-                className={`text-2xl font-bold tracking-tighter font-mono ${
-                  isDsp ? "text-emerald-300 drop-shadow-[0_0_8px_rgba(34,197,94,0.3)]" : "text-audiophile-text"
-                }`}
-              >
-                {formatDataSize(radioSessionBytes)}
-              </span>
+              <>
+                <span
+                  className={`text-2xl font-bold tracking-tighter font-mono ${
+                    isDsp ? "text-emerald-300 drop-shadow-[0_0_8px_rgba(34,197,94,0.3)]" : "text-audiophile-text"
+                  }`}
+                >
+                  {sessionDataParts.value}
+                </span>
+                <span className={`text-[10px] font-semibold ${isDsp ? "text-emerald-600" : "text-audiophile-muted"}`}>
+                  {sessionDataParts.unit}
+                </span>
+              </>
             ) : (
               <>
             <span

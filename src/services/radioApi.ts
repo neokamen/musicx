@@ -99,3 +99,23 @@ export function searchStationsByLanguage(language: string, limit = 60): Promise<
 	});
 	return requestStations(`/stations/search?${params.toString()}`);
 }
+
+export function searchStationsByQuality(
+	quality: "lossless" | "high-bitrate",
+	query = "",
+	limit = 100,
+): Promise<RadioStation[]> {
+	const params = new URLSearchParams({
+		hidebroken: "true",
+		limit: String(limit),
+		order: "bitrate",
+		reverse: "true",
+	});
+	if (quality === "lossless") {
+		params.set("codec", "FLAC");
+	} else {
+		params.set("bitrateMin", "320");
+	}
+	if (query.trim()) params.set("name", query.trim());
+	return requestStations(`/stations/search?${params.toString()}`);
+}

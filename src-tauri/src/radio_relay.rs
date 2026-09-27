@@ -36,7 +36,11 @@ struct BytesPayload {
     bytes_total: u64,
 }
 
-pub fn start(url: String, app_handle: AppHandle, state: &RadioRelayState) -> Result<String, String> {
+pub fn start(
+    url: String,
+    app_handle: AppHandle,
+    state: &RadioRelayState,
+) -> Result<String, String> {
     stop(state);
 
     let listener = TcpListener::bind("127.0.0.1:0").map_err(|e| e.to_string())?;
@@ -63,7 +67,12 @@ pub fn stop(state: &RadioRelayState) {
     }
 }
 
-fn run_relay(url: String, listener: TcpListener, stop_flag: Arc<AtomicBool>, app_handle: AppHandle) {
+fn run_relay(
+    url: String,
+    listener: TcpListener,
+    stop_flag: Arc<AtomicBool>,
+    app_handle: AppHandle,
+) {
     let (client_stream, _) = match listener.accept() {
         Ok(pair) => pair,
         Err(_) => return,
@@ -96,26 +105,39 @@ fn run_relay(url: String, listener: TcpListener, stop_flag: Arc<AtomicBool>, app
         .timeout_connect(Duration::from_secs(8))
         .build();
 
-    let response = match agent
-        .get(&url)
-        .set("Icy-MetaData", "1")
-        .set("User-Agent", "musicx/1.0")
-        .call()
-    {
-        Ok(r) => r,
-        Err(_) => {
-            let _ = (&client_stream).write_all(b"HTTP/1.1 502 Bad Gateway\r\n\r\n");
+    let mut client_writer = client_stream;
+    let mut bytes_total: u64 = 0;
+    let mut last_title = String::new();
+    let mut last_emit = Instant::now();
+    let mut buf = vec![0u8; 8192];
+    let mut retry_delay_seconds = 1u64;
+
+    // Keep the local HTTP response open across upstream outages so the audio element
+    // can continue consuming the same stream after the station becomes reachable again.
+    let mut response = loop {
+        if stop_flag.load(Ordering::SeqCst) {
             return;
+        }
+        match agent
+            .get(&url)
+            .set("Icy-MetaData", "1")
+            .set("User-Agent", "musicx/1.0")
+            .call()
+        {
+            Ok(response) => break response,
+            Err(_) => {
+                if wait_before_retry(&stop_flag, retry_delay_seconds) {
+                    return;
+                }
+                retry_delay_seconds = (retry_delay_seconds * 2).min(30);
+            }
         }
     };
 
-    let metaint: usize = response
-        .header("icy-metaint")
-        .and_then(|v| v.parse().ok())
-        .unwrap_or(0);
-    let content_type = response.header("content-type").unwrap_or("audio/mpeg").to_string();
-
-    let mut client_writer = client_stream;
+    let content_type = response
+        .header("content-type")
+        .unwrap_or("audio/mpeg")
+        .to_string();
     let header = format!(
         "HTTP/1.1 200 OK\r\nContent-Type: {content_type}\r\nAccess-Control-Allow-Origin: *\r\nCache-Control: no-cache\r\nConnection: close\r\n\r\n"
     );
@@ -123,59 +145,118 @@ fn run_relay(url: String, listener: TcpListener, stop_flag: Arc<AtomicBool>, app
         return;
     }
 
-    let mut upstream = response.into_reader();
-    let mut bytes_total: u64 = 0;
-    let mut last_title = String::new();
-    let mut last_emit = Instant::now();
-    let mut buf = vec![0u8; 8192];
-
     loop {
         if stop_flag.load(Ordering::SeqCst) {
             break;
         }
 
-        let to_read = if metaint > 0 { metaint } else { buf.len() };
-        let mut remaining = to_read;
-        while remaining > 0 {
-            let chunk = remaining.min(buf.len());
-            let read = match upstream.read(&mut buf[..chunk]) {
-                Ok(0) | Err(_) => return,
-                Ok(n) => n,
-            };
-            if client_writer.write_all(&buf[..read]).is_err() {
-                return;
-            }
-            bytes_total += read as u64;
-            remaining -= read;
-        }
+        let metaint: usize = response
+            .header("icy-metaint")
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(0);
+        let mut upstream = response.into_reader();
+        let mut disconnected = false;
 
-        if metaint > 0 {
-            let mut len_byte = [0u8; 1];
-            if upstream.read_exact(&mut len_byte).is_err() {
-                break;
-            }
-            let meta_len = (len_byte[0] as usize) * 16;
-            if meta_len > 0 {
-                let mut meta_buf = vec![0u8; meta_len];
-                if upstream.read_exact(&mut meta_buf).is_err() {
-                    break;
+        while !stop_flag.load(Ordering::SeqCst) && !disconnected {
+            let to_read = if metaint > 0 { metaint } else { buf.len() };
+            let mut remaining = to_read;
+            while remaining > 0 {
+                let chunk = remaining.min(buf.len());
+                let read = match upstream.read(&mut buf[..chunk]) {
+                    Ok(0) | Err(_) => {
+                        disconnected = true;
+                        break;
+                    }
+                    Ok(n) => n,
+                };
+                if client_writer.write_all(&buf[..read]).is_err() {
+                    return;
                 }
-                if let Some(title) = parse_stream_title(&meta_buf) {
-                    if !title.is_empty() && title != last_title {
-                        last_title = title.clone();
-                        let _ = app_handle.emit("radio-relay-track", TrackChangedPayload { title });
+                bytes_total += read as u64;
+                remaining -= read;
+            }
+            if disconnected {
+                continue;
+            }
+
+            if metaint > 0 {
+                let mut len_byte = [0u8; 1];
+                if upstream.read_exact(&mut len_byte).is_err() {
+                    disconnected = true;
+                    continue;
+                }
+                let meta_len = (len_byte[0] as usize) * 16;
+                if meta_len > 0 {
+                    let mut meta_buf = vec![0u8; meta_len];
+                    if upstream.read_exact(&mut meta_buf).is_err() {
+                        disconnected = true;
+                        continue;
+                    }
+                    if let Some(title) = parse_stream_title(&meta_buf) {
+                        if !title.is_empty() && title != last_title {
+                            last_title = title.clone();
+                            let _ =
+                                app_handle.emit("radio-relay-track", TrackChangedPayload { title });
+                        }
                     }
                 }
             }
+
+            if last_emit.elapsed() >= Duration::from_millis(1000) {
+                let _ = app_handle.emit("radio-relay-bytes", BytesPayload { bytes_total });
+                last_emit = Instant::now();
+            }
         }
 
-        if last_emit.elapsed() >= Duration::from_millis(1000) {
-            let _ = app_handle.emit("radio-relay-bytes", BytesPayload { bytes_total });
-            last_emit = Instant::now();
+        if stop_flag.load(Ordering::SeqCst) {
+            break;
         }
+        if wait_before_retry(&stop_flag, retry_delay_seconds) {
+            break;
+        }
+        retry_delay_seconds = (retry_delay_seconds * 2).min(30);
+        let mut reconnected_response = None;
+        loop {
+            if stop_flag.load(Ordering::SeqCst) {
+                break;
+            }
+            match agent
+                .get(&url)
+                .set("Icy-MetaData", "1")
+                .set("User-Agent", "musicx/1.0")
+                .call()
+            {
+                Ok(response) => {
+                    retry_delay_seconds = 1;
+                    reconnected_response = Some(response);
+                    break;
+                }
+                Err(_) => {
+                    if wait_before_retry(&stop_flag, retry_delay_seconds) {
+                        break;
+                    }
+                    retry_delay_seconds = (retry_delay_seconds * 2).min(30);
+                }
+            }
+        }
+        let Some(next_response) = reconnected_response else {
+            break;
+        };
+        response = next_response;
     }
 
     let _ = app_handle.emit("radio-relay-bytes", BytesPayload { bytes_total });
+}
+
+fn wait_before_retry(stop_flag: &AtomicBool, seconds: u64) -> bool {
+    let deadline = Instant::now() + Duration::from_secs(seconds);
+    while Instant::now() < deadline {
+        if stop_flag.load(Ordering::SeqCst) {
+            return true;
+        }
+        std::thread::sleep(Duration::from_millis(100));
+    }
+    stop_flag.load(Ordering::SeqCst)
 }
 
 fn parse_stream_title(meta: &[u8]) -> Option<String> {

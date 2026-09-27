@@ -5,6 +5,18 @@ type SpectrumCallback = (spectrum: number[], left: number[], right: number[]) =>
 type RadioListener = (state: RadioPlaybackState) => void;
 type RecordingListener = (isRecording: boolean, tracks: RecordedRadioTrack[]) => void;
 
+interface RadioDspSettings {
+	isEqEnabled: boolean;
+	eqGains: number[];
+	subBoost: number;
+	bassBoost: number;
+	highpass: number;
+	lowpass: number;
+	isNormalizerEnabled: boolean;
+	isXdssEnabled: boolean;
+	isXtsProEnabled: boolean;
+}
+
 class RadioAudioService {
 	private audio = new Audio();
 	private listeners = new Set<RadioListener>();
@@ -17,6 +29,25 @@ class RadioAudioService {
 	private analyser: AnalyserNode | null = null;
 	private sourceNode: MediaElementAudioSourceNode | null = null;
 	private gainNode: GainNode | null = null;
+	private eqFilters: BiquadFilterNode[] = [];
+	private subBoostFilter: BiquadFilterNode | null = null;
+	private bassBoostFilter: BiquadFilterNode | null = null;
+	private highpassFilter: BiquadFilterNode | null = null;
+	private lowpassFilter: BiquadFilterNode | null = null;
+	private xdssFilter: BiquadFilterNode | null = null;
+	private xtsFilter: BiquadFilterNode | null = null;
+	private normalizer: DynamicsCompressorNode | null = null;
+	private dspSettings: RadioDspSettings = {
+		isEqEnabled: false,
+		eqGains: Array.from({ length: 10 }, () => 0),
+		subBoost: 0,
+		bassBoost: 0,
+		highpass: 0,
+		lowpass: 0,
+		isNormalizerEnabled: false,
+		isXdssEnabled: false,
+		isXtsProEnabled: false,
+	};
 	private pendingVolume = 1;
 	private isAnalyserConnected = false;
 
@@ -29,6 +60,7 @@ class RadioAudioService {
 	private realBytesPerSecond = 0;
 	private lastRealByteSampleTime = 0;
 	private lastRealByteSampleValue = 0;
+	private currentStreamTitle = "";
 
 	// Auto-record: starts/stops a recording automatically whenever the station announces a new song
 	private autoRecordEnabled = false;
@@ -91,14 +123,66 @@ class RadioAudioService {
 				this.gainNode = this.audioContext.createGain();
 				this.gainNode.gain.value = this.pendingVolume;
 				this.sourceNode.connect(this.gainNode);
-				this.gainNode.connect(this.analyser);
+
+				let previousNode: AudioNode = this.gainNode;
+				this.subBoostFilter = this.audioContext.createBiquadFilter();
+				this.subBoostFilter.type = "lowshelf";
+				this.subBoostFilter.frequency.value = 45;
+				previousNode.connect(this.subBoostFilter);
+				previousNode = this.subBoostFilter;
+
+				this.bassBoostFilter = this.audioContext.createBiquadFilter();
+				this.bassBoostFilter.type = "lowshelf";
+				this.bassBoostFilter.frequency.value = 110;
+				previousNode.connect(this.bassBoostFilter);
+				previousNode = this.bassBoostFilter;
+
+				this.eqFilters = [31, 62, 125, 250, 500, 1000, 2000, 4000, 8000, 16000].map((frequency) => {
+					const filter = this.audioContext!.createBiquadFilter();
+					filter.type = "peaking";
+					filter.frequency.value = frequency;
+					filter.Q.value = 1.4;
+					previousNode.connect(filter);
+					previousNode = filter;
+					return filter;
+				});
+
+				this.highpassFilter = this.audioContext.createBiquadFilter();
+				this.highpassFilter.type = "highpass";
+				previousNode.connect(this.highpassFilter);
+				previousNode = this.highpassFilter;
+				this.lowpassFilter = this.audioContext.createBiquadFilter();
+				this.lowpassFilter.type = "lowpass";
+				previousNode.connect(this.lowpassFilter);
+				previousNode = this.lowpassFilter;
+
+				this.xdssFilter = this.audioContext.createBiquadFilter();
+				this.xdssFilter.type = "lowshelf";
+				this.xdssFilter.frequency.value = 80;
+				previousNode.connect(this.xdssFilter);
+				previousNode = this.xdssFilter;
+				this.xtsFilter = this.audioContext.createBiquadFilter();
+				this.xtsFilter.type = "highshelf";
+				this.xtsFilter.frequency.value = 8000;
+				previousNode.connect(this.xtsFilter);
+				previousNode = this.xtsFilter;
+
+				this.normalizer = this.audioContext.createDynamicsCompressor();
+				this.normalizer.threshold.value = -18;
+				this.normalizer.knee.value = 12;
+				this.normalizer.ratio.value = 1;
+				this.normalizer.attack.value = 0.003;
+				this.normalizer.release.value = 0.25;
+				previousNode.connect(this.normalizer);
+				this.normalizer.connect(this.analyser);
 				this.analyser.connect(this.audioContext.destination);
 
-				// Destination for MediaRecorder
+				// Record the processed signal so radio recordings include the active EQ.
 				this.recordStreamDest = this.audioContext.createMediaStreamDestination();
-				this.sourceNode.connect(this.recordStreamDest);
+				this.analyser.connect(this.recordStreamDest);
 
 				this.isAnalyserConnected = true;
+				this.applyDspSettings();
 			} catch {
 				this.isAnalyserConnected = false;
 			}
@@ -189,6 +273,7 @@ class RadioAudioService {
 		this.state = {
 			...state,
 			bitrateKbps: this.currentBitrateKbps,
+			streamTitle: this.currentStreamTitle,
 			bytesPerSecond: this.relayActive ? this.realBytesPerSecond : estimatedRate,
 			sessionBytesTotal: this.sessionBytesBaseline + this.currentStreamBytes,
 			isRealDataUsage: this.relayActive,
@@ -244,6 +329,8 @@ class RadioAudioService {
 	}
 
 	private handleSongTitleChanged(title: string): void {
+		this.currentStreamTitle = title;
+		this.publish({ ...this.state, streamTitle: title });
 		if (!this.autoRecordEnabled || !this.lastKnownStation) return;
 		if (this.isRecording) {
 			this.stopRecording();
@@ -255,6 +342,7 @@ class RadioAudioService {
 		const url = station.url_resolved || station.url;
 		if (!url) throw new Error("La emisora no tiene una URL de streaming válida.");
 		this.state.elapsedSeconds = 0;
+		this.currentStreamTitle = "";
 		this.currentBitrateKbps = station.bitrate && station.bitrate > 0 ? station.bitrate : 0;
 		this.lastKnownStation = station;
 
@@ -307,6 +395,7 @@ class RadioAudioService {
 		this.stopTimer();
 		this.stopSpectrumLoop();
 		this.currentBitrateKbps = 0;
+		this.currentStreamTitle = "";
 		this.sessionBytesBaseline += this.currentStreamBytes;
 		this.currentStreamBytes = 0;
 		this.realBytesPerSecond = 0;
@@ -330,6 +419,29 @@ class RadioAudioService {
 		if (this.gainNode) {
 			this.gainNode.gain.value = clamped;
 		}
+	}
+
+	setDspSettings(settings: RadioDspSettings): void {
+		this.dspSettings = { ...settings, eqGains: [...settings.eqGains] };
+		this.applyDspSettings();
+	}
+
+	private applyDspSettings(): void {
+		const { isEqEnabled, eqGains } = this.dspSettings;
+		this.eqFilters.forEach((filter, index) => {
+			filter.gain.value = isEqEnabled ? Math.max(-12, Math.min(12, eqGains[index] || 0)) : 0;
+		});
+		if (this.subBoostFilter) this.subBoostFilter.gain.value = isEqEnabled ? this.dspSettings.subBoost : 0;
+		if (this.bassBoostFilter) this.bassBoostFilter.gain.value = isEqEnabled ? this.dspSettings.bassBoost : 0;
+		if (this.highpassFilter) this.highpassFilter.frequency.value = isEqEnabled && this.dspSettings.highpass > 0
+			? this.dspSettings.highpass
+			: 10;
+		if (this.lowpassFilter) this.lowpassFilter.frequency.value = isEqEnabled && this.dspSettings.lowpass > 0
+			? this.dspSettings.lowpass
+			: 22000;
+		if (this.xdssFilter) this.xdssFilter.gain.value = this.dspSettings.isXdssEnabled ? 4 : 0;
+		if (this.xtsFilter) this.xtsFilter.gain.value = this.dspSettings.isXtsProEnabled ? 2.5 : 0;
+		if (this.normalizer) this.normalizer.ratio.value = this.dspSettings.isNormalizerEnabled ? 3 : 1;
 	}
 
 	subscribeRecording(listener: RecordingListener): () => void {

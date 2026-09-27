@@ -217,10 +217,10 @@ export function AudioEQModal({
   const [activePreset, setActivePreset] = useState("Plano");
   const [showPresetsPanel, setShowPresetsPanel] = useState(false);
 
-  const [subBoost, setSubBoost] = useState(0);
-  const [bassBoost, setBassBoost] = useState(0);
-  const [highpass, setHighpass] = useState(0);
-  const [lowpass, setLowpass] = useState(0);
+  const [subBoost, setSubBoost] = useState(audioSettings.eqSubBoost || 0);
+  const [bassBoost, setBassBoost] = useState(audioSettings.eqBassBoost || 0);
+  const [highpass, setHighpass] = useState(audioSettings.eqHighpass || 0);
+  const [lowpass, setLowpass] = useState(audioSettings.eqLowpass || 0);
 
   const [targetLufs, setTargetLufs] = useState(-14);
   const [truePeak, setTruePeak] = useState(-1.5);
@@ -248,8 +248,14 @@ export function AudioEQModal({
   const applyPreset = (p: Preset) => {
     setActivePreset(p.name);
     setAudioSettings({ eqGains: [...p.gains] });
-    if (p.sub !== undefined) setSubBoost(p.sub);
-    if (p.bass !== undefined) setBassBoost(p.bass);
+    if (p.sub !== undefined) {
+      setSubBoost(p.sub);
+      setAudioSettings({ eqSubBoost: p.sub });
+    }
+    if (p.bass !== undefined) {
+      setBassBoost(p.bass);
+      setAudioSettings({ eqBassBoost: p.bass });
+    }
   };
 
   const resetEq = () => {
@@ -259,6 +265,7 @@ export function AudioEQModal({
     setBassBoost(0);
     setHighpass(0);
     setLowpass(0);
+    setAudioSettings({ eqSubBoost: 0, eqBassBoost: 0, eqHighpass: 0, eqLowpass: 0 });
   };
 
   return (
@@ -506,7 +513,11 @@ export function AudioEQModal({
               max={12}
               step={0.5}
               value={subBoost}
-              onChange={(e) => setSubBoost(parseFloat(e.target.value))}
+              onChange={(e) => {
+                const value = parseFloat(e.target.value);
+                setSubBoost(value);
+                setAudioSettings({ eqSubBoost: value });
+              }}
               style={{ accentColor, cursor: "pointer" }}
               className="w-full"
             />
@@ -525,7 +536,11 @@ export function AudioEQModal({
               max={12}
               step={0.5}
               value={bassBoost}
-              onChange={(e) => setBassBoost(parseFloat(e.target.value))}
+              onChange={(e) => {
+                const value = parseFloat(e.target.value);
+                setBassBoost(value);
+                setAudioSettings({ eqBassBoost: value });
+              }}
               style={{ accentColor, cursor: "pointer" }}
               className="w-full"
             />
@@ -542,7 +557,11 @@ export function AudioEQModal({
               max={400}
               step={5}
               value={highpass}
-              onChange={(e) => setHighpass(parseInt(e.target.value))}
+              onChange={(e) => {
+                const value = parseInt(e.target.value);
+                setHighpass(value);
+                setAudioSettings({ eqHighpass: value });
+              }}
               style={{ accentColor, cursor: "pointer" }}
               className="w-full"
             />
@@ -561,7 +580,11 @@ export function AudioEQModal({
               max={22000}
               step={500}
               value={lowpass}
-              onChange={(e) => setLowpass(parseInt(e.target.value))}
+              onChange={(e) => {
+                const value = parseInt(e.target.value);
+                setLowpass(value);
+                setAudioSettings({ eqLowpass: value });
+              }}
               style={{ accentColor, cursor: "pointer" }}
               className="w-full"
             />

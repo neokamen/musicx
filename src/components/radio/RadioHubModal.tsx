@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { ChevronLeft, ChevronRight, LoaderCircle, Plus, Radio, Search, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, LoaderCircle, Plus, Radio, Search, Upload, X } from "lucide-react";
+import { open } from "@tauri-apps/plugin-dialog";
 import { useMusicStore } from "../../store/index.ts";
 import type { RadioStation } from "../../types/radio.ts";
 import {
@@ -8,6 +9,7 @@ import {
 	searchStationsByCountryCode,
 	searchStationsByLanguage,
 	searchStationsByTag,
+	searchStationsByQuality,
 } from "../../services/radioApi.ts";
 import {
 	addRecentStation,
@@ -17,11 +19,14 @@ import {
 	removeCustomStation,
 	saveCustomStation,
 	toggleFavoriteStation,
+	importRadioPlaylist,
 } from "../../services/radioStorage.ts";
+import { readTextFile } from "../../services/api.ts";
 import { StationCard } from "./StationCard.tsx";
 import { AddCustomStationModal } from "./AddCustomStationModal.tsx";
 
 type RadioView = "discover" | "genres" | "countries" | "favorites" | "recent" | "custom";
+type QualityFilter = "all" | "lossless" | "high-bitrate";
 
 interface RadioHubModalProps {
 	isOpen: boolean;
@@ -100,6 +105,7 @@ export const RadioHubModal: React.FC<RadioHubModalProps> = ({ isOpen, onClose })
 	const [isAddOpen, setIsAddOpen] = useState(false);
 	const [isLoading, setIsLoading] = useState(false);
 	const [error, setError] = useState("");
+	const [qualityFilter, setQualityFilter] = useState<QualityFilter>("all");
 
 	const genresScrollRef = useRef<HTMLDivElement | null>(null);
 	const countriesScrollRef = useRef<HTMLDivElement | null>(null);
@@ -163,11 +169,18 @@ export const RadioHubModal: React.FC<RadioHubModalProps> = ({ isOpen, onClose })
 	}, [selectedRegionId]);
 
 	const viewStations = useMemo(() => {
-		if (view === "favorites") return favorites;
-		if (view === "recent") return recents;
-		if (view === "custom") return customStations;
-		return stations;
-	}, [view, favorites, recents, customStations, stations]);
+		const source = view === "favorites" ? favorites
+			: view === "recent" ? recents
+				: view === "custom" ? customStations
+					: stations;
+		if (qualityFilter === "all") return source;
+		return source.filter((station) => {
+			const codec = (station.codec || "").toLowerCase();
+			return qualityFilter === "lossless"
+				? /flac|alac|wav|pcm/.test(codec)
+				: (station.bitrate || 0) >= 320;
+		});
+	}, [view, favorites, recents, customStations, stations, qualityFilter]);
 
 	// Load stations
 	useEffect(() => {
@@ -181,7 +194,11 @@ export const RadioHubModal: React.FC<RadioHubModalProps> = ({ isOpen, onClose })
 			try {
 				let result: RadioStation[] = [];
 				if (query.trim()) {
-					result = await searchStations(query.trim());
+					result = qualityFilter === "all"
+						? await searchStations(query.trim())
+						: await searchStationsByQuality(qualityFilter, query.trim());
+				} else if (qualityFilter !== "all") {
+					result = await searchStationsByQuality(qualityFilter);
 				} else if (view === "genres") {
 					result = await searchStationsByTag(selectedGenre);
 				} else if (view === "countries") {
@@ -208,7 +225,7 @@ export const RadioHubModal: React.FC<RadioHubModalProps> = ({ isOpen, onClose })
 			cancelled = true;
 			window.clearTimeout(timeoutId);
 		};
-	}, [isOpen, view, query, selectedGenre, selectedRegion]);
+	}, [isOpen, view, query, selectedGenre, selectedRegion, qualityFilter]);
 
 	useEffect(() => {
 		if (isOpen) {
@@ -238,6 +255,24 @@ export const RadioHubModal: React.FC<RadioHubModalProps> = ({ isOpen, onClose })
 
 	const handleRemoveCustom = (station: RadioStation) => {
 		setCustomStations(removeCustomStation(station.stationuuid));
+	};
+
+	const handleImportPlaylist = async () => {
+		try {
+			const selected = await open({
+				multiple: false,
+				filters: [{ name: "Listas de radio", extensions: ["pls", "m3u", "m3u8", "json"] }],
+			});
+			if (typeof selected !== "string") return;
+			const contents = await readTextFile(selected);
+			if (!contents) throw new Error("No se pudo leer el archivo seleccionado.");
+			setCustomStations(importRadioPlaylist(contents));
+			setView("custom");
+			setQuery("");
+			setError("");
+		} catch (importError) {
+			setError(importError instanceof Error ? importError.message : "No se pudo importar la lista.");
+		}
 	};
 
 	const views: { id: RadioView; label: string }[] = [
@@ -274,6 +309,9 @@ export const RadioHubModal: React.FC<RadioHubModalProps> = ({ isOpen, onClose })
 						</div>
 					</div>
 					<div className="flex items-center gap-2">
+						<button type="button" onClick={() => void handleImportPlaylist()} className="flex items-center gap-1.5 rounded-lg border border-audiophile-border px-2.5 py-1.5 text-[11px] text-audiophile-text hover:border-audiophile-cyan transition-colors" title="Importar lista moOde">
+							<Upload size={13} /> {language === "en" ? "Import playlist" : language === "ca" ? "Importar llista" : "Importar lista"}
+						</button>
 						<button type="button" onClick={() => setIsAddOpen(true)} className="flex items-center gap-1.5 rounded-lg border border-audiophile-border px-2.5 py-1.5 text-[11px] text-audiophile-text hover:border-audiophile-cyan transition-colors">
 							<Plus size={13} /> {language === "ca" ? "Afegir URL" : language === "en" ? "Add URL" : "Añadir URL"}
 						</button>
@@ -312,6 +350,18 @@ export const RadioHubModal: React.FC<RadioHubModalProps> = ({ isOpen, onClose })
 						</button>
 					))}
 				</nav>
+
+				<div className="flex shrink-0 items-center gap-1 border-b border-audiophile-border px-3 py-2" role="group" aria-label="Filtro de calidad">
+					{([
+						{ id: "all", label: language === "en" ? "All" : language === "ca" ? "Totes" : "Todas" },
+						{ id: "lossless", label: "FLAC / Lossless" },
+						{ id: "high-bitrate", label: "≥ 320 kbps" },
+					] as const).map((filter) => (
+						<button key={filter.id} type="button" onClick={() => setQualityFilter(filter.id)} aria-pressed={qualityFilter === filter.id} className={`rounded-md px-2.5 py-1 text-[10px] font-medium transition-colors ${qualityFilter === filter.id ? "bg-emerald-500/15 text-emerald-300 border border-emerald-500/40" : "border border-transparent text-audiophile-muted hover:bg-audiophile-surface2 hover:text-audiophile-text"}`}>
+							{filter.label}
+						</button>
+					))}
+				</div>
 
 				{/* Subbar for Genres with Left & Right arrows */}
 				{view === "genres" && (

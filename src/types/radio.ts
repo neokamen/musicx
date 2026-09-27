@@ -11,6 +11,7 @@ export interface RadioStation {
 	language?: string;
 	codec?: string;
 	bitrate?: number;
+	description?: string;
 	votes?: number;
 	isCustom?: boolean;
 }
@@ -19,6 +20,7 @@ export interface RadioPlaybackState {
 	status: "playing" | "paused" | "stopped" | "error";
 	elapsedSeconds: number;
 	error?: string;
+	streamTitle?: string;
 	// Instantaneous stream bitrate reported by the station (kbps)
 	bitrateKbps?: number;
 	// Bytes/second: real measured throughput when the local relay is active, otherwise a bitrate-based estimate

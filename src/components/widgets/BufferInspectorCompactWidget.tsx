@@ -3,7 +3,7 @@ import type { BufferTelemetry } from "../../types/index.ts";
 import { onBufferTelemetry, setAudioBufferSize, getBufferTelemetry } from "../../services/api.ts";
 import { useMusicStore } from "../../store/index.ts";
 import { radioAudioService } from "../../services/radioAudioService.ts";
-import { formatDataSize } from "../../lib/formatBytes.ts";
+import { formatDataSizeParts } from "../../lib/formatBytes.ts";
 import { Sliders } from "lucide-react";
 
 const BUFFER_SIZES = [64, 128, 256, 512, 1024];
@@ -90,6 +90,7 @@ export const BufferInspectorCompactWidget: React.FC = () => {
     : 40 * 1024;
   const radioFillPercent = radioExpectedBps > 0 ? Math.min(100, (radioBytesPerSecond / radioExpectedBps) * 100) : 0;
   const displayFillPercent = isRadioMode ? radioFillPercent : telemetry.buffer_fill_percent;
+  const sessionDataParts = formatDataSizeParts(radioSessionBytes);
   const activeSegments = Math.min(
     SEGMENTS_COUNT,
     Math.max(0, Math.round((displayFillPercent / 100) * SEGMENTS_COUNT))
@@ -112,8 +113,12 @@ export const BufferInspectorCompactWidget: React.FC = () => {
           <div className="text-[9px] text-audiophile-muted uppercase">
             {isRadioMode ? (radioIsRealUsage ? "En vivo" : "Estimado") : "Lleno"}
           </div>
-          <div className="text-sm font-bold font-mono tracking-tight text-audiophile-text" style={{ color: isRadioMode ? appearance.accentColor : undefined }}>
-            {isRadioMode ? `${(radioBytesPerSecond / 1024).toFixed(0)} KB/s` : `${telemetry.buffer_fill_percent.toFixed(1)}%`}
+          <div className={`text-sm font-bold font-mono tracking-tight ${isRadioMode ? "text-white" : "text-audiophile-text"}`}>
+            {isRadioMode ? (
+              <>
+                {(radioBytesPerSecond / 1024).toFixed(0)} <span className="text-[9px] font-normal text-audiophile-muted">KB/s</span>
+              </>
+            ) : `${telemetry.buffer_fill_percent.toFixed(1)}%`}
           </div>
         </div>
 
@@ -123,7 +128,11 @@ export const BufferInspectorCompactWidget: React.FC = () => {
             {isRadioMode ? "Sesión" : "I/O Read"}
           </div>
           <div className="text-sm font-bold font-mono tracking-tight text-audiophile-text">
-            {isRadioMode ? formatDataSize(radioSessionBytes) : `${telemetry.io_read_time_ms.toFixed(2)} ms`}
+            {isRadioMode ? (
+              <>
+                {sessionDataParts.value} <span className="text-[9px] font-normal text-audiophile-muted">{sessionDataParts.unit}</span>
+              </>
+            ) : `${telemetry.io_read_time_ms.toFixed(2)} ms`}
           </div>
         </div>
       </div>

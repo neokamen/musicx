@@ -1,6 +1,5 @@
 import React, { useRef, useState } from 'react';
 import { useMusicStore } from '../../store/index.ts';
-import { translations } from '../../i18n/translations.ts';
 import {
   RotateCcw,
   Trash2,
@@ -21,6 +20,7 @@ import {
   FolderOpen,
   Database,
   RefreshCw,
+  Save,
   Shuffle,
   SkipBack,
   Play,
@@ -62,6 +62,7 @@ import {
 
 type SettingsTab = 'general' | 'appearance' | 'cava' | 'playback' | 'audio' | 'library' | 'about';
 type VisualizerSettingsPanel = 'cava' | 'spectrum';
+const QUICK_CONFIG_KEY = 'musicx_quick_config_backup_v1';
 
 export const SettingsModal: React.FC = () => {
   const {
@@ -84,7 +85,6 @@ export const SettingsModal: React.FC = () => {
     loadListeningStatsFromSyncFile,
     startDirectoryScan,
     scanStatus,
-    saveWindowSize,
     libraryTracks,
   } = useMusicStore();
 
@@ -92,6 +92,7 @@ export const SettingsModal: React.FC = () => {
   const [activeVisualizerPanel, setActiveVisualizerPanel] = useState<VisualizerSettingsPanel>('cava');
   const tabsRef = useRef<HTMLDivElement>(null);
   const [savedMessage, setSavedMessage] = useState<string | null>(null);
+  const [hasQuickConfig, setHasQuickConfig] = useState(() => localStorage.getItem(QUICK_CONFIG_KEY) !== null);
 
   const [accent, setAccent] = useState<AccentColor>(getSavedAccent);
   const [bgTheme, setBgTheme] = useState<BackgroundTheme>(getSavedTheme);
@@ -111,8 +112,6 @@ export const SettingsModal: React.FC = () => {
   const fullBackupInputRef = useRef<HTMLInputElement>(null);
 
   if (!isSettingsOpen) return null;
-
-  const t = translations[language] || translations.es;
 
   const totalTracks = libraryTracks.length;
   const totalLibrarySeconds = libraryTracks.reduce((acc, trk) => acc + (trk.duration_seconds || 0), 0);
@@ -185,16 +184,46 @@ export const SettingsModal: React.FC = () => {
     setAppearance({ bgColor: hex, bgPreset: 'custom' });
   };
 
-  const handleSaveWindow = async () => {
-    await saveWindowSize();
-    setSavedMessage(t.windowSizeSaved);
+  const handleSaveQuickConfig = () => {
+    const data: Record<string, string> = {};
+    for (let index = 0; index < localStorage.length; index++) {
+      const key = localStorage.key(index);
+      const value = key && key !== QUICK_CONFIG_KEY ? localStorage.getItem(key) : null;
+      if (key?.startsWith('musicx_') && value !== null) data[key] = value;
+    }
+    localStorage.setItem(QUICK_CONFIG_KEY, JSON.stringify({ format: 'musicx-quick-config-v1', data }));
+    setHasQuickConfig(true);
+    setSavedMessage('Configuración rápida guardada.');
     setTimeout(() => setSavedMessage(null), 2500);
   };
 
   const handleResetSettings = () => {
-    if (window.confirm('¿Deseas restablecer todos los ajustes de la aplicación a sus valores predeterminados?')) {
-      resetSettings();
-      setSavedMessage('Ajustes restablecidos correctamente.');
+    const raw = localStorage.getItem(QUICK_CONFIG_KEY);
+    if (!raw) {
+      if (window.confirm('No hay una configuración rápida guardada. ¿Restablecer los ajustes a valores de fábrica?')) {
+        resetSettings();
+        window.location.reload();
+      }
+      return;
+    }
+    if (!window.confirm('Se restaurarán los ajustes y las disposiciones de widgets guardadas rápidamente. ¿Continuar?')) return;
+    try {
+      const backup = JSON.parse(raw);
+      if (backup?.format !== 'musicx-quick-config-v1' || typeof backup.data !== 'object' || backup.data === null) {
+        throw new Error('Formato de configuración rápida no válido');
+      }
+      for (let index = localStorage.length - 1; index >= 0; index--) {
+        const key = localStorage.key(index);
+        if (key?.startsWith('musicx_') && key !== QUICK_CONFIG_KEY) localStorage.removeItem(key);
+      }
+      for (const [key, value] of Object.entries<unknown>(backup.data)) {
+        if (key.startsWith('musicx_') && key !== QUICK_CONFIG_KEY && typeof value === 'string') {
+          localStorage.setItem(key, value);
+        }
+      }
+      window.location.reload();
+    } catch {
+      setSavedMessage('No se pudo restaurar la configuración rápida.');
       setTimeout(() => setSavedMessage(null), 2500);
     }
   };
@@ -233,7 +262,7 @@ export const SettingsModal: React.FC = () => {
     const data: Record<string, string> = {};
     for (let i = 0; i < localStorage.length; i++) {
       const key = localStorage.key(i);
-      if (key && (key.startsWith('musicx_') || key.startsWith('audio_converter_'))) {
+      if (key && key !== QUICK_CONFIG_KEY && (key.startsWith('musicx_') || key.startsWith('audio_converter_'))) {
         const value = localStorage.getItem(key);
         if (value !== null) data[key] = value;
       }
@@ -262,6 +291,8 @@ export const SettingsModal: React.FC = () => {
           localStorage.setItem(key, value);
         }
       }
+      localStorage.removeItem(QUICK_CONFIG_KEY);
+      setHasQuickConfig(false);
       if (window.confirm('Backup completo restaurado (ajustes, widgets, estructura, favoritos de radio, estadísticas...). Hay que recargar la app para aplicarlo. ¿Recargar ahora?')) {
         window.location.reload();
       }
@@ -408,40 +439,32 @@ export const SettingsModal: React.FC = () => {
                 </div>
               </div>
 
-              <div className="p-4 rounded-xl bg-slate-900/40 border border-slate-800/80 flex items-center justify-between">
+              <div className="p-4 rounded-xl bg-slate-900/40 border border-slate-800/80 space-y-3">
                 <div>
-                  <div className="text-xs font-bold text-slate-200">Dimensiones de la ventana</div>
-                  <div className="text-[11px] text-slate-400">Guarda la posición y tamaño actual para los próximos inicios</div>
+                  <div className="text-xs font-bold text-slate-200">Configuración rápida</div>
+                  <div className="text-[11px] text-slate-400">Guarda ajustes y disposiciones completas y compactas en este equipo.</div>
                 </div>
-                <button
-                  onClick={handleSaveWindow}
-                  className="px-3 py-1.5 rounded-lg border border-slate-700 bg-slate-800 text-xs font-semibold hover:bg-slate-700 transition cursor-pointer"
-                >
-                  Guardar Tamaño Actual
-                </button>
+                <div className="flex flex-wrap gap-2">
+                  <button type="button" onClick={handleSaveQuickConfig} className="flex items-center gap-2 rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-xs font-semibold transition hover:bg-slate-700">
+                    <Save size={14} /> Guardar configuración
+                  </button>
+                  <button type="button" onClick={handleResetSettings} className="flex items-center gap-2 rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-xs font-semibold transition hover:bg-slate-700">
+                    <RotateCcw size={14} /> {hasQuickConfig ? 'Restablecer ajustes' : 'Restablecer de fábrica'}
+                  </button>
+                </div>
               </div>
 
               <div className="p-4 rounded-xl bg-slate-900/40 border border-slate-800/80 space-y-3">
                 <div className="text-xs font-bold uppercase tracking-wider text-slate-300">
                   Mantenimiento y Residuos
                 </div>
-                <div className="flex gap-3">
-                  <button
-                    onClick={handleResetSettings}
-                    className="flex-1 py-2 px-3 rounded-xl border border-slate-700 bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-slate-200 flex items-center justify-center gap-2 transition cursor-pointer"
-                  >
-                    <RotateCcw size={14} />
-                    <span>Restablecer Ajustes de Fábrica</span>
-                  </button>
-
-                  <button
-                    onClick={handleClearCache}
-                    className="flex-1 py-2 px-3 rounded-xl border border-rose-900/60 bg-rose-950/30 hover:bg-rose-900/40 text-xs font-semibold text-rose-300 flex items-center justify-center gap-2 transition cursor-pointer"
-                  >
-                    <Trash2 size={14} />
-                    <span>Borrar Caché y Residuos</span>
-                  </button>
-                </div>
+                <button
+                  onClick={handleClearCache}
+                  className="w-full py-2 px-3 rounded-xl border border-rose-900/60 bg-rose-950/30 hover:bg-rose-900/40 text-xs font-semibold text-rose-300 flex items-center justify-center gap-2 transition cursor-pointer"
+                >
+                  <Trash2 size={14} />
+                  <span>Borrar Caché y Residuos</span>
+                </button>
               </div>
             </div>
           )}

@@ -7,8 +7,6 @@ export interface TranslationDictionary {
   audio: string;
   library: string;
   language: string;
-  saveWindowSize: string;
-  windowSizeSaved: string;
   accentColor: string;
   backgroundColor: string;
   customColor: string;
@@ -59,8 +57,6 @@ export const translations: Record<Language, TranslationDictionary> = {
     audio: 'Audio',
     library: 'Biblioteca',
     language: 'Idioma del sistema',
-    saveWindowSize: 'Guardar tamaño de ventana',
-    windowSizeSaved: '¡Tamaño guardado!',
     accentColor: 'Color de acento',
     backgroundColor: 'Color de fondo',
     customColor: 'Personalizado',
@@ -109,8 +105,6 @@ export const translations: Record<Language, TranslationDictionary> = {
     audio: 'Àudio',
     library: 'Biblioteca',
     language: 'Idioma del sistema',
-    saveWindowSize: 'Desar la mida de la finestra',
-    windowSizeSaved: '¡Mida desada!',
     accentColor: 'Color de destacament',
     backgroundColor: 'Color de fons',
     customColor: 'Personalitzat',
@@ -159,8 +153,6 @@ export const translations: Record<Language, TranslationDictionary> = {
     audio: 'Audio',
     library: 'Library',
     language: 'System Language',
-    saveWindowSize: 'Save window size',
-    windowSizeSaved: 'Window size saved!',
     accentColor: 'Accent Color',
     backgroundColor: 'Background Color',
     customColor: 'Custom',

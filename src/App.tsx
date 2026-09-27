@@ -1,7 +1,8 @@
-import { useEffect, useState } from "react";
-import { Check, Radio as RadioIcon, Settings, SlidersHorizontal } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { Check, Minimize2, Radio as RadioIcon, Settings, SlidersHorizontal } from "lucide-react";
 import { LayoutManager } from "./components/layout/LayoutManager.tsx";
 import { HiFiPlayerBar } from "./components/player/HiFiPlayerBar.tsx";
+import { MINI_PLAYER_TEMPLATES, MiniPlayer, type MiniPlayerTemplate } from "./components/player/MiniPlayer.tsx";
 import { SettingsModal } from "./components/settings/SettingsModal.tsx";
 import { AudioEQModal } from "./components/audio/AudioEQModal.tsx";
 import { RadioHubModal } from "./components/radio/RadioHubModal.tsx";
@@ -10,6 +11,67 @@ import { initTheme } from "./lib/theme.ts";
 import { FIRST_RUN_PROFILE } from "./components/layout/defaultLayout.ts";
 import whiteLogo from "../simple-white-logo.png";
 import blackLogo from "../simple-black-logo.png";
+
+const LAST_WINDOW_STATE_KEY = "musicx_last_window_state";
+const NORMAL_WINDOW_SIZE_KEY = "musicx_normal_window_size";
+const MINI_WINDOW_SIZE_KEY = "musicx_mini_window_size";
+const LAST_WINDOW_MODE_KEY = "musicx_last_window_mode";
+
+interface SavedWindowState {
+  width: number;
+  height: number;
+  isMiniPlayer: boolean;
+}
+
+function readStoredWindowSize(key: string): { width: number; height: number } | null {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(key) || "null");
+    if (
+      parsed &&
+      Number.isFinite(parsed.width) &&
+      Number.isFinite(parsed.height) &&
+      parsed.width >= 240 && parsed.width <= 10000 &&
+      parsed.height >= 140 && parsed.height <= 10000
+    ) {
+      return { width: Math.round(parsed.width), height: Math.round(parsed.height) };
+    }
+  } catch {
+    // Ignore invalid or unavailable local storage.
+  }
+  return null;
+}
+
+function readSavedWindowState(): SavedWindowState | null {
+  try {
+    const legacy = JSON.parse(localStorage.getItem(LAST_WINDOW_STATE_KEY) || "null");
+    const storedMode = localStorage.getItem(LAST_WINDOW_MODE_KEY);
+    const isMiniPlayer = storedMode ? storedMode === "mini" : Boolean(legacy?.isMiniPlayer);
+    const storedSize = readStoredWindowSize(isMiniPlayer ? MINI_WINDOW_SIZE_KEY : NORMAL_WINDOW_SIZE_KEY);
+    const matchingLegacySize = legacy?.isMiniPlayer === isMiniPlayer
+      ? readStoredWindowSize(LAST_WINDOW_STATE_KEY)
+      : null;
+    const savedTemplate = MINI_PLAYER_TEMPLATES.find(
+      (template) => template.id === localStorage.getItem("musicx_mini_player_template"),
+    );
+    const size = storedSize ?? matchingLegacySize ?? (isMiniPlayer ? savedTemplate ?? MINI_PLAYER_TEMPLATES[0] : null);
+    return size ? { ...size, isMiniPlayer } : null;
+  } catch {
+    return null;
+  }
+}
+
+function storeWindowState(width: number, height: number, isMiniPlayer: boolean) {
+  try {
+    localStorage.setItem(LAST_WINDOW_STATE_KEY, JSON.stringify({ width, height, isMiniPlayer }));
+    localStorage.setItem(LAST_WINDOW_MODE_KEY, isMiniPlayer ? "mini" : "full");
+    localStorage.setItem(
+      isMiniPlayer ? MINI_WINDOW_SIZE_KEY : NORMAL_WINDOW_SIZE_KEY,
+      JSON.stringify({ width, height }),
+    );
+  } catch {
+    // Ignore unavailable local storage outside the desktop runtime.
+  }
+}
 
 export default function App() {
   const {
@@ -28,8 +90,20 @@ export default function App() {
     play,
   } = useMusicStore();
 
+  const [savedWindowState] = useState(readSavedWindowState);
   const [isAudioEqOpen, setIsAudioEqOpen] = useState(false);
   const [isLayoutEditing, setIsLayoutEditing] = useState(false);
+  const [isMiniLayoutEditing, setIsMiniLayoutEditing] = useState(false);
+  const [isMiniPlayer, setIsMiniPlayer] = useState(savedWindowState?.isMiniPlayer ?? false);
+  const [miniPlayerTemplate, setMiniPlayerTemplate] = useState<MiniPlayerTemplate>(() => {
+    const savedTemplate = localStorage.getItem("musicx_mini_player_template");
+    return MINI_PLAYER_TEMPLATES.some((template) => template.id === savedTemplate)
+      ? savedTemplate as MiniPlayerTemplate
+      : "winamp";
+  });
+  const normalWindowSize = useRef(readStoredWindowSize(NORMAL_WINDOW_SIZE_KEY));
+  const isMiniPlayerRef = useRef(isMiniPlayer);
+  const isRestoringWindowSize = useRef(true);
   const [isLogoOverrideActive, setIsLogoOverrideActive] = useState(false);
   const [viewportHeight, setViewportHeight] = useState(window.innerHeight);
   const [playerBarHeightRatio, setPlayerBarHeightRatio] = useState(() => {
@@ -44,7 +118,11 @@ export default function App() {
     setPlayerBarHeightRatio(nextRatio);
     if (commit) localStorage.setItem("musicx_playerbar_height_ratio", String(nextRatio));
   };
-  const handleRestoreWindowSize = (size: { width: number; height: number }, footerRatio: number) => {
+  const handleRestoreWindowSize = async (
+    size: { width: number; height: number },
+    footerRatio: number,
+    isStartupRestore = false,
+  ) => {
     const width = Math.max(800, Math.round(size.width || FIRST_RUN_PROFILE.windowSize.width));
     const height = Math.max(500, Math.round(size.height || FIRST_RUN_PROFILE.windowSize.height));
     const nextRatio = Math.max(0.06, Math.min(0.42, footerRatio));
@@ -54,9 +132,79 @@ export default function App() {
     } catch {
       // Ignore unavailable storage outside the desktop runtime.
     }
+    if (isStartupRestore && savedWindowState) return;
+
+    try {
+      const { getCurrentWindow, LogicalSize } = await import("@tauri-apps/api/window");
+      const currentWindow = getCurrentWindow();
+      await currentWindow.setMinSize(null);
+      await currentWindow.setSize(new LogicalSize(width, height));
+      await currentWindow.setMinSize(new LogicalSize(800, 500));
+      const [innerSize, scaleFactor] = await Promise.all([currentWindow.innerSize(), currentWindow.scaleFactor()]);
+      const actualSize = {
+        width: Math.round(innerSize.width / scaleFactor),
+        height: Math.round(innerSize.height / scaleFactor),
+      };
+      normalWindowSize.current = actualSize;
+      storeWindowState(actualSize.width, actualSize.height, false);
+    } catch (error) {
+      console.error("No se pudo restaurar el tamaño guardado de la ventana:", error);
+    }
+  };
+  const handleMiniPlayerToggle = async () => {
+    const nextMiniMode = !isMiniPlayer;
+    try {
+      const { getCurrentWindow, LogicalSize } = await import("@tauri-apps/api/window");
+      const currentWindow = getCurrentWindow();
+      if (nextMiniMode) {
+        const [physicalSize, scaleFactor] = await Promise.all([
+          currentWindow.innerSize(),
+          currentWindow.scaleFactor(),
+        ]);
+        normalWindowSize.current = {
+          width: Math.round(physicalSize.width / scaleFactor),
+          height: Math.round(physicalSize.height / scaleFactor),
+        };
+        localStorage.setItem(NORMAL_WINDOW_SIZE_KEY, JSON.stringify(normalWindowSize.current));
+      }
+
+      const targetSize = nextMiniMode
+        ? readStoredWindowSize(MINI_WINDOW_SIZE_KEY)
+          ?? MINI_PLAYER_TEMPLATES.find((template) => template.id === miniPlayerTemplate)!
+        : normalWindowSize.current ?? FIRST_RUN_PROFILE.windowSize;
+      isMiniPlayerRef.current = nextMiniMode;
+      setIsMiniPlayer(nextMiniMode);
+      await currentWindow.setMinSize(null);
+      await currentWindow.setSize(new LogicalSize(targetSize.width, targetSize.height));
+      if (!nextMiniMode) await currentWindow.setMinSize(new LogicalSize(800, 500));
+      const [innerSize, scaleFactor] = await Promise.all([currentWindow.innerSize(), currentWindow.scaleFactor()]);
+      storeWindowState(
+        Math.round(innerSize.width / scaleFactor),
+        Math.round(innerSize.height / scaleFactor),
+        nextMiniMode,
+      );
+    } catch (error) {
+      console.error("No se pudo cambiar el tamaño de la ventana:", error);
+      isMiniPlayerRef.current = isMiniPlayer;
+      setIsMiniPlayer(isMiniPlayer);
+    }
+  };
+  const handleMiniTemplateChange = (template: MiniPlayerTemplate) => {
+    setMiniPlayerTemplate(template);
+    localStorage.setItem("musicx_mini_player_template", template);
+    const size = MINI_PLAYER_TEMPLATES.find((option) => option.id === template)!;
     void import("@tauri-apps/api/window")
-      .then(({ getCurrentWindow, LogicalSize }) => getCurrentWindow().setSize(new LogicalSize(width, height)))
-      .catch(() => {});
+      .then(async ({ getCurrentWindow, LogicalSize }) => {
+        const currentWindow = getCurrentWindow();
+        await currentWindow.setSize(new LogicalSize(size.width, size.height));
+        const [innerSize, scaleFactor] = await Promise.all([currentWindow.innerSize(), currentWindow.scaleFactor()]);
+        storeWindowState(
+          Math.round(innerSize.width / scaleFactor),
+          Math.round(innerSize.height / scaleFactor),
+          isMiniPlayerRef.current,
+        );
+      })
+      .catch((error) => console.error("No se pudo aplicar el tamaño de la plantilla mini:", error));
   };
   const totalListenedSeconds = Math.max(0, Math.floor(listeningStats.totalSecondsListened));
   const listenedYears = Math.floor(totalListenedSeconds / 31_536_000);
@@ -103,6 +251,66 @@ export default function App() {
     cleanup?.();
     };
   }, [initListeners]);
+
+  useEffect(() => {
+    let unlistenResize: (() => void) | undefined;
+    let unlistenClose: (() => void) | undefined;
+    let cancelled = false;
+
+    const initializeWindowSize = async () => {
+      try {
+        const { getCurrentWindow, LogicalSize } = await import("@tauri-apps/api/window");
+        if (cancelled) return;
+        const currentWindow = getCurrentWindow();
+        unlistenResize = await currentWindow.onResized(({ payload: size }) => {
+          if (isRestoringWindowSize.current) return;
+          void currentWindow.scaleFactor().then((scaleFactor) => {
+            storeWindowState(
+              Math.round(size.width / scaleFactor),
+              Math.round(size.height / scaleFactor),
+              isMiniPlayerRef.current,
+            );
+          }).catch((error) => console.error("No se pudo guardar el tamaño de la ventana:", error));
+        });
+        unlistenClose = await currentWindow.onCloseRequested(async () => {
+          try {
+            const [innerSize, scaleFactor] = await Promise.all([currentWindow.innerSize(), currentWindow.scaleFactor()]);
+            storeWindowState(
+              Math.round(innerSize.width / scaleFactor),
+              Math.round(innerSize.height / scaleFactor),
+              isMiniPlayerRef.current,
+            );
+          } catch (error) {
+            console.error("No se pudo guardar el tamaño al cerrar la ventana:", error);
+          }
+        });
+
+        if (savedWindowState) {
+          await currentWindow.setMinSize(null);
+          await currentWindow.setSize(new LogicalSize(savedWindowState.width, savedWindowState.height));
+          if (!savedWindowState.isMiniPlayer) await currentWindow.setMinSize(new LogicalSize(800, 500));
+          const [innerSize, scaleFactor] = await Promise.all([currentWindow.innerSize(), currentWindow.scaleFactor()]);
+          const actualSize = {
+            width: Math.round(innerSize.width / scaleFactor),
+            height: Math.round(innerSize.height / scaleFactor),
+          };
+          storeWindowState(actualSize.width, actualSize.height, savedWindowState.isMiniPlayer);
+          if (!savedWindowState.isMiniPlayer) normalWindowSize.current = actualSize;
+        }
+      } catch (error) {
+        console.error("No se pudo restaurar el último tamaño de la ventana:", error);
+      } finally {
+        if (!cancelled) isRestoringWindowSize.current = false;
+      }
+    };
+
+    void initializeWindowSize();
+    return () => {
+      cancelled = true;
+      unlistenResize?.();
+      unlistenClose?.();
+    };
+  }, [savedWindowState]);
 
   useEffect(() => {
     const updateViewportHeight = () => setViewportHeight(window.innerHeight);
@@ -159,6 +367,18 @@ export default function App() {
       className="flex flex-col h-screen w-screen text-slate-100 select-none font-sans overflow-hidden transition-colors duration-300"
       style={customStyles}
     >
+      {isMiniPlayer ? (
+        <MiniPlayer
+          template={miniPlayerTemplate}
+          onTemplateChange={handleMiniTemplateChange}
+          onExpand={() => void handleMiniPlayerToggle()}
+          onOpenRadio={() => setRadioHubOpen(true)}
+          onOpenEq={() => setIsAudioEqOpen(true)}
+          onOpenSettings={() => setSettingsOpen(true)}
+          isEditing={isMiniLayoutEditing}
+          onToggleEditing={() => setIsMiniLayoutEditing((editing) => !editing)}
+        />
+      ) : <>
       <header className="h-11 border-b border-slate-800/80 bg-slate-950/90 flex items-center justify-between pl-[3px] pr-4 shrink-0 shadow-sm z-20">
         <div className="flex min-w-0 items-center gap-3">
           <div className="flex items-center gap-0">
@@ -254,6 +474,15 @@ export default function App() {
             <Settings size={13} />
             <span>Ajustes</span>
           </button>
+
+          <button
+            onClick={() => void handleMiniPlayerToggle()}
+            className="flex items-center justify-center rounded-lg border border-slate-700 p-1.5 text-slate-300 transition hover:border-cyan-400 hover:text-cyan-300"
+            title="Activar mini reproductor"
+            aria-label="Activar mini reproductor"
+          >
+            <Minimize2 size={13} />
+          </button>
         </div>
       </header>
 
@@ -267,10 +496,10 @@ export default function App() {
         onHeightChange={handlePlayerBarHeightChange}
       />
 
+      </>}
+
       <AudioEQModal isOpen={isAudioEqOpen} onClose={() => setIsAudioEqOpen(false)} />
-
       <RadioHubModal isOpen={isRadioHubOpen} onClose={() => setRadioHubOpen(false)} />
-
       <SettingsModal />
     </div>
   );

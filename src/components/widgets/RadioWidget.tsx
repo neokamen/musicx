@@ -62,12 +62,14 @@ export const RadioWidget: React.FC = () => {
 	const [bytesPerSecond, setBytesPerSecond] = useState(0);
 	const [sessionBytesTotal, setSessionBytesTotal] = useState(0);
 	const [isRealDataUsage, setIsRealDataUsage] = useState(false);
+	const [streamTitle, setStreamTitle] = useState("");
 
 	useEffect(() => {
 		const unsub = radioAudioService.subscribe((playbackState) => {
 			setBytesPerSecond(playbackState.status === "playing" ? playbackState.bytesPerSecond || 0 : 0);
 			setSessionBytesTotal(playbackState.sessionBytesTotal || 0);
 			setIsRealDataUsage(Boolean(playbackState.isRealDataUsage));
+			setStreamTitle(playbackState.streamTitle || "");
 		});
 		return () => unsub();
 	}, []);
@@ -602,6 +604,11 @@ export const RadioWidget: React.FC = () => {
 								<div className="truncate text-xs font-semibold text-audiophile-text">
 									{activeRadioStation.name}
 								</div>
+								{streamTitle && (
+									<div className="truncate text-[10px] text-audiophile-cyan" title={streamTitle}>
+										{streamTitle}
+									</div>
+								)}
 								<div className="truncate text-[10px] text-audiophile-muted flex items-center gap-1.5">
 									{activeRadioStation.country && <span>{activeRadioStation.country}</span>}
 									{activeRadioStation.codec && <span>· {activeRadioStation.codec}</span>}

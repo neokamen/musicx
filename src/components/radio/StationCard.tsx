@@ -22,6 +22,14 @@ export const StationCard: React.FC<StationCardProps> = ({
 	onRemoveCustom,
 }) => {
 	const [faviconFailed, setFaviconFailed] = useState(false);
+	const codec = (station.codec || "").toLowerCase();
+	const qualityLabel = /flac|alac|wav|pcm/.test(codec)
+		? "Lossless"
+		: codec === "aac" && (station.bitrate || 0) >= 320
+			? "AAC 320+"
+			: (station.bitrate || 0) >= 320
+				? `${station.bitrate} kbps`
+				: "";
 	const details = [station.country, station.codec, station.bitrate ? `${station.bitrate} kbps` : null]
 		.filter(Boolean)
 		.join(" · ");
@@ -36,6 +44,11 @@ export const StationCard: React.FC<StationCardProps> = ({
 			<div className="min-w-0 flex-1">
 				<div className="flex min-w-0 items-center gap-2">
 					<h3 className="truncate text-xs font-semibold text-audiophile-text" title={station.name}>{station.name}</h3>
+					{qualityLabel && (
+						<span className={`shrink-0 rounded px-1.5 py-0.5 text-[9px] font-semibold ${/flac|alac|wav|pcm/.test(codec) ? "bg-emerald-500/15 text-emerald-300" : "bg-amber-500/15 text-amber-300"}`}>
+							{qualityLabel}
+						</span>
+					)}
 					{isActive && isPlaying && <span className="h-1.5 w-1.5 shrink-0 animate-pulse rounded-full bg-emerald-400" title="En directo" />}
 				</div>
 				<p className="mt-0.5 truncate text-[10px] text-audiophile-muted" title={station.tags || details}>
