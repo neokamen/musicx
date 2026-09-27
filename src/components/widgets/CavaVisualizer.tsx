@@ -8,6 +8,9 @@ export const CAVA_STYLES: { id: AppearanceState["cavaStyle"]; label: string }[] 
   { id: "lines", label: "Líneas" },
   { id: "bars", label: "Barras" },
   { id: "radial", label: "Radial" },
+  { id: "prism", label: "Prisma" },
+  { id: "embers", label: "Brasas" },
+  { id: "scope", label: "Osciloscopio" },
 ];
 
 export const CavaVisualizer: React.FC = () => {
@@ -265,6 +268,97 @@ export const CavaVisualizer: React.FC = () => {
           context.fillStyle = palette[1];
           context.globalAlpha = 0.3;
           context.fill();
+          break;
+        }
+        case "prism": {
+          const baselineY = liveAppearance.cavaMirrored ? height / 2 : height;
+          const slot = width / count;
+          for (let index = 0; index < count; index++) {
+            const barHeight = Math.max(2, levels[index] * height * 0.9);
+            const x = index * slot + slot * 0.12;
+            const barWidth = Math.max(1, slot * 0.76);
+            const gradient = context.createLinearGradient(0, baselineY - barHeight, 0, baselineY);
+            gradient.addColorStop(0, palette[2]);
+            gradient.addColorStop(0.5, palette[1]);
+            gradient.addColorStop(1, palette[0]);
+            context.fillStyle = gradient;
+            context.shadowColor = palette[1];
+            context.shadowBlur = 12;
+            context.beginPath();
+            context.moveTo(x + barWidth * 0.18, baselineY);
+            context.lineTo(x + barWidth * 0.38, baselineY - barHeight * 0.72);
+            context.lineTo(x + barWidth * 0.62, baselineY - barHeight * 0.72);
+            context.lineTo(x + barWidth * 0.82, baselineY);
+            context.closePath();
+            context.fill();
+            if (liveAppearance.cavaPeakHold) {
+              context.fillStyle = "#ffffff";
+              context.fillRect(x, baselineY - peaks[index] * height * 0.9, barWidth, 1.5);
+            }
+          }
+          break;
+        }
+        case "embers": {
+          const slot = width / count;
+          for (let index = 0; index < count; index++) {
+            const level = levels[index];
+            const x = index * slot + slot / 2;
+            const rise = level * height * 0.82;
+            const flicker = Math.sin(elapsed * 8 + index * 13.7) * 3;
+            const gradient = context.createRadialGradient(x, height - rise * 0.55, 0, x, height - rise * 0.55, Math.max(3, rise * 0.72));
+            gradient.addColorStop(0, "#fff7ae");
+            gradient.addColorStop(0.18, palette[0]);
+            gradient.addColorStop(0.58, palette[1]);
+            gradient.addColorStop(1, "rgba(244,63,94,0)");
+            context.fillStyle = gradient;
+            context.shadowColor = palette[1];
+            context.shadowBlur = 14;
+            context.beginPath();
+            context.ellipse(x, height - rise * 0.48 + flicker, Math.max(2, slot * 0.7), Math.max(2, rise * 0.54), Math.sin(index + elapsed) * 0.14, 0, Math.PI * 2);
+            context.fill();
+            if (level > 0.35) {
+              context.fillStyle = "#fff7ae";
+              context.globalAlpha = Math.min(1, level);
+              context.beginPath();
+              context.arc(x, height - rise + flicker, Math.max(1, slot * 0.1), 0, Math.PI * 2);
+              context.fill();
+              context.globalAlpha = 1;
+            }
+          }
+          break;
+        }
+        case "scope": {
+          const centerY = liveAppearance.cavaMirrored ? height / 2 : height * 0.56;
+          const scopeHeight = liveAppearance.cavaMirrored ? height * 0.4 : height * 0.65;
+          context.strokeStyle = `${palette[1]}33`;
+          context.lineWidth = 1;
+          for (let row = -2; row <= 2; row++) {
+            context.beginPath();
+            context.moveTo(0, centerY + row * scopeHeight * 0.22);
+            context.lineTo(width, centerY + row * scopeHeight * 0.22);
+            context.stroke();
+          }
+          for (let index = 0; index < 9; index++) {
+            const x = (index / 8) * width;
+            context.beginPath();
+            context.moveTo(x, centerY - scopeHeight * 0.55);
+            context.lineTo(x, centerY + scopeHeight * 0.55);
+            context.stroke();
+          }
+          context.beginPath();
+          for (let index = 0; index < count; index++) {
+            const x = (index / (count - 1)) * width;
+            const envelope = 0.15 + levels[index] * 0.85;
+            const y = centerY + Math.sin(index * 0.42 - elapsed * 6) * envelope * scopeHeight * 0.5;
+            if (index === 0) context.moveTo(x, y);
+            else context.lineTo(x, y);
+          }
+          context.strokeStyle = palette[0];
+          context.lineWidth = 2;
+          context.shadowColor = palette[0];
+          context.shadowBlur = 16;
+          context.stroke();
+          context.shadowBlur = 0;
           break;
         }
         default: {

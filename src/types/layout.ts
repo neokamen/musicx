@@ -12,7 +12,15 @@ export type WidgetType =
   | "id3_tags"
   | "radio"
   | "buffer_inspector"
-  | "buffer_inspector_compact";
+  | "buffer_inspector_compact"
+  | "buffer_inspector_basic"
+  | "buffer_stability_compact"
+  | "eq_bars_compact"
+  | "signal_stats"
+  | "listening_stats"
+  | "radio_telemetry"
+  | "audio_diagnostics"
+  | "dac_telemetry_compact";
 
 export interface WidgetMeta {
   type: WidgetType;
@@ -62,6 +70,11 @@ export const AVAILABLE_WIDGETS: WidgetMeta[] = [
     description: "Estado ALSA/PipeWire, stream bit-perfect y master clock",
   },
   {
+    type: "dac_telemetry_compact",
+    label: "Telemetría Hi-Fi DAC (compacta)",
+    description: "Reloj, formato, dispositivo, canales, buffer y underruns en una caja",
+  },
+  {
     type: "queue",
     label: "Cola de Reproducción",
     description: "Lista de pistas en cola para reproducción continua gapless",
@@ -90,6 +103,41 @@ export const AVAILABLE_WIDGETS: WidgetMeta[] = [
     type: "buffer_inspector_compact",
     label: "Buffer Monitor (Compacto)",
     description: "Medidor compacto de latencia, capacidad de buffer y selector rápido",
+  },
+  {
+    type: "buffer_inspector_basic",
+    label: "Buffer Monitor (sin gráfica)",
+    description: "Telemetría completa y selector de frames, sin historial de estabilidad",
+  },
+  {
+    type: "buffer_stability_compact",
+    label: "Buffer Monitor DSP (histograma bajo)",
+    description: "Monitor DSP completo con historial de latencia a media altura",
+  },
+  {
+    type: "eq_bars_compact",
+    label: "EQ de bolsillo (10 bandas)",
+    description: "Ecualizador de 10 bandas con controles compactos",
+  },
+  {
+    type: "signal_stats",
+    label: "Telemetría de señal",
+    description: "Formato PCM, latencia, buffers, E/S y estado de salida",
+  },
+  {
+    type: "listening_stats",
+    label: "Estadísticas de escucha",
+    description: "Tiempo acumulado, pistas, sesiones y reproducción actual",
+  },
+  {
+    type: "radio_telemetry",
+    label: "Telemetría de radio",
+    description: "Emisora, título detectado, caudal en vivo y consumo acumulado",
+  },
+  {
+    type: "audio_diagnostics",
+    label: "Diagnóstico de audio",
+    description: "Estado detallado de buffers, XRuns, lectura, fuente y formato",
   },
 ];
 

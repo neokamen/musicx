@@ -11,8 +11,10 @@ import {
   Plus,
   Volume2,
   SlidersHorizontal,
+  Radio as RadioIcon,
 } from "lucide-react";
 import type { Track } from "../../types/index.ts";
+import { RadioHubModal } from "../radio/RadioHubModal.tsx";
 
 import { ColumnResizeHandle } from "./ColumnResizeHandle.tsx";
 
@@ -183,6 +185,7 @@ export const VirtualTrackList: React.FC = () => {
     duration: true,
   });
   const [isColMenuOpen, setIsColMenuOpen] = useState(false);
+  const [showRadio, setShowRadio] = useState(false);
   const [contextMenu, setContextMenu] = useState<{
     x: number;
     y: number;
@@ -262,6 +265,10 @@ export const VirtualTrackList: React.FC = () => {
       <ArrowDown size={11} className="text-audiophile-cyan" />
     );
   };
+
+  if (showRadio) {
+    return <RadioHubModal isOpen onClose={() => setShowRadio(false)} embedded onBackToLibrary={() => setShowRadio(false)} />;
+  }
 
   return (
     <div
@@ -352,6 +359,16 @@ export const VirtualTrackList: React.FC = () => {
               </div>
             )}
           </div>
+
+          <button
+            type="button"
+            onClick={() => setShowRadio(true)}
+            className="grid size-7 place-items-center rounded border border-slate-700 bg-slate-900 text-slate-300 transition hover:border-cyan-500/60 hover:text-cyan-300"
+            title="Cambiar a radio dentro de este panel"
+            aria-label="Mostrar radio"
+          >
+            <RadioIcon size={13} />
+          </button>
 
           <button
             onClick={() => fetchLibraryTracks(search)}

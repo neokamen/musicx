@@ -11,6 +11,8 @@ import { radioAudioService } from "../services/radioAudioService.ts";
 import { addRecentStation } from "../services/radioStorage.ts";
 import { getSavedMarqueeSpeed, saveMarqueeSpeed, getSavedMarqueeDelay, saveMarqueeDelay } from "../lib/theme.ts";
 
+let statsCloseInProgress = false;
+
 export interface ExplorerState {
   currentPath: string;
   entries: FileNode[];
@@ -38,7 +40,7 @@ export interface AppearanceState {
   spectrumFps: 30 | 60 | 120 | 144;
   spectrumSensitivity: number;
   spectrumStyle: SpectrumStyle;
-  cavaStyle: "fluid" | "waves" | "dots" | "lines" | "bars" | "radial";
+  cavaStyle: "fluid" | "waves" | "dots" | "lines" | "bars" | "radial" | "prism" | "embers" | "scope";
   cavaFps: 30 | 60 | 120 | 144;
   cavaBars: number;
   cavaSensitivity: number;
@@ -76,7 +78,7 @@ export interface PlaybackSettingsState {
   gaplessPlayback: boolean;
   replayGainMode: "track" | "album" | "off";
   autoPlayOnDrop: boolean;
-  playerBarStyle: "classic" | "spectrum" | "hybrid";
+  playerBarStyle: "classic" | "spectrum" | "hybrid" | "aurora" | "segments" | "ribbon";
   transportStyle: TransportStyle;
   showBpmInPlayer: boolean;
   playerBarWidth: number;
@@ -146,7 +148,7 @@ export interface MusicPlayerStore {
   setAudioSettings: (settings: Partial<AudioSettingsState>) => void;
   setPlaybackSettings: (settings: Partial<PlaybackSettingsState>) => void;
   resetStats: () => void;
-  setListeningStats: (stats: Partial<ListeningStatsState>) => void;
+  setListeningStats: (stats: Partial<ListeningStatsState>, options?: { syncFile?: boolean }) => void;
   loadListeningStatsFromSyncFile: () => Promise<void>;
   resetSettings: () => void;
   clearCacheAndResidues: () => void;
@@ -184,7 +186,7 @@ export interface MusicPlayerStore {
   // Settings actions
   setLanguage: (lang: Language) => void;
   setAppearance: (appearance: Partial<AppearanceState>) => void;
-  setLibrarySettings: (settings: Partial<LibrarySettings>) => void;
+  setLibrarySettings: (settings: Partial<LibrarySettings>, options?: { syncFile?: boolean }) => void;
   setSettingsOpen: (open: boolean) => void;
   fetchTrackCoverArt: (filepath: string) => Promise<string | null>;
 
@@ -936,7 +938,7 @@ export const useMusicStore = create<MusicPlayerStore>((set, get) => ({
     });
   },
 
-  setListeningStats: (patch: Partial<ListeningStatsState>) => {
+  setListeningStats: (patch: Partial<ListeningStatsState>, options: { syncFile?: boolean } = {}) => {
     set((state) => {
       const next = { ...state.listeningStats, ...patch };
       saveStoredSettings({
@@ -946,7 +948,7 @@ export const useMusicStore = create<MusicPlayerStore>((set, get) => ({
         playbackSettings: state.playbackSettings,
         listeningStats: next,
         librarySettings: state.librarySettings,
-      });
+      }, options);
       return { listeningStats: next };
     });
   },
@@ -1063,7 +1065,7 @@ export const useMusicStore = create<MusicPlayerStore>((set, get) => ({
     });
   },
 
-  setLibrarySettings: (patch: Partial<LibrarySettings>) => {
+  setLibrarySettings: (patch: Partial<LibrarySettings>, options: { syncFile?: boolean } = {}) => {
     set((state) => {
       const next = { ...state.librarySettings, ...patch };
       saveStoredSettings({
@@ -1073,7 +1075,7 @@ export const useMusicStore = create<MusicPlayerStore>((set, get) => ({
         playbackSettings: state.playbackSettings,
         listeningStats: state.listeningStats,
         librarySettings: next,
-      });
+      }, options);
       return { librarySettings: next };
     });
   },
@@ -1204,10 +1206,15 @@ export const useMusicStore = create<MusicPlayerStore>((set, get) => ({
       const state = get();
       if (state.librarySettings.statsBackupMode === "sync" && state.librarySettings.statsSyncFilePath) {
         event.preventDefault();
+        if (statsCloseInProgress) return;
+        statsCloseInProgress = true;
         try {
-          await flushListeningStatsToFile(state.librarySettings, state.listeningStats);
+          await Promise.race([
+            flushListeningStatsToFile(state.librarySettings, state.listeningStats),
+            new Promise<void>((resolve) => window.setTimeout(resolve, 1200)),
+          ]);
         } finally {
-          await appWindow.destroy();
+          await appWindow.destroy().catch(() => {});
         }
       }
     });

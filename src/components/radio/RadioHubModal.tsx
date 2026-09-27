@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { ChevronLeft, ChevronRight, LoaderCircle, Plus, Radio, Search, Upload, X } from "lucide-react";
+import { ArrowLeft, ChevronLeft, ChevronRight, LoaderCircle, Plus, Radio, Search, Upload, X } from "lucide-react";
 import { open } from "@tauri-apps/plugin-dialog";
 import { useMusicStore } from "../../store/index.ts";
 import type { RadioStation } from "../../types/radio.ts";
@@ -31,6 +31,8 @@ type QualityFilter = "all" | "lossless" | "high-bitrate";
 interface RadioHubModalProps {
 	isOpen: boolean;
 	onClose: () => void;
+	embedded?: boolean;
+	onBackToLibrary?: () => void;
 }
 
 const GENRES = [
@@ -87,7 +89,7 @@ const REGION_OPTIONS: RegionCountryOption[] = [
 	{ id: "japan", kind: "country", queryValue: "JP", nameEs: "Japón", nameCa: "Japó", nameEn: "Japan" },
 ];
 
-export const RadioHubModal: React.FC<RadioHubModalProps> = ({ isOpen, onClose }) => {
+export const RadioHubModal: React.FC<RadioHubModalProps> = ({ isOpen, onClose, embedded = false, onBackToLibrary }) => {
 	const { activeRadioStation, isRadioPlaying, playRadioStation, appearance, language } = useMusicStore();
 	const [view, setView] = useState<RadioView>("discover");
 	const [query, setQuery] = useState("");
@@ -235,7 +237,7 @@ export const RadioHubModal: React.FC<RadioHubModalProps> = ({ isOpen, onClose })
 		}
 	}, [isOpen]);
 
-	if (!isOpen) return null;
+	if (!isOpen && !embedded) return null;
 
 	const handlePlay = async (station: RadioStation) => {
 		setError("");
@@ -291,12 +293,12 @@ export const RadioHubModal: React.FC<RadioHubModalProps> = ({ isOpen, onClose })
 	};
 
 	return (
-		<div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/75 p-3 backdrop-blur-sm select-none" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
+		<div className={embedded ? "flex h-full min-h-0 w-full select-none" : "fixed inset-0 z-[100] flex items-center justify-center bg-black/75 p-3 backdrop-blur-sm select-none"} onMouseDown={(event) => { if (!embedded && event.target === event.currentTarget) onClose(); }}>
 			<section
-				role="dialog"
-				aria-modal="true"
+				role={embedded ? "region" : "dialog"}
+				aria-modal={embedded ? undefined : true}
 				aria-label="Radio online Neowave"
-				className="flex h-[760px] w-[860px] max-w-[94vw] max-h-[94vh] flex-col overflow-hidden rounded-xl border border-audiophile-border bg-audiophile-surface shadow-2xl"
+				className={embedded ? "flex h-full min-h-0 w-full flex-col overflow-hidden bg-audiophile-surface" : "flex h-[760px] w-[860px] max-w-[94vw] max-h-[94vh] flex-col overflow-hidden rounded-xl border border-audiophile-border bg-audiophile-surface shadow-2xl"}
 			>
 				<header className="flex shrink-0 items-center justify-between border-b border-audiophile-border px-4 py-3">
 					<div className="flex items-center gap-2.5">
@@ -315,9 +317,15 @@ export const RadioHubModal: React.FC<RadioHubModalProps> = ({ isOpen, onClose })
 						<button type="button" onClick={() => setIsAddOpen(true)} className="flex items-center gap-1.5 rounded-lg border border-audiophile-border px-2.5 py-1.5 text-[11px] text-audiophile-text hover:border-audiophile-cyan transition-colors">
 							<Plus size={13} /> {language === "ca" ? "Afegir URL" : language === "en" ? "Add URL" : "Añadir URL"}
 						</button>
-						<button type="button" onClick={onClose} className="rounded-lg p-1.5 text-audiophile-muted hover:bg-audiophile-surface2 hover:text-white transition-colors" aria-label="Cerrar radio">
-							<X size={16} />
-						</button>
+						{embedded && onBackToLibrary ? (
+							<button type="button" onClick={onBackToLibrary} className="rounded-lg p-1.5 text-audiophile-muted hover:bg-audiophile-surface2 hover:text-white transition-colors" aria-label="Volver a la biblioteca" title="Volver a la biblioteca">
+								<ArrowLeft size={16} />
+							</button>
+						) : !embedded ? (
+							<button type="button" onClick={onClose} className="rounded-lg p-1.5 text-audiophile-muted hover:bg-audiophile-surface2 hover:text-white transition-colors" aria-label="Cerrar radio">
+								<X size={16} />
+							</button>
+						) : null}
 					</div>
 				</header>
 

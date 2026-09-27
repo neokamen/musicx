@@ -16,7 +16,10 @@ export type SpectrumStyle =
   | 'led_matrix'
   | 'mirror'
   | 'gradient_flow'
-  | 'peak_meter';
+  | 'peak_meter'
+  | 'retro_glow_meter'
+  | 'retro_tube_meter'
+  | 'retro_scope_meter';
 
 export const SPECTRUM_STYLES: { id: SpectrumStyle; name: string }[] = [
   { id: 'bars', name: 'Espectro de Barras Hi-Fi' },
@@ -26,6 +29,9 @@ export const SPECTRUM_STYLES: { id: SpectrumStyle; name: string }[] = [
   { id: 'stereo_vu', name: 'Vúmetro Estéreo' },
   { id: 'stereo_vu_vertical', name: 'Vúmetro Estéreo Vertical' },
   { id: 'retro_needle', name: 'Aguja Retro de Minicadena' },
+  { id: 'retro_glow_meter', name: 'Agujas Neón · Doble VU' },
+  { id: 'retro_tube_meter', name: 'Válvulas de Fósforo' },
+  { id: 'retro_scope_meter', name: 'Osciloscopio Analógico' },
   { id: 'stereo_wave', name: 'Ondas Estéreo' },
   { id: 'stereo_split', name: 'Espectro Estéreo Dividido' },
   { id: 'stereo_mirror', name: 'Espectro Estéreo Espejo' },
@@ -398,6 +404,202 @@ export const SpectrumVisualizer: React.FC<SpectrumVisualizerProps> = ({
             ctx.arc(centerX, centerY, 4, 0, Math.PI * 2);
             ctx.fillStyle = '#e2e8f0';
             ctx.fill();
+          }
+          break;
+        }
+
+        case 'retro_glow_meter': {
+          const gaugeWidth = w / 2;
+          const radius = Math.min(gaugeWidth * 0.38, h * 0.38);
+          const centerY = h * 0.68;
+          const colors = [accent, '#44e6a8'];
+          for (let channelIdx = 0; channelIdx < 2; channelIdx++) {
+            const centerX = gaugeWidth * (channelIdx + 0.5);
+            const level = isPlaying ? channelBands[channelIdx].reduce((sum, band) => sum + band, 0) / numBands : 0;
+            const color = colors[channelIdx];
+            const arc = (Math.PI * 2) * 0.82;
+            ctx.fillStyle = '#081018';
+            ctx.strokeStyle = `${color}55`;
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.roundRect(channelIdx * gaugeWidth + 5, 4, gaugeWidth - 10, h - 8, 9);
+            ctx.fill();
+            ctx.stroke();
+
+            ctx.beginPath();
+            ctx.arc(centerX, centerY, radius, Math.PI + 0.09, Math.PI + 0.09 + arc);
+            ctx.strokeStyle = '#1e293b';
+            ctx.lineWidth = 7;
+            ctx.lineCap = 'round';
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.arc(centerX, centerY, radius, Math.PI + 0.09, Math.PI + 0.09 + arc * Math.min(1, level));
+            ctx.strokeStyle = color;
+            ctx.shadowColor = color;
+            ctx.shadowBlur = 8 + level * 14;
+            ctx.lineWidth = 5;
+            ctx.stroke();
+            ctx.shadowBlur = 0;
+
+            for (let tick = 0; tick <= 20; tick++) {
+              const angle = Math.PI + 0.09 + (tick / 20) * arc;
+              const outer = radius + 8;
+              const inner = radius + (tick % 5 === 0 ? 1 : 4);
+              ctx.beginPath();
+              ctx.moveTo(centerX + Math.cos(angle) * inner, centerY + Math.sin(angle) * inner);
+              ctx.lineTo(centerX + Math.cos(angle) * outer, centerY + Math.sin(angle) * outer);
+              ctx.strokeStyle = tick > 16 ? '#fb7185' : `${color}aa`;
+              ctx.lineWidth = tick % 5 === 0 ? 1.5 : 0.8;
+              ctx.stroke();
+            }
+            const needleAngle = Math.PI + 0.09 + arc * Math.min(1, level);
+            ctx.beginPath();
+            ctx.moveTo(centerX, centerY);
+            ctx.lineTo(centerX + Math.cos(needleAngle) * radius * 0.83, centerY + Math.sin(needleAngle) * radius * 0.83);
+            ctx.strokeStyle = '#f8fafc';
+            ctx.lineWidth = 1.8;
+            ctx.shadowColor = color;
+            ctx.shadowBlur = 12;
+            ctx.stroke();
+            ctx.shadowBlur = 0;
+            ctx.fillStyle = color;
+            ctx.font = 'bold 9px monospace';
+            ctx.textAlign = 'center';
+            ctx.fillText(channelIdx === 0 ? 'LEFT' : 'RIGHT', centerX, h - 8);
+          }
+          break;
+        }
+
+        case 'retro_tube_meter': {
+          const gaugeWidth = w / 2;
+          const radius = Math.min(gaugeWidth * 0.39, h * 0.53);
+          const centerY = h * 0.78;
+          for (let channelIdx = 0; channelIdx < 2; channelIdx++) {
+            const centerX = gaugeWidth * (channelIdx + 0.5);
+            const level = isPlaying ? channelBands[channelIdx].reduce((sum, band) => sum + band, 0) / numBands : 0;
+            const warm = channelIdx === 0 ? '#fbbf24' : '#fb7185';
+            const tubeGradient = ctx.createRadialGradient(centerX, centerY - radius * 0.35, 2, centerX, centerY, radius * 1.3);
+            tubeGradient.addColorStop(0, '#38241a');
+            tubeGradient.addColorStop(0.65, '#15191b');
+            tubeGradient.addColorStop(1, '#080b0d');
+            ctx.fillStyle = tubeGradient;
+            ctx.strokeStyle = `${warm}66`;
+            ctx.lineWidth = 1.2;
+            ctx.beginPath();
+            ctx.roundRect(channelIdx * gaugeWidth + 5, 5, gaugeWidth - 10, h - 10, 10);
+            ctx.fill();
+            ctx.stroke();
+            for (let glow = 2; glow >= 0; glow--) {
+              ctx.beginPath();
+              ctx.arc(centerX, centerY, radius - glow * 5, Math.PI, Math.PI * 2);
+              ctx.strokeStyle = `${warm}${glow === 0 ? 'bb' : '24'}`;
+              ctx.lineWidth = glow === 0 ? 1.2 : 4;
+              ctx.shadowColor = warm;
+              ctx.shadowBlur = glow === 0 ? 0 : 14;
+              ctx.stroke();
+            }
+            ctx.shadowBlur = 0;
+            for (let tick = 0; tick <= 12; tick++) {
+              const angle = Math.PI + (tick / 12) * Math.PI;
+              const inner = radius - (tick % 3 === 0 ? 8 : 4);
+              ctx.beginPath();
+              ctx.moveTo(centerX + Math.cos(angle) * inner, centerY + Math.sin(angle) * inner);
+              ctx.lineTo(centerX + Math.cos(angle) * radius, centerY + Math.sin(angle) * radius);
+              ctx.strokeStyle = tick > 9 ? '#fb7185' : '#f8d59b';
+              ctx.lineWidth = tick % 3 === 0 ? 1.4 : 0.7;
+              ctx.stroke();
+            }
+            const angle = Math.PI + Math.min(1, level) * Math.PI;
+            const tailX = centerX - Math.cos(angle) * radius * 0.17;
+            const tailY = centerY - Math.sin(angle) * radius * 0.17;
+            const tipX = centerX + Math.cos(angle) * radius * 0.78;
+            const tipY = centerY + Math.sin(angle) * radius * 0.78;
+            ctx.beginPath();
+            ctx.moveTo(tailX, tailY);
+            ctx.lineTo(tipX, tipY);
+            ctx.strokeStyle = '#ffe7bd';
+            ctx.lineWidth = 2;
+            ctx.shadowColor = warm;
+            ctx.shadowBlur = 11;
+            ctx.stroke();
+            ctx.shadowBlur = 0;
+            ctx.beginPath();
+            ctx.arc(centerX, centerY, 4, 0, Math.PI * 2);
+            ctx.fillStyle = '#e7b86d';
+            ctx.fill();
+            ctx.fillStyle = '#d6a96f';
+            ctx.font = '8px monospace';
+            ctx.textAlign = 'center';
+            ctx.fillText(channelIdx === 0 ? 'VACUUM / L' : 'VACUUM / R', centerX, h - 10);
+          }
+          break;
+        }
+
+        case 'retro_scope_meter': {
+          const gaugeWidth = w / 2;
+          const radius = Math.min(gaugeWidth * 0.4, h * 0.54);
+          const centerY = h * 0.79;
+          for (let channelIdx = 0; channelIdx < 2; channelIdx++) {
+            const centerX = gaugeWidth * (channelIdx + 0.5);
+            const channel = channelBands[channelIdx];
+            const level = isPlaying ? channel.reduce((sum, band) => sum + band, 0) / numBands : 0;
+            const color = channelIdx === 0 ? '#38bdf8' : '#a3e635';
+            ctx.fillStyle = '#06111a';
+            ctx.beginPath();
+            ctx.roundRect(channelIdx * gaugeWidth + 5, 5, gaugeWidth - 10, h - 10, 8);
+            ctx.fill();
+            ctx.save();
+            ctx.beginPath();
+            ctx.roundRect(channelIdx * gaugeWidth + 6, 6, gaugeWidth - 12, h - 12, 7);
+            ctx.clip();
+            ctx.strokeStyle = `${color}20`;
+            ctx.lineWidth = 1;
+            for (let grid = 0; grid < 5; grid++) {
+              const y = h * (0.24 + grid * 0.1);
+              ctx.beginPath();
+              ctx.moveTo(channelIdx * gaugeWidth + 10, y);
+              ctx.lineTo((channelIdx + 1) * gaugeWidth - 10, y);
+              ctx.stroke();
+            }
+            ctx.restore();
+            ctx.beginPath();
+            ctx.arc(centerX, centerY, radius, Math.PI, Math.PI * 2);
+            ctx.strokeStyle = '#29404d';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+            const sweep = Math.PI * Math.min(1, level);
+            const angle = Math.PI + sweep;
+            ctx.beginPath();
+            ctx.arc(centerX, centerY, radius, Math.PI, angle);
+            ctx.strokeStyle = color;
+            ctx.lineWidth = 3;
+            ctx.shadowColor = color;
+            ctx.shadowBlur = 12;
+            ctx.stroke();
+            ctx.shadowBlur = 0;
+            for (let tick = 0; tick <= 16; tick++) {
+              const tickAngle = Math.PI + (tick / 16) * Math.PI;
+              const inner = radius - (tick % 4 === 0 ? 9 : 5);
+              ctx.beginPath();
+              ctx.moveTo(centerX + Math.cos(tickAngle) * inner, centerY + Math.sin(tickAngle) * inner);
+              ctx.lineTo(centerX + Math.cos(tickAngle) * radius, centerY + Math.sin(tickAngle) * radius);
+              ctx.strokeStyle = tick > 13 ? '#fb7185' : `${color}cc`;
+              ctx.lineWidth = tick % 4 === 0 ? 1.5 : 0.8;
+              ctx.stroke();
+            }
+            ctx.beginPath();
+            ctx.moveTo(centerX, centerY);
+            ctx.lineTo(centerX + Math.cos(angle) * radius * 0.72, centerY + Math.sin(angle) * radius * 0.72);
+            ctx.strokeStyle = '#f8fafc';
+            ctx.lineWidth = 1.5;
+            ctx.shadowColor = color;
+            ctx.shadowBlur = 9;
+            ctx.stroke();
+            ctx.shadowBlur = 0;
+            ctx.fillStyle = color;
+            ctx.font = 'bold 8px monospace';
+            ctx.textAlign = 'center';
+            ctx.fillText(channelIdx === 0 ? 'CH 01 · L' : 'CH 02 · R', centerX, h - 10);
           }
           break;
         }

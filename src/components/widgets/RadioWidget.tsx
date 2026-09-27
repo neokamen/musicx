@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import {
 	Radio,
+	Library,
 	Search,
 	Star,
 	Play,
@@ -29,7 +30,7 @@ import { saveRadioRecording } from "../../services/api.ts";
 import type { RadioStation, RecordedRadioTrack } from "../../types/radio.ts";
 import { formatDataSize } from "../../lib/formatBytes.ts";
 
-export const RadioWidget: React.FC = () => {
+export const RadioWidget: React.FC<{ onBackToLibrary?: () => void }> = ({ onBackToLibrary }) => {
 	const {
 		activeRadioStation,
 		isRadioPlaying,
@@ -263,15 +264,22 @@ export const RadioWidget: React.FC = () => {
 					)}
 				</div>
 
-				<button
-					type="button"
-					onClick={() => setRadioHubOpen(true)}
-					className="flex items-center gap-1 text-[11px] text-audiophile-muted hover:text-audiophile-cyan transition-colors px-1.5 py-0.5 rounded hover:bg-audiophile-surface2"
-					title="Abrir explorador completo de emisoras"
-				>
-					<span>Explorador</span>
-					<ExternalLink size={12} />
-				</button>
+				<div className="flex items-center gap-1">
+					{onBackToLibrary && (
+						<button type="button" onClick={onBackToLibrary} className="grid size-7 place-items-center text-audiophile-muted hover:text-audiophile-cyan" title="Volver a la biblioteca" aria-label="Volver a la biblioteca">
+							<Library size={13} />
+						</button>
+					)}
+					<button
+						type="button"
+						onClick={() => setRadioHubOpen(true)}
+						className="flex items-center gap-1 text-[11px] text-audiophile-muted hover:text-audiophile-cyan transition-colors px-1.5 py-0.5 rounded hover:bg-audiophile-surface2"
+						title="Abrir explorador completo de emisoras"
+					>
+						<span>Explorador</span>
+						<ExternalLink size={12} />
+					</button>
+				</div>
 			</div>
 
 			{/* Search Bar */}

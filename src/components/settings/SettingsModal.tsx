@@ -29,6 +29,7 @@ import {
   Radio,
 } from 'lucide-react';
 import { open, save } from '@tauri-apps/plugin-dialog';
+import { readTextFile, writeTextFile } from '../../services/api.ts';
 import packageInfo from '../../../package.json';
 import { SPECTRUM_STYLES } from '../widgets/SpectrumVisualizer.tsx';
 import { CAVA_STYLES } from '../widgets/CavaVisualizer.tsx';
@@ -63,6 +64,14 @@ import {
 type SettingsTab = 'general' | 'appearance' | 'cava' | 'playback' | 'audio' | 'library' | 'about';
 type VisualizerSettingsPanel = 'cava' | 'spectrum';
 const QUICK_CONFIG_KEY = 'musicx_quick_config_backup_v1';
+const SEEK_BAR_STYLES = [
+  { id: 'spectrum', label: 'Espectro de la canción' },
+  { id: 'classic', label: 'Clásico' },
+  { id: 'hybrid', label: 'Forma de onda' },
+  { id: 'aurora', label: 'Aurora' },
+  { id: 'segments', label: 'Segmentos' },
+  { id: 'ribbon', label: 'Ribbon' },
+] as const;
 
 export const SettingsModal: React.FC = () => {
   const {
@@ -77,6 +86,7 @@ export const SettingsModal: React.FC = () => {
     playbackSettings,
     setPlaybackSettings,
     listeningStats,
+    setListeningStats,
     resetStats,
     resetSettings,
     clearCacheAndResidues,
@@ -302,20 +312,39 @@ export const SettingsModal: React.FC = () => {
     }
   };
 
+  const applyStatsFile = async (path: string) => {
+    const raw = await readTextFile(path);
+    if (!raw) throw new Error('El archivo está vacío.');
+    const backup = JSON.parse(raw);
+    const fileStats = backup?.listeningStats;
+    if (!fileStats || !Number.isFinite(fileStats.totalSecondsListened)) {
+      throw new Error('El archivo no contiene estadísticas de MusicX.');
+    }
+    setListeningStats({
+      totalSecondsListened: Math.max(0, fileStats.totalSecondsListened),
+      totalTracksPlayed: Math.max(0, Number(fileStats.totalTracksPlayed) || 0),
+      totalSessions: Math.max(0, Number(fileStats.totalSessions) || 0),
+    }, { syncFile: false });
+    setLibrarySettings({ statsSyncFilePath: path }, { syncFile: false });
+  };
+
   const chooseStatsSyncFile = async () => {
     try {
-      const selected = await save({
-        title: 'Elegir archivo de sincronización de estadísticas',
+      const selected = await open({
+        multiple: false,
+        title: 'Seleccionar archivo de estadísticas',
         defaultPath: librarySettings.statsSyncFilePath || 'musicx-listening-stats.json',
         filters: [{ name: 'JSON', extensions: ['json'] }],
       });
       if (typeof selected === 'string') {
-        setLibrarySettings({ statsSyncFilePath: selected, statsBackupMode: 'sync' });
-        setSavedMessage('Ruta de sincronización guardada.');
+        setLibrarySettings({ statsSyncFilePath: selected, statsBackupMode: 'sync' }, { syncFile: false });
+        await loadListeningStatsFromSyncFile();
+        setSavedMessage('Archivo cargado y sincronización activada.');
         setTimeout(() => setSavedMessage(null), 2500);
       }
     } catch {
-      setSavedMessage('No se pudo abrir el selector de archivo.');
+      setSavedMessage('No se pudo cargar el archivo de estadísticas.');
+      setTimeout(() => setSavedMessage(null), 2500);
     }
   };
 
@@ -323,6 +352,53 @@ export const SettingsModal: React.FC = () => {
     await loadListeningStatsFromSyncFile();
     setSavedMessage('Estadísticas sincronizadas con el archivo.');
     setTimeout(() => setSavedMessage(null), 2500);
+  };
+
+  const importManualStats = async () => {
+    try {
+      const selected = await open({
+        multiple: false,
+        title: 'Importar estadísticas escuchadas',
+        defaultPath: librarySettings.statsSyncFilePath || 'musicx-listening-stats.json',
+        filters: [{ name: 'JSON', extensions: ['json'] }],
+      });
+      if (typeof selected === 'string') {
+        await applyStatsFile(selected);
+        setSavedMessage('Estadísticas importadas.');
+        setTimeout(() => setSavedMessage(null), 2500);
+      }
+    } catch {
+      setSavedMessage('No se pudo importar el archivo de estadísticas.');
+      setTimeout(() => setSavedMessage(null), 2500);
+    }
+  };
+
+  const exportManualStats = async () => {
+    try {
+      const selected = await save({
+        title: 'Exportar estadísticas escuchadas',
+        defaultPath: librarySettings.statsSyncFilePath || 'musicx-listening-stats.json',
+        filters: [{ name: 'JSON', extensions: ['json'] }],
+      });
+      if (typeof selected === 'string') {
+        await writeTextFile(selected, JSON.stringify({
+          format: 'musicx-listening-stats-v1',
+          exportedAt: new Date().toISOString(),
+          listeningStats,
+        }, null, 2));
+        setLibrarySettings({ statsSyncFilePath: selected }, { syncFile: false });
+        setSavedMessage('Estadísticas exportadas.');
+        setTimeout(() => setSavedMessage(null), 2500);
+      }
+    } catch {
+      setSavedMessage('No se pudo exportar el archivo de estadísticas.');
+      setTimeout(() => setSavedMessage(null), 2500);
+    }
+  };
+
+  const enableStatsSync = async () => {
+    setLibrarySettings({ statsBackupMode: 'sync' }, { syncFile: false });
+    await loadListeningStatsFromSyncFile();
   };
 
   return (
@@ -1157,7 +1233,7 @@ export const SettingsModal: React.FC = () => {
               </label>
               <div className="p-4 rounded-xl bg-slate-900/40 border border-slate-800/80 space-y-3">
                 <label className="text-xs font-bold text-slate-300">Plantilla de botones de reproducción</label>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                   {(Object.entries(TRANSPORT_STYLES) as [TransportStyle, typeof TRANSPORT_STYLES[TransportStyle]][]).map(([id, style]) => (
                     <button
                       key={id}
@@ -1180,22 +1256,52 @@ export const SettingsModal: React.FC = () => {
                 <label className="text-xs font-bold uppercase tracking-wider text-slate-300">
                   Estilo de Barra de Reproducción
                 </label>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  {[
-                    { id: 'spectrum' as const, label: 'Espectro de la Canción (Waveform Scrubber)' },
-                    { id: 'classic' as const, label: 'Clásico Range Slider' },
-                    { id: 'hybrid' as const, label: 'Clásico + Forma de Onda' },
-                  ].map((style) => (
+                <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
+                  {SEEK_BAR_STYLES.map((style) => (
                     <button
                       key={style.id}
                       onClick={() => setPlaybackSettings({ playerBarStyle: style.id })}
-                      className={`p-2.5 rounded-xl border text-xs font-semibold transition cursor-pointer text-center ${
+                      className={`flex min-h-[108px] flex-col justify-between rounded-xl border p-2.5 text-xs font-semibold transition cursor-pointer text-center ${
                         playbackSettings.playerBarStyle === style.id
                           ? 'border-cyan-400 bg-cyan-950/40 text-cyan-300'
                           : 'border-slate-800 bg-slate-900/60 text-slate-400 hover:text-slate-200'
                       }`}
                     >
-                      {style.label}
+                      <span>{style.label}</span>
+                      <span className="mt-2 flex h-7 w-full items-center overflow-hidden rounded border border-slate-700 bg-slate-950 px-1.5">
+                        {style.id === 'spectrum' && [25, 44, 66, 35, 82, 54, 30, 70, 42, 22, 64, 48, 75, 33, 58, 27].map((height, index) => (
+                          <span key={index} className="mx-px flex-1 rounded-sm" style={{ height: `${height}%`, background: index < 9 ? 'var(--app-accent, #22d3ee)' : '#475569' }} />
+                        ))}
+                        {style.id === 'classic' && (
+                          <span className="h-1.5 w-full overflow-hidden rounded-full bg-slate-800">
+                            <span className="block h-full w-2/3 rounded-full bg-cyan-400 shadow-[0_0_8px_#22d3ee]" />
+                          </span>
+                        )}
+                        {style.id === 'hybrid' && (
+                          <svg viewBox="0 0 160 28" preserveAspectRatio="none" className="h-full w-full">
+                            <path d="M0 15 Q10 4 20 14 T40 15 T60 7 T80 17 T100 13 T120 6 T140 16 T160 12" fill="none" stroke="#64748b" strokeWidth="2" />
+                            <path d="M0 15 Q10 4 20 14 T40 15 T60 7 T80 17 T100 13 T120 6 T140 16 T160 12" fill="none" stroke="#22d3ee" strokeWidth="2" strokeDasharray="105 160" />
+                          </svg>
+                        )}
+                        {style.id === 'aurora' && (
+                          <span className="relative h-full w-full">
+                            <span className="absolute inset-0 opacity-40" style={{ background: 'linear-gradient(90deg,#06b6d4,#818cf8,#f472b6)' }} />
+                            <svg viewBox="0 0 160 28" preserveAspectRatio="none" className="absolute inset-0 h-full w-full">
+                              <path d="M0 14 Q15 4 30 14 T60 14 T90 8 T120 14 T160 10" fill="none" stroke="white" strokeWidth="2" />
+                            </svg>
+                            <span className="absolute inset-y-0 left-2/3 w-px bg-white shadow-[0_0_8px_2px_white]" />
+                          </span>
+                        )}
+                        {style.id === 'segments' && Array.from({ length: 22 }, (_, index) => (
+                          <span key={index} className="mx-px flex-1 rounded-[1px]" style={{ height: `${25 + ((index * 37) % 75)}%`, background: index < 14 ? '#34d399' : '#334155' }} />
+                        ))}
+                        {style.id === 'ribbon' && (
+                          <span className="relative h-full w-full overflow-hidden" style={{ background: 'repeating-linear-gradient(135deg,#22d3ee22 0px,#22d3ee22 3px,transparent 3px,transparent 7px)' }}>
+                            <span className="absolute inset-y-0 left-0 w-3/5" style={{ background: 'repeating-linear-gradient(135deg,#22d3ee 0px,#22d3ee 3px,#67e8f9 3px,#67e8f9 7px)' }} />
+                            <span className="absolute inset-y-0 left-3/5 w-0.5 bg-white shadow-[0_0_8px_2px_white]" />
+                          </span>
+                        )}
+                      </span>
                     </button>
                   ))}
                 </div>
@@ -1390,7 +1496,7 @@ export const SettingsModal: React.FC = () => {
                       Manual (exportar / importar)
                     </button>
                     <button
-                      onClick={() => setLibrarySettings({ statsBackupMode: 'sync' })}
+                      onClick={() => void enableStatsSync()}
                       className={`px-3 py-1.5 rounded-lg border text-xs font-semibold transition cursor-pointer ${
                         librarySettings.statsBackupMode === 'sync'
                           ? 'border-cyan-500/60 bg-cyan-950/40 text-cyan-300'
@@ -1414,26 +1520,43 @@ export const SettingsModal: React.FC = () => {
                 <p className="text-[11px] text-slate-500">
                   {librarySettings.statsBackupMode === 'sync'
                     ? 'El contador se guarda automáticamente en el archivo elegido (frecuencia configurable abajo) y se lee al abrir la app. Apunta la ruta a una carpeta sincronizada (Mega, Nextcloud, etc.) para compartir el progreso entre varios ordenadores.'
-                    : 'El contador solo se guarda en este equipo. Usa "Backup completo de la app" para moverlo manualmente a otro ordenador.'}
+                    : 'Importa un archivo de estadísticas existente o exporta el contador actual para usarlo en otro equipo.'}
                 </p>
-                {librarySettings.statsBackupMode === 'sync' && (
-                  <div className="space-y-3">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <input
-                        type="text"
-                        value={librarySettings.statsSyncFilePath}
-                        onChange={(e) => setLibrarySettings({ statsSyncFilePath: e.target.value })}
-                        placeholder="/ruta/a/tu/carpeta/Mega/musicx-listening-stats.json"
-                        className="flex-1 min-w-[220px] px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs font-mono text-slate-200"
-                      />
+                <div className="space-y-3">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <input
+                      type="text"
+                      readOnly
+                      value={librarySettings.statsSyncFilePath}
+                      placeholder="Selecciona un archivo musicx-listening-stats.json"
+                      className="flex-1 min-w-[220px] px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs font-mono text-slate-200"
+                    />
+                    {librarySettings.statsBackupMode === 'sync' ? (
                       <button
-                        onClick={chooseStatsSyncFile}
+                        onClick={() => void chooseStatsSyncFile()}
                         className="px-3 py-1.5 rounded-lg border border-slate-700 bg-slate-800 text-xs font-semibold hover:bg-slate-700 transition cursor-pointer"
                       >
-                        Elegir archivo
+                        Seleccionar y cargar
                       </button>
-                    </div>
+                    ) : (
+                      <>
+                        <button
+                          onClick={() => void importManualStats()}
+                          className="px-3 py-1.5 rounded-lg border border-slate-700 bg-slate-800 text-xs font-semibold hover:bg-slate-700 transition cursor-pointer flex items-center gap-2"
+                        >
+                          <Upload size={13} />Importar
+                        </button>
+                        <button
+                          onClick={() => void exportManualStats()}
+                          className="px-3 py-1.5 rounded-lg border border-slate-700 bg-slate-800 text-xs font-semibold hover:bg-slate-700 transition cursor-pointer flex items-center gap-2"
+                        >
+                          <Download size={13} />Exportar
+                        </button>
+                      </>
+                    )}
+                  </div>
 
+                  {librarySettings.statsBackupMode === 'sync' && (
                     <div className="space-y-2">
                       <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wide">Frecuencia de escritura en el archivo</label>
                       <div className="flex flex-wrap gap-2">
@@ -1481,8 +1604,8 @@ export const SettingsModal: React.FC = () => {
                         </div>
                       )}
                     </div>
-                  </div>
-                )}
+                  )}
+                </div>
               </div>
 
               <div className="p-4 rounded-xl bg-slate-900/40 border border-slate-800/80 space-y-3">

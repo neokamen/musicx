@@ -11,7 +11,15 @@ import {
 const BUFFER_SIZES = [64, 128, 256, 512, 1024];
 const HISTORY_LENGTH = 300; // 30 seconds at 10 Hz (100ms)
 
-export const BufferInspectorWidget: React.FC = () => {
+interface BufferInspectorWidgetProps {
+  showStability?: boolean;
+  compactStability?: boolean;
+}
+
+export const BufferInspectorWidget: React.FC<BufferInspectorWidgetProps> = ({
+  showStability = true,
+  compactStability = false,
+}) => {
   const { appearance, activeRadioStation, isRadioPlaying } = useMusicStore();
   const [telemetry, setTelemetry] = useState<BufferTelemetry>({
     buffer_capacity_frames: 88200,
@@ -32,7 +40,7 @@ export const BufferInspectorWidget: React.FC = () => {
   const [selectedBufferSize, setSelectedBufferSize] = useState<number>(512);
   const [isChangingBuffer, setIsChangingBuffer] = useState(false);
   // Theme mode: "app" (Application dynamic theme & accent, default) vs "dsp" (Nerd phosphor green)
-  const [themeMode, setThemeMode] = useState<"dsp" | "app">("app");
+  const [themeMode, setThemeMode] = useState<"dsp" | "app">(() => compactStability ? "dsp" : "app");
 
   // Radio playback: the local hi-fi hardware buffer is idle while listening to radio, so the
   // Ring Buffer Fill / I/O Read Time boxes (and the two visualizations) get repurposed to show
@@ -235,7 +243,7 @@ export const BufferInspectorWidget: React.FC = () => {
   return (
     <div
       onDoubleClick={() => setThemeMode((m) => (m === "dsp" ? "app" : "dsp"))}
-      title="Doble clic para cambiar entre tema de la aplicación y Nerd DSP"
+      title="Doble clic para cambiar entre tema de la aplicación y tema de fósforo"
       className={`flex flex-col h-full text-xs p-3 overflow-y-auto select-none rounded-sm transition-colors cursor-pointer ${
         isDsp
           ? "bg-[#0a0c0e] text-[#22c55e] font-mono border border-emerald-950/40 shadow-inner"
@@ -472,8 +480,8 @@ export const BufferInspectorWidget: React.FC = () => {
       </div>
 
       {/* 30-Second Latency Stability History (Direct Canvas Rendering) */}
-      <div
-        className={`p-2.5 rounded-sm mb-3 flex-1 min-h-[110px] flex flex-col border ${
+      {showStability && <div
+        className={`p-2.5 rounded-sm mb-3 flex flex-col border ${compactStability ? "h-[55px] min-h-[55px] shrink-0" : "flex-1 min-h-[110px]"} ${
           isDsp
             ? "bg-[#0b0e0d] border-emerald-900/40"
             : "bg-audiophile-surface2/30 border-slate-600/35"
@@ -497,7 +505,7 @@ export const BufferInspectorWidget: React.FC = () => {
             </span>
           </span>
         </div>
-        <div className="flex-1 w-full relative min-h-[70px]">
+        <div className={`flex-1 w-full relative ${compactStability ? "min-h-[35px]" : "min-h-[70px]"}`}>
           <canvas
             ref={canvasRef}
             className={`w-full h-full block rounded-xs ${
@@ -505,7 +513,7 @@ export const BufferInspectorWidget: React.FC = () => {
             }`}
           />
         </div>
-      </div>
+      </div>}
 
       {/* Interactive Hardware Buffer Size Selector */}
       <div

@@ -491,6 +491,46 @@ export const HiFiPlayerBar: React.FC<HiFiPlayerBarProps> = ({ height, isEditing,
                 </svg>
               </div>
             )}
+
+            {seekbarStyle === "aurora" && (
+              <div className="pointer-events-none absolute inset-0 overflow-hidden">
+                <div className="absolute inset-0 opacity-35" style={{ background: `linear-gradient(90deg, ${accentColor}55, #38bdf855 50%, #f472b655)` }} />
+                <svg viewBox="0 0 1000 100" preserveAspectRatio="none" className="absolute inset-0 h-full w-full">
+                  <defs>
+                    <clipPath id="seek-aurora-progress"><rect x="0" y="0" width={progress * 1000} height="100" /></clipPath>
+                    <linearGradient id="seek-aurora-fill" x1="0" x2="1">
+                      <stop offset="0" stopColor={accentColor} />
+                      <stop offset="0.55" stopColor="#38bdf8" />
+                      <stop offset="1" stopColor="#f472b6" />
+                    </linearGradient>
+                  </defs>
+                  <path d={waveformPath} fill="url(#seek-aurora-fill)" fillOpacity="0.18" stroke="rgba(226,232,240,0.35)" strokeWidth="1" vectorEffect="non-scaling-stroke" />
+                  <path d={waveformPath} fill="url(#seek-aurora-fill)" fillOpacity="0.42" stroke="url(#seek-aurora-fill)" strokeWidth="2" vectorEffect="non-scaling-stroke" clipPath="url(#seek-aurora-progress)" />
+                </svg>
+                <div className="absolute inset-y-0 w-px shadow-[0_0_8px_2px_rgba(255,255,255,0.7)]" style={{ left: `${progress * 100}%`, backgroundColor: "white" }} />
+              </div>
+            )}
+
+            {seekbarStyle === "segments" && (
+              <div className="flex h-full w-full items-center gap-[2px] px-0.5 pointer-events-none">
+                {songPeaks.slice(0, 48).map((peak, index) => {
+                  const passed = index / 48 <= progress;
+                  const barHeight = `${Math.max(22, peak * 100)}%`;
+                  return <span key={index} className="min-w-0 flex-1 rounded-[1px]" style={{ height: barHeight, backgroundColor: passed ? accentColor : "rgba(148,163,184,0.23)", boxShadow: passed ? `0 0 5px ${accentColor}66` : undefined }} />;
+                })}
+              </div>
+            )}
+
+            {seekbarStyle === "ribbon" && (
+              <div className="pointer-events-none absolute inset-0 overflow-hidden">
+                <div className="absolute inset-0 opacity-60" style={{ background: `repeating-linear-gradient(135deg, ${accentColor}22 0px, ${accentColor}22 3px, transparent 3px, transparent 7px)` }} />
+                <div className="absolute inset-y-0 left-0 overflow-hidden" style={{ width: `${progress * 100}%` }}>
+                  <div className="absolute inset-0" style={{ width: `${progress > 0 ? 100 / progress : 100}%`, background: `linear-gradient(180deg, ${accentColor}cc, ${accentColor}55)`, boxShadow: `0 0 16px ${accentColor}88` }} />
+                  <div className="absolute inset-0 opacity-70" style={{ background: "repeating-linear-gradient(135deg, rgba(255,255,255,0.72) 0px, rgba(255,255,255,0.72) 2px, transparent 2px, transparent 7px)" }} />
+                </div>
+                <div className="absolute inset-y-0 w-[2px] bg-white shadow-[0_0_10px_2px_white]" style={{ left: `${progress * 100}%` }} />
+              </div>
+            )}
           </div>
 
           {isRadio ? (

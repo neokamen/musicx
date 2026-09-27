@@ -14,6 +14,12 @@ import { Id3TagWidget } from "./Id3TagWidget.tsx";
 import { RadioWidget } from "./RadioWidget.tsx";
 import { BufferInspectorWidget } from "./BufferInspectorWidget.tsx";
 import { BufferInspectorCompactWidget } from "./BufferInspectorCompactWidget.tsx";
+import { EqCompactWidget } from "./EqCompactWidget.tsx";
+import { SignalStatsWidget } from "./SignalStatsWidget.tsx";
+import { ListeningStatsWidget } from "./ListeningStatsWidget.tsx";
+import { RadioTelemetryWidget } from "./RadioTelemetryWidget.tsx";
+import { AudioDiagnosticsWidget } from "./AudioDiagnosticsWidget.tsx";
+import { DacTelemetryCompactWidget } from "./DacTelemetryCompactWidget.tsx";
 
 interface WidgetRendererProps {
   widget: WidgetType;
@@ -37,6 +43,8 @@ export const WidgetRenderer: React.FC<WidgetRendererProps> = ({ widget }) => {
       return <CavaVisualizer />;
     case "dac_telemetry":
       return <DacTelemetryWidget />;
+    case "dac_telemetry_compact":
+      return <DacTelemetryCompactWidget />;
     case "queue":
       return <QueueWidget />;
     case "bpm":
@@ -49,6 +57,20 @@ export const WidgetRenderer: React.FC<WidgetRendererProps> = ({ widget }) => {
       return <BufferInspectorWidget />;
     case "buffer_inspector_compact":
       return <BufferInspectorCompactWidget />;
+    case "buffer_inspector_basic":
+      return <BufferInspectorWidget showStability={false} />;
+    case "buffer_stability_compact":
+      return <BufferInspectorWidget compactStability />;
+    case "eq_bars_compact":
+      return <EqCompactWidget />;
+    case "signal_stats":
+      return <SignalStatsWidget />;
+    case "listening_stats":
+      return <ListeningStatsWidget />;
+    case "radio_telemetry":
+      return <RadioTelemetryWidget />;
+    case "audio_diagnostics":
+      return <AudioDiagnosticsWidget />;
     default:
       return (
         <div className="p-4 text-center text-audiophile-muted font-mono text-xs">
