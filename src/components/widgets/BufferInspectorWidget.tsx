@@ -40,7 +40,8 @@ export const BufferInspectorWidget: React.FC<BufferInspectorWidgetProps> = ({
   const [selectedBufferSize, setSelectedBufferSize] = useState<number>(512);
   const [isChangingBuffer, setIsChangingBuffer] = useState(false);
   // Theme mode: "app" (Application dynamic theme & accent, default) vs "dsp" (Nerd phosphor green)
-  const [themeMode, setThemeMode] = useState<"dsp" | "app">(() => compactStability ? "dsp" : "app");
+  // Phosphor/DSP theme is secondary – always start in app mode; double-click to toggle
+  const [themeMode, setThemeMode] = useState<"dsp" | "app">("app");
 
   // Radio playback: the local hi-fi hardware buffer is idle while listening to radio, so the
   // Ring Buffer Fill / I/O Read Time boxes (and the two visualizations) get repurposed to show
@@ -470,22 +471,19 @@ export const BufferInspectorWidget: React.FC<BufferInspectorWidgetProps> = ({
           })}
         </div>
 
-        <div className="flex justify-between text-[8px] text-neutral-500 mt-1 font-mono">
-          <span>0%</span>
-          <span>25%</span>
-          <span>50%</span>
-          <span>75%</span>
-          <span>100%</span>
-        </div>
       </div>
 
-      {/* 30-Second Latency Stability History (Direct Canvas Rendering) */}
-      {showStability && <div
-        className={`p-2.5 rounded-sm mb-3 flex flex-col border ${compactStability ? "h-[55px] min-h-[55px] shrink-0" : "flex-1 min-h-[110px]"} ${
+      {/* Grouped container: Latency Stability + Hardware Audio Buffer Size */}
+      <div
+        className={`rounded-sm border flex flex-col gap-2.5 p-2.5 ${
           isDsp
             ? "bg-[#0b0e0d] border-emerald-900/40"
             : "bg-audiophile-surface2/30 border-slate-600/35"
         }`}
+      >
+      {/* 30-Second Latency Stability History (Direct Canvas Rendering) */}
+      {showStability && <div
+        className={`flex flex-col ${compactStability ? "h-[55px] min-h-[55px] shrink-0" : "flex-1 min-h-[110px]"}`}
       >
         <div
           className={`flex justify-between items-center text-[10px] mb-1 font-mono ${
@@ -516,13 +514,7 @@ export const BufferInspectorWidget: React.FC<BufferInspectorWidgetProps> = ({
       </div>}
 
       {/* Interactive Hardware Buffer Size Selector */}
-      <div
-        className={`p-2.5 rounded-sm border ${
-          isDsp
-            ? "bg-[#0f1412] border-emerald-900/40"
-            : "bg-audiophile-surface2/50 border-slate-600/35"
-        }`}
-      >
+      <div>
         <div className="flex items-center justify-between mb-2">
           <div
             className={`flex items-center gap-1.5 text-[10px] uppercase font-semibold font-mono ${
@@ -582,6 +574,7 @@ export const BufferInspectorWidget: React.FC<BufferInspectorWidgetProps> = ({
           </div>
         )}
       </div>
+      </div>{/* end grouped Latency + Buffer container */}
     </div>
   );
 };
