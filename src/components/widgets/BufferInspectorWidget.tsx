@@ -469,118 +469,109 @@ export const BufferInspectorWidget: React.FC<BufferInspectorWidgetProps> = ({
             );
           })}
         </div>
-
-        <div className="flex justify-between text-[8px] text-neutral-500 mt-1 font-mono">
-          <span>0%</span>
-          <span>25%</span>
-          <span>50%</span>
-          <span>75%</span>
-          <span>100%</span>
-        </div>
       </div>
 
-      {/* 30-Second Latency Stability History (Direct Canvas Rendering) */}
-      {showStability && <div
-        className={`p-2.5 rounded-sm mb-3 flex flex-col border ${compactStability ? "h-[55px] min-h-[55px] shrink-0" : "flex-1 min-h-[110px]"} ${
+      {/* Single combined container for Latency Stability & Hardware Audio Buffer Size */}
+      <div
+        className={`p-2.5 rounded-sm flex flex-col gap-2.5 border ${
           isDsp
             ? "bg-[#0b0e0d] border-emerald-900/40"
-            : "bg-audiophile-surface2/30 border-slate-600/35"
+            : "bg-audiophile-surface2/40 border-slate-600/35"
         }`}
       >
-        <div
-          className={`flex justify-between items-center text-[10px] mb-1 font-mono ${
-            isDsp ? "text-emerald-500" : "text-audiophile-muted"
-          }`}
-        >
-          <span className="font-semibold uppercase tracking-wider">
-            {isRadioMode ? "DESCARGA EN VIVO (ÚLTIMOS 30s)" : "LATENCY STABILITY (LAST 30s @ 10Hz)"}
-          </span>
-          <span className="text-[9px] text-neutral-500">
-            Current:{" "}
-            <span
-              className={`font-bold ${isDsp ? "text-emerald-300" : "text-audiophile-text"}`}
-              style={{ color: !isDsp ? appearance.accentColor : undefined }}
+        {/* 30-Second Latency Stability History (Direct Canvas Rendering) */}
+        {showStability && (
+          <div className="flex flex-col">
+            <div
+              className={`flex justify-between items-center text-[10px] mb-1 font-mono ${
+                isDsp ? "text-emerald-500" : "text-audiophile-muted"
+              }`}
             >
-              {isRadioMode ? `${(radioBytesPerSecond / 1024).toFixed(0)} KB/s` : `${telemetry.latency_ms.toFixed(2)} ms`}
-            </span>
-          </span>
-        </div>
-        <div className={`flex-1 w-full relative ${compactStability ? "min-h-[35px]" : "min-h-[70px]"}`}>
-          <canvas
-            ref={canvasRef}
-            className={`w-full h-full block rounded-xs ${
-              isDsp ? "bg-[#080b0a]" : "bg-black/30"
-            }`}
-          />
-        </div>
-      </div>}
-
-      {/* Interactive Hardware Buffer Size Selector */}
-      <div
-        className={`p-2.5 rounded-sm border ${
-          isDsp
-            ? "bg-[#0f1412] border-emerald-900/40"
-            : "bg-audiophile-surface2/50 border-slate-600/35"
-        }`}
-      >
-        <div className="flex items-center justify-between mb-2">
-          <div
-            className={`flex items-center gap-1.5 text-[10px] uppercase font-semibold font-mono ${
-              isDsp ? "text-emerald-400" : "text-audiophile-text"
-            }`}
-          >
-            <Sliders className={`w-3.5 h-3.5 ${isDsp ? "text-emerald-500" : "text-audiophile-cyan"}`} />
-            Hardware Audio Buffer Size (Frames)
-          </div>
-          <span className="text-[10px] text-neutral-500 font-mono">
-            Selected:{" "}
-            <strong
-              className={isDsp ? "text-emerald-300" : "text-audiophile-text font-bold"}
-              style={{ color: !isDsp ? appearance.accentColor : undefined }}
-            >
-              {selectedBufferSize} frames
-            </strong>{" "}
-            ({((selectedBufferSize / (telemetry.sample_rate || 44100)) * 1000).toFixed(2)} ms)
-          </span>
-        </div>
-
-        {/* Step buttons for precise frame sizes */}
-        <div className="grid grid-cols-5 gap-1.5">
-          {BUFFER_SIZES.map((size) => {
-            const isSelected = selectedBufferSize === size;
-            const latencyForSize = ((size / (telemetry.sample_rate || 44100)) * 1000).toFixed(1);
-            return (
-              <button
-                key={size}
-                disabled={isChangingBuffer}
-                onClick={() => handleBufferSizeChange(size)}
-                className={`py-1 px-2 rounded-xs border text-center transition-all flex flex-col items-center ${
-                  isSelected
-                    ? isDsp
-                      ? "bg-emerald-500/20 border-emerald-400 text-emerald-200 font-bold shadow-[0_0_8px_rgba(34,197,94,0.3)]"
-                      : "bg-audiophile-surface border-audiophile-cyan text-audiophile-text font-bold shadow-sm"
-                    : isDsp
-                    ? "bg-[#0a0d0c] border-emerald-950 text-neutral-400 hover:border-emerald-700 hover:text-emerald-300"
-                    : "bg-audiophile-base border-slate-600/45 text-audiophile-muted hover:text-audiophile-text"
-                } ${isChangingBuffer ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
-                style={
-                  isSelected && !isDsp
-                    ? { borderColor: appearance.accentColor, color: appearance.accentColor }
-                    : undefined
-                }
-              >
-                <span className="text-xs font-mono">{size}</span>
-                <span className="text-[8px] opacity-70">{latencyForSize} ms</span>
-              </button>
-            );
-          })}
-        </div>
-
-        {isChangingBuffer && (
-          <div className="mt-2 text-[8px] text-amber-400 animate-pulse font-semibold font-mono text-right">
-            Reconfigurando stream ALSA/CPAL...
+              <span className="font-semibold uppercase tracking-wider">
+                {isRadioMode ? "DESCARGA EN VIVO (ÚLTIMOS 30s)" : "LATENCY STABILITY (LAST 30s @ 10Hz)"}
+              </span>
+              <span className="text-[9px] text-neutral-500">
+                Current:{" "}
+                <span
+                  className={`font-bold ${isDsp ? "text-emerald-300" : "text-audiophile-text"}`}
+                  style={{ color: !isDsp ? appearance.accentColor : undefined }}
+                >
+                  {isRadioMode ? `${(radioBytesPerSecond / 1024).toFixed(0)} KB/s` : `${telemetry.latency_ms.toFixed(2)} ms`}
+                </span>
+              </span>
+            </div>
+            <div className={`w-full relative ${compactStability ? "h-[35px]" : "h-[70px]"}`}>
+              <canvas
+                ref={canvasRef}
+                className={`w-full h-full block rounded-xs ${
+                  isDsp ? "bg-[#080b0a]" : "bg-black/30"
+                }`}
+              />
+            </div>
           </div>
         )}
+
+        {/* Interactive Hardware Buffer Size Selector */}
+        <div>
+          <div className="flex items-center justify-between mb-1.5">
+            <div
+              className={`flex items-center gap-1.5 text-[10px] uppercase font-semibold font-mono ${
+                isDsp ? "text-emerald-400" : "text-audiophile-text"
+              }`}
+            >
+              <Sliders className={`w-3.5 h-3.5 ${isDsp ? "text-emerald-500" : "text-audiophile-cyan"}`} />
+              Hardware Audio Buffer Size (Frames)
+            </div>
+            <span className="text-[10px] text-neutral-500 font-mono">
+              Selected:{" "}
+              <strong
+                className={isDsp ? "text-emerald-300" : "text-audiophile-text font-bold"}
+                style={{ color: !isDsp ? appearance.accentColor : undefined }}
+              >
+                {selectedBufferSize} frames
+              </strong>{" "}
+              ({((selectedBufferSize / (telemetry.sample_rate || 44100)) * 1000).toFixed(2)} ms)
+            </span>
+          </div>
+
+          {/* Step buttons for precise frame sizes */}
+          <div className="grid grid-cols-5 gap-1.5">
+            {BUFFER_SIZES.map((size) => {
+              const isSelected = selectedBufferSize === size;
+              const latencyForSize = ((size / (telemetry.sample_rate || 44100)) * 1000).toFixed(1);
+              return (
+                <button
+                  key={size}
+                  disabled={isChangingBuffer}
+                  onClick={() => handleBufferSizeChange(size)}
+                  className={`py-1 px-2 rounded-xs border text-center transition-all flex flex-col items-center ${
+                    isSelected
+                      ? isDsp
+                        ? "bg-emerald-500/20 border-emerald-400 text-emerald-200 font-bold shadow-[0_0_8px_rgba(34,197,94,0.3)]"
+                        : "bg-audiophile-surface border-audiophile-cyan text-audiophile-text font-bold shadow-sm"
+                      : isDsp
+                      ? "bg-[#0a0d0c] border-emerald-950 text-neutral-400 hover:border-emerald-700 hover:text-emerald-300"
+                      : "bg-audiophile-base border-slate-600/45 text-audiophile-muted hover:text-audiophile-text"
+                  } ${isChangingBuffer ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
+                  style={
+                    isSelected && !isDsp
+                      ? { borderColor: appearance.accentColor, color: appearance.accentColor }
+                      : undefined
+                  }
+                >
+                  <span className="text-xs font-mono">{size}</span>
+                  <span className="text-[8px] opacity-70">{latencyForSize} ms</span>
+                </button>
+              );
+            })}
+          </div>
+
+          {isChangingBuffer && (
+            <div className="mt-1.5 text-[8px] text-amber-400 animate-pulse font-semibold font-mono text-right">
+              Reconfigurando stream ALSA/CPAL...
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
