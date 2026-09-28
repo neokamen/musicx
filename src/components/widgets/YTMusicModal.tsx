@@ -18,6 +18,8 @@ import {
   ChevronUp,
   Globe,
 } from "lucide-react";
+import SearchBar from './SearchBar';
+
 import { useMusicStore } from "../../store/index.ts";
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -97,6 +99,11 @@ export const YTMusicModal: React.FC<YTMusicModalProps> = ({ isOpen, onClose }) =
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analyzeResult, setAnalyzeResult] = useState<NeoAnalyzeResult | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const handleSearch = (query: string) => {
+    console.log('Searching for:', query);
+    // TODO: Implement search functionality
+  };
+
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [format, setFormat] = useState<string>("mp3");
   const [bitrate, setBitrate] = useState<string>("320k");
@@ -130,6 +137,8 @@ export const YTMusicModal: React.FC<YTMusicModalProps> = ({ isOpen, onClose }) =
     if (!q) return;
     setIsAnalyzing(true);
     setErrorMsg(null);
+      <SearchBar onSearch={handleSearch} />
+
     setAnalyzeResult(null);
     setProgresses({});
     setDoneCount(null);
@@ -419,8 +428,8 @@ export const YTMusicModal: React.FC<YTMusicModalProps> = ({ isOpen, onClose }) =
               {!analyzeResult && !isAnalyzing && (
                 <div className="flex flex-col items-center justify-center flex-1 gap-3 text-slate-500 py-12">
                   <Music size={40} className="opacity-30" />
-                  <p className="text-sm">Pega una URL de YouTube Music o escribe un nombre para buscar</p>
-                  <p className="text-xs opacity-60">Soporta canciones individuales, álbumes y playlists completas</p>
+                  <p className="text-sm">Busca música en Steam Music</p>
+                  <p className="text-xs opacity-60">Disfruta de nuestra extensa biblioteca musical de Steam Music</p>
                 </div>
               )}
             </div>
