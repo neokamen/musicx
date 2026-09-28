@@ -675,26 +675,6 @@ export const SpectrumVisualizer: React.FC<SpectrumVisualizerProps> = ({
           break;
         }
 
-        case 'neon_pulse': {
-          const cx = w / 2;
-          const cy = h / 2;
-          const maxR = Math.min(w, h) * 0.45;
-          const pulseVal = isPlaying ? currentBands.reduce((a, b) => a + b, 0) / numBands : 0;
-
-          for (let ring = 1; ring <= 4; ring++) {
-            const r = (maxR / 4) * ring * (0.8 + pulseVal * 0.4);
-            ctx.beginPath();
-            ctx.arc(cx, cy, Math.max(2, r), 0, Math.PI * 2);
-            ctx.strokeStyle = `${accent}${Math.floor((1 - ring / 5) * 255)
-              .toString(16)
-              .padStart(2, '0')}`;
-            ctx.lineWidth = 2 + ring;
-            ctx.shadowColor = accent;
-            ctx.shadowBlur = (appearance.neonIntensity / 100) * 16;
-            ctx.stroke();
-          }
-          break;
-        }
 
         case 'led_matrix': {
           const barWidth = w / numBands;
