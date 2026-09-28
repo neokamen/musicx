@@ -12,14 +12,16 @@ import {
   Volume2,
   SlidersHorizontal,
   Radio as RadioIcon,
+  Globe,
 } from "lucide-react";
 import type { Track } from "../../types/index.ts";
 import { RadioHubModal } from "../radio/RadioHubModal.tsx";
-
+import { YTMusicModal } from "./YTMusicModal.tsx";
 import { ColumnResizeHandle } from "./ColumnResizeHandle.tsx";
 
 type TrackColumn = "track" | "title" | "artist" | "album" | "format" | "bitrate" | "duration";
 type TrackColumnWidths = Record<TrackColumn, number>;
+
 function formatDuration(sec: number): string {
   if (!sec || isNaN(sec)) return "0:00";
   const mins = Math.floor(sec / 60);
@@ -98,59 +100,92 @@ const VirtualTrackRow: React.FC<VirtualTrackRowProps> = ({
         transform: `translateY(${virtualRow.start}px)`,
       }}
       className={`flex items-center px-3 hover:bg-audiophile-surface2/80 cursor-pointer font-mono text-[11px] group transition-colors ${
-        isCurrent
-          ? "bg-audiophile-cyan/15 text-audiophile-cyan font-semibold"
-          : "text-audiophile-text"
+        isCurrent ? "bg-audiophile-surface2 text-audiophile-cyan font-semibold" : "text-audiophile-text"
       }`}
     >
-      <div className="w-10 text-center text-audiophile-muted shrink-0" style={{ flex: `0 0 ${columnWidths.track}%` }}>
+      <div
+        className="w-10 text-center flex items-center justify-center shrink-0 pr-2"
+        style={{ flex: `0 0 ${columnWidths.track}%` }}
+      >
         {isCurrent && isPlaying ? (
-          <Volume2 size={12} className="inline text-audiophile-cyan animate-pulse" />
+          <Volume2 size={13} className="text-audiophile-cyan animate-pulse" />
         ) : (
-          track.track_number || index + 1
+          <span className="text-audiophile-muted text-[10px] group-hover:hidden">{track.track_number || index + 1}</span>
         )}
+        <Play size={11} className="hidden group-hover:block text-audiophile-cyan" />
       </div>
 
-      <div className="min-w-0 pr-2 overflow-hidden whitespace-nowrap" style={{ flex: `0 0 ${columnWidths.title}%` }}>
+      <div
+        className="relative min-w-0 pr-2 overflow-hidden flex items-center"
+        style={{ flex: `0 0 ${columnWidths.title}%` }}
+      >
         <span
-          className={`group-hover:text-white ${
-            isHoveredLong ? "inline-block animate-marquee" : "truncate block"
+          className={`truncate whitespace-nowrap block ${
+            isHoveredLong ? "animate-marquee" : ""
           }`}
-          style={isHoveredLong ? { animationDuration: "var(--marquee-duration, 10s)" } : undefined}
+          title={track.title}
         >
-          {track.title}
-          {isHoveredLong ? ` \u00A0\u00A0\u00A0•\u00A0\u00A0\u00A0 ${track.title}` : ""}
+          {track.title || "Sin título"}
         </span>
       </div>
 
       {visibleCols.artist && (
-        <div className="w-40 text-audiophile-muted group-hover:text-audiophile-text truncate pr-2 shrink-0" style={{ flex: `0 0 ${columnWidths.artist}%` }}>
-          {track.artist}
+        <div
+          className="relative min-w-0 pr-2 shrink-0 overflow-hidden flex items-center"
+          style={{ flex: `0 0 ${columnWidths.artist}%` }}
+        >
+          <span
+            className={`truncate whitespace-nowrap text-audiophile-muted block ${
+              isHoveredLong ? "animate-marquee" : ""
+            }`}
+            title={track.artist}
+          >
+            {track.artist || "Desconocido"}
+          </span>
         </div>
       )}
 
       {visibleCols.album && (
-        <div className="w-40 text-audiophile-muted group-hover:text-audiophile-text truncate pr-2 shrink-0" style={{ flex: `0 0 ${columnWidths.album}%` }}>
-          {track.album}
+        <div
+          className="relative min-w-0 pr-2 shrink-0 overflow-hidden flex items-center"
+          style={{ flex: `0 0 ${columnWidths.album}%` }}
+        >
+          <span
+            className={`truncate whitespace-nowrap text-audiophile-muted/70 block ${
+              isHoveredLong ? "animate-marquee" : ""
+            }`}
+            title={track.album}
+          >
+            {track.album || "Sin álbum"}
+          </span>
         </div>
       )}
 
       {visibleCols.format && (
-        <div className="w-20 text-center shrink-0" style={{ flex: `0 0 ${columnWidths.format}%` }}>
-          <span className="text-[9px] px-1.5 py-0.5 rounded bg-audiophile-border/80 font-medium text-slate-300">
-            {track.format}
+        <div
+          className="w-20 text-center shrink-0 text-audiophile-muted/80 text-[10px]"
+          style={{ flex: `0 0 ${columnWidths.format}%` }}
+        >
+          <span className="px-1.5 py-0.5 rounded bg-audiophile-base border border-audiophile-border">
+            {track.format || "AUDIO"}
           </span>
         </div>
       )}
 
       {visibleCols.bitrate && (
-        <div className="w-20 text-right text-audiophile-muted shrink-0 text-[10px] pr-2" style={{ flex: `0 0 ${columnWidths.bitrate}%` }}>
-          {track.bitrate_kbps > 0 ? `${track.bitrate_kbps}k` : "---"}
+        <div
+          className="w-20 text-right pr-2 shrink-0 text-audiophile-muted/60 text-[10px]"
+          style={{ flex: `0 0 ${columnWidths.bitrate}%` }}
+        >
+          {track.bitrate_kbps ? `${track.bitrate_kbps} kbps` : "--"}
         </div>
       )}
 
       {visibleCols.duration && (
-        <div className="w-16 text-right text-audiophile-muted shrink-0" style={{ flex: `0 0 ${columnWidths.duration}%` }}>
+        <div
+          className="w-16 text-right shrink-0 text-audiophile-muted text-[10px]"
+          style={{ flex: `0 0 ${columnWidths.duration}%` }}
+        >
           {formatDuration(track.duration_seconds)}
         </div>
       )}
@@ -162,11 +197,11 @@ export const VirtualTrackList: React.FC = () => {
   const {
     libraryTracks,
     currentTrack,
-    currentCoverArt,
-    playbackSettings,
     isPlaying,
     setQueue,
     addToQueue,
+    play,
+    appearance,
     fetchLibraryTracks,
     scanStatus,
   } = useMusicStore();
@@ -186,6 +221,7 @@ export const VirtualTrackList: React.FC = () => {
   });
   const [isColMenuOpen, setIsColMenuOpen] = useState(false);
   const [showRadio, setShowRadio] = useState(false);
+  const [showYTMusic, setShowYTMusic] = useState(false);
   const [contextMenu, setContextMenu] = useState<{
     x: number;
     y: number;
@@ -270,6 +306,10 @@ export const VirtualTrackList: React.FC = () => {
     return <RadioHubModal isOpen onClose={() => setShowRadio(false)} embedded onBackToLibrary={() => setShowRadio(false)} />;
   }
 
+  if (showYTMusic) {
+    return <YTMusicModal isOpen onClose={() => setShowYTMusic(false)} embedded onBackToLibrary={() => setShowYTMusic(false)} />;
+  }
+
   return (
     <div
       ref={tableWidthRef}
@@ -302,7 +342,7 @@ export const VirtualTrackList: React.FC = () => {
           <div className="relative">
             <button
               onClick={() => setIsColMenuOpen(!isColMenuOpen)}
-              className="p-1.5 rounded bg-slate-900 border border-slate-700 text-slate-300 hover:text-white transition"
+              className="p-1.5 rounded bg-slate-900 border border-slate-700 text-slate-300 hover:text-white transition cursor-pointer"
               title="Personalizar columnas visibles"
             >
               <SlidersHorizontal size={13} />
@@ -362,8 +402,18 @@ export const VirtualTrackList: React.FC = () => {
 
           <button
             type="button"
+            onClick={() => setShowYTMusic(true)}
+            className="grid size-7 place-items-center rounded border border-slate-700 bg-slate-900 text-slate-300 transition hover:border-cyan-500/60 hover:text-cyan-300 cursor-pointer"
+            title="Cambiar a YouTube Music dentro de este panel"
+            aria-label="Mostrar YouTube Music"
+          >
+            <Globe size={13} style={{ color: appearance.accentColor || "#06b6d4" }} />
+          </button>
+
+          <button
+            type="button"
             onClick={() => setShowRadio(true)}
-            className="grid size-7 place-items-center rounded border border-slate-700 bg-slate-900 text-slate-300 transition hover:border-cyan-500/60 hover:text-cyan-300"
+            className="grid size-7 place-items-center rounded border border-slate-700 bg-slate-900 text-slate-300 transition hover:border-cyan-500/60 hover:text-cyan-300 cursor-pointer"
             title="Cambiar a radio dentro de este panel"
             aria-label="Mostrar radio"
           >
@@ -372,7 +422,7 @@ export const VirtualTrackList: React.FC = () => {
 
           <button
             onClick={() => fetchLibraryTracks(search)}
-            className="p-1.5 rounded hover:bg-audiophile-border text-audiophile-text transition-colors"
+            className="p-1.5 rounded hover:bg-audiophile-border text-audiophile-text transition-colors cursor-pointer"
             title="Recargar canciones desde SQLite"
           >
             <RefreshCw size={13} />
@@ -452,7 +502,7 @@ export const VirtualTrackList: React.FC = () => {
         {visibleCols.duration && (
           <div
             onClick={() => handleSort("duration_seconds")}
-            className="w-16 text-right cursor-pointer flex items-center justify-end gap-1 group/col hover:text-white shrink-0"
+            className="relative w-16 text-right cursor-pointer flex items-center justify-end gap-1 group/col hover:text-white shrink-0"
             style={{ flex: `0 0 ${columnWidths.duration}%` }}
           >
             <span>Duración</span>
@@ -461,92 +511,75 @@ export const VirtualTrackList: React.FC = () => {
         )}
       </div>
 
-      {/* Contenedor Virtualizado con @tanstack/react-virtual */}
-      <div ref={parentRef} className="flex-1 overflow-y-auto w-full relative">
-        {/* Difuminado de la carátula del álbum en el fondo de la lista */}
-        {playbackSettings?.diffuseAlbumArt && currentCoverArt && (
-          <div
-            className="pointer-events-none absolute inset-0 z-0 bg-cover bg-center filter blur-3xl transition-opacity duration-700"
-            style={{
-              backgroundImage: `url(${currentCoverArt})`,
-              opacity: (playbackSettings.diffuseAlbumArtOpacity ?? 25) / 100,
-            }}
-          />
-        )}
-
-        {sortedTracks.length === 0 ? (
-          <div className="relative z-10 py-20 text-center text-audiophile-muted font-sans text-xs">
-            {scanStatus.is_scanning
-              ? "Indexando archivos de audio en segundo plano..."
-              : "No se encontraron temas en la base de datos."}
-          </div>
-        ) : (
-          <div
-            className="relative z-10"
-            style={{
-              height: `${rowVirtualizer.getTotalSize()}px`,
-              width: "100%",
-              position: "relative",
-            }}
-          >
-            {rowVirtualizer.getVirtualItems().map((virtualRow) => {
-              const track = sortedTracks[virtualRow.index];
-              const isCurrent = currentTrack?.filepath === track.filepath;
-
-              return (
-                <VirtualTrackRow
-                  key={track.filepath}
-                  track={track}
-                  index={virtualRow.index}
-                  virtualRow={virtualRow}
-                  isCurrent={isCurrent}
-                  isPlaying={isPlaying}
-                  columnWidths={columnWidths}
-                  visibleCols={visibleCols}
-                  onDoubleClick={() => handleRowDoubleClick(track, virtualRow.index)}
-                  onContextMenu={(e) => handleContextMenu(e, track)}
-                />
-              );
-            })}
-          </div>
-        )}
+      {/* Lista Virtualizada */}
+      <div ref={parentRef} className="flex-1 w-full overflow-y-auto relative divide-y divide-audiophile-border/30">
+        <div
+          style={{
+            height: `${rowVirtualizer.getTotalSize()}px`,
+            width: "100%",
+            position: "relative",
+          }}
+        >
+          {rowVirtualizer.getVirtualItems().map((virtualRow) => {
+            const track = sortedTracks[virtualRow.index];
+            const isCurrent = currentTrack?.filepath === track.filepath;
+            return (
+              <VirtualTrackRow
+                key={track.filepath}
+                track={track}
+                index={virtualRow.index}
+                virtualRow={virtualRow}
+                isCurrent={isCurrent}
+                isPlaying={isPlaying}
+                columnWidths={columnWidths}
+                visibleCols={visibleCols}
+                onDoubleClick={() => handleRowDoubleClick(track, virtualRow.index)}
+                onContextMenu={(e) => handleContextMenu(e, track)}
+              />
+            );
+          })}
+        </div>
       </div>
 
-      {/* Menú contextual (Clic Derecho) */}
+      {/* Barra de Estado inferior */}
+      <div className="h-7 px-3 border-t border-audiophile-border bg-audiophile-base flex items-center justify-between text-[10px] font-mono text-audiophile-muted shrink-0">
+        <span>
+          {sortedTracks.length} pistas · {Math.floor(visibleDurationSeconds / 3600)}h {Math.floor((visibleDurationSeconds % 3600) / 60)}m
+        </span>
+        <span>
+          {search ? `Filtrando por "${search}"` : "Biblioteca completa SQLite"}
+        </span>
+      </div>
+
+      {/* Menú contextual (clic derecho) */}
       {contextMenu && (
         <div
-          style={{ top: contextMenu.y, left: contextMenu.x }}
-          className="fixed z-50 bg-audiophile-surface2 border border-audiophile-border shadow-2xl rounded p-1 font-mono text-[11px] text-audiophile-text flex flex-col min-w-[160px]"
-          onClick={(e) => e.stopPropagation()}
+          style={{ top: `${contextMenu.y}px`, left: `${contextMenu.x}px` }}
+          className="fixed z-50 w-48 bg-audiophile-surface border border-audiophile-border rounded-lg shadow-2xl p-1 font-mono text-xs text-audiophile-text"
         >
           <button
             onClick={() => {
-              setQueue([contextMenu.track], 0);
+              play(contextMenu.track);
               closeContextMenu();
             }}
-            className="flex items-center gap-2 px-2.5 py-1.5 hover:bg-audiophile-cyan/20 hover:text-audiophile-cyan rounded text-left transition-colors"
+            className="w-full text-left px-2.5 py-1.5 hover:bg-audiophile-surface2 rounded flex items-center gap-2"
           >
-            <Play size={12} fill="currentColor" />
+            <Play size={12} className="text-audiophile-cyan" />
             <span>Reproducir ahora</span>
           </button>
+
           <button
             onClick={() => {
               addToQueue(contextMenu.track);
               closeContextMenu();
             }}
-            className="flex items-center gap-2 px-2.5 py-1.5 hover:bg-audiophile-cyan/20 hover:text-audiophile-cyan rounded text-left transition-colors"
+            className="w-full text-left px-2.5 py-1.5 hover:bg-audiophile-surface2 rounded flex items-center gap-2"
           >
-            <Plus size={12} />
+            <Plus size={12} className="text-emerald-400" />
             <span>Añadir a la cola</span>
           </button>
         </div>
       )}
-
-      {/* Pie de estado de biblioteca */}
-      <div className="h-6 px-3 border-t border-audiophile-border bg-audiophile-surface2 flex items-center justify-between text-[10px] font-mono text-audiophile-muted shrink-0">
-        <span>{sortedTracks.length} canciones · {Math.floor(visibleDurationSeconds / 60)} min visibles</span>
-        <span className="text-audiophile-green">VIRTUAL RENDERER: 60+ FPS</span>
-      </div>
     </div>
   );
 };
