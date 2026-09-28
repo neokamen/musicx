@@ -421,14 +421,24 @@ export default function App() {
             onClick={() => setIsYTMusicOpen(true)}
             className="flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-lg border font-sans font-semibold transition cursor-pointer relative"
             style={{
-              borderColor: `${appearance.accentColor || "#06b6d4"}50`,
-              backgroundColor: `${appearance.accentColor || "#06b6d4"}15`,
+              borderColor: isYTMusicOpen
+                ? `${appearance.accentColor || "#06b6d4"}90`
+                : `${appearance.accentColor || "#06b6d4"}50`,
+              backgroundColor: isYTMusicOpen
+                ? `${appearance.accentColor || "#06b6d4"}25`
+                : `${appearance.accentColor || "#06b6d4"}15`,
               color: appearance.accentColor || "#06b6d4",
+              boxShadow: isYTMusicOpen
+                ? `0 0 12px ${appearance.accentColor || "#06b6d4"}40`
+                : undefined,
             }}
             title="Abrir YouTube Music"
           >
-            <Globe size={13} />
+            <Globe size={13} className={isYTMusicOpen ? "animate-pulse" : ""} />
             <span>YT Music</span>
+            {isYTMusicOpen && (
+              <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-ping inline-block" />
+            )}
           </button>
 
           <button
