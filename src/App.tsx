@@ -1,12 +1,11 @@
 import { useEffect, useRef, useState } from "react";
-import { Check, Globe, Minimize2, Radio as RadioIcon, Settings, SlidersHorizontal } from "lucide-react";
+import { Check, Minimize2, Radio as RadioIcon, Settings, SlidersHorizontal } from "lucide-react";
 import { LayoutManager } from "./components/layout/LayoutManager.tsx";
 import { HiFiPlayerBar } from "./components/player/HiFiPlayerBar.tsx";
 import { MINI_PLAYER_TEMPLATES, MiniPlayer, type MiniPlayerTemplate } from "./components/player/MiniPlayer.tsx";
 import { SettingsModal } from "./components/settings/SettingsModal.tsx";
 import { AudioEQModal } from "./components/audio/AudioEQModal.tsx";
 import { RadioHubModal } from "./components/radio/RadioHubModal.tsx";
-import { YTMusicModal } from "./components/widgets/YTMusicModal.tsx";
 import { useMusicStore } from "./store/index.ts";
 import { initTheme } from "./lib/theme.ts";
 import { FIRST_RUN_PROFILE } from "./components/layout/defaultLayout.ts";
@@ -93,7 +92,6 @@ export default function App() {
 
   const [savedWindowState] = useState(readSavedWindowState);
   const [isAudioEqOpen, setIsAudioEqOpen] = useState(false);
-  const [isYTMusicOpen, setIsYTMusicOpen] = useState(false);
   const [isLayoutEditing, setIsLayoutEditing] = useState(false);
   const [isMiniLayoutEditing, setIsMiniLayoutEditing] = useState(false);
   const [isMiniPlayer, setIsMiniPlayer] = useState(savedWindowState?.isMiniPlayer ?? false);
@@ -418,20 +416,6 @@ export default function App() {
 
         <div className="flex shrink-0 items-center gap-3 font-mono text-[11px] text-slate-400">
           <button
-            onClick={() => setIsYTMusicOpen(true)}
-            className="flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-lg border font-sans font-semibold transition cursor-pointer relative"
-            style={{
-              borderColor: `${appearance.accentColor || "#06b6d4"}50`,
-              backgroundColor: `${appearance.accentColor || "#06b6d4"}15`,
-              color: appearance.accentColor || "#06b6d4",
-            }}
-            title="Abrir YouTube Music"
-          >
-            <Globe size={13} />
-            <span>YT Music</span>
-          </button>
-
-          <button
             onClick={() => setRadioHubOpen(true)}
             className="flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-lg border font-sans font-semibold transition cursor-pointer relative"
             style={{
@@ -515,7 +499,6 @@ export default function App() {
       </>}
 
       <AudioEQModal isOpen={isAudioEqOpen} onClose={() => setIsAudioEqOpen(false)} />
-      <YTMusicModal isOpen={isYTMusicOpen} onClose={() => setIsYTMusicOpen(false)} />
       <RadioHubModal isOpen={isRadioHubOpen} onClose={() => setRadioHubOpen(false)} />
       <SettingsModal />
     </div>

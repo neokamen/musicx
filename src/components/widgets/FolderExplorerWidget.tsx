@@ -16,12 +16,10 @@ import {
   Play,
   SlidersHorizontal,
   FolderPlus,
-  Globe,
   House,
 } from "lucide-react";
 import type { FileNode, Track } from "../../types/index.ts";
 import { ColumnResizeHandle } from "./ColumnResizeHandle.tsx";
-import { YTMusicModal } from "./YTMusicModal.tsx";
 
 type ExplorerColumn = "name" | "type" | "size" | "duration" | "bitrate" | "action";
 type ExplorerColumnWidths = Record<ExplorerColumn, number>;
@@ -207,7 +205,6 @@ export const FolderExplorerWidget: React.FC = () => {
     action: true,
   });
   const [isColMenuOpen, setIsColMenuOpen] = useState(false);
-  const [isYTMusicOpen, setIsYTMusicOpen] = useState(false);
 
   const handleNavigate = (path: string) => {
     setInputPath(path);
@@ -375,15 +372,6 @@ export const FolderExplorerWidget: React.FC = () => {
             aria-label="Ir a la carpeta de inicio del explorador"
           >
             <House size={14} />
-          </button>
-          <button
-            onClick={() => setIsYTMusicOpen(true)}
-            className="p-1 rounded hover:bg-audiophile-border transition-colors cursor-pointer"
-            title="Abrir YouTube Music"
-            aria-label="Abrir YouTube Music"
-            style={{ color: appearance.accentColor || "#06b6d4" }}
-          >
-            <Globe size={14} />
           </button>
           <button
             onClick={() => browseDirectory(explorer.currentPath)}
@@ -596,8 +584,6 @@ export const FolderExplorerWidget: React.FC = () => {
           {explorer.currentPath}
         </span>
       </div>
-
-      <YTMusicModal isOpen={isYTMusicOpen} onClose={() => setIsYTMusicOpen(false)} />
     </div>
   );
 };
