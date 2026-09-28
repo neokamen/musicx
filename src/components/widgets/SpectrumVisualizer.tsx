@@ -12,6 +12,7 @@ export type SpectrumStyle =
   | 'stereo_wave'
   | 'stereo_split'
   | 'stereo_mirror'
+  | 'neon_pulse'
   | 'led_matrix'
   | 'mirror'
   | 'gradient_flow'
@@ -34,6 +35,7 @@ export const SPECTRUM_STYLES: { id: SpectrumStyle; name: string }[] = [
   { id: 'stereo_wave', name: 'Ondas Estéreo' },
   { id: 'stereo_split', name: 'Espectro Estéreo Dividido' },
   { id: 'stereo_mirror', name: 'Espectro Estéreo Espejo' },
+  { id: 'neon_pulse', name: 'Anillos Neón Pulsantes' },
   { id: 'led_matrix', name: 'Matriz LED de Segmentos' },
   { id: 'mirror', name: 'Espectro Simétrico Espejo' },
   { id: 'gradient_flow', name: 'Cinta Térmica Fluida' },
@@ -538,7 +540,7 @@ export const SpectrumVisualizer: React.FC<SpectrumVisualizerProps> = ({
             const centerX = gaugeWidth * (channelIdx + 0.5);
             const channel = channelBands[channelIdx];
             const level = isPlaying ? channel.reduce((sum, band) => sum + band, 0) / numBands : 0;
-            const color = accent;
+            const color = channelIdx === 0 ? '#38bdf8' : '#a3e635';
             ctx.fillStyle = panelColor;
             ctx.strokeStyle = borderColor;
             ctx.lineWidth = 1.5;
@@ -548,7 +550,7 @@ export const SpectrumVisualizer: React.FC<SpectrumVisualizerProps> = ({
             ctx.stroke();
             ctx.beginPath();
             ctx.arc(centerX, centerY, radius, Math.PI, Math.PI * 2);
-            ctx.strokeStyle = `${color}44`;
+            ctx.strokeStyle = '#29404d';
             ctx.lineWidth = 3.2;
             ctx.stroke();
             const sweep = Math.PI * Math.min(1, level);
@@ -558,7 +560,7 @@ export const SpectrumVisualizer: React.FC<SpectrumVisualizerProps> = ({
             ctx.strokeStyle = color;
             ctx.lineWidth = 4.5;
             ctx.shadowColor = color;
-            ctx.shadowBlur = appearance.neonGlow ? (appearance.neonIntensity / 100) * 22 : 14;
+            ctx.shadowBlur = 18;
             ctx.stroke();
             ctx.shadowBlur = 0;
             for (let tick = 0; tick <= 16; tick++) {
@@ -579,7 +581,7 @@ export const SpectrumVisualizer: React.FC<SpectrumVisualizerProps> = ({
             ctx.strokeStyle = '#ffffff';
             ctx.lineWidth = 2.2;
             ctx.shadowColor = color;
-            ctx.shadowBlur = appearance.neonGlow ? 12 : 6;
+            ctx.shadowBlur = 8;
             ctx.stroke();
             ctx.shadowBlur = 0;
             ctx.beginPath();
@@ -591,7 +593,6 @@ export const SpectrumVisualizer: React.FC<SpectrumVisualizerProps> = ({
             ctx.shadowBlur = 0;
             ctx.font = 'bold 9px monospace';
             ctx.textAlign = 'center';
-            ctx.fillStyle = '#94a3b8';
             ctx.fillText(channelIdx === 0 ? 'CH 01 · L' : 'CH 02 · R', centerX, h - 16);
           }
           break;

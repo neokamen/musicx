@@ -117,17 +117,16 @@ export const EqCompactWidget: React.FC = () => {
           { key: "eqLowpass" as const, label: "Lowpass", min: 0, max: 22000, step: 500, unit: "Hz" },
         ].map(({ key, label, min, max, step, unit }) => {
           const value = audioSettings[key] || 0;
-          const pct = Math.max(0, Math.min(100, ((value - min) / (max - min)) * 100));
           const shownValue = key === "eqLowpass" && value >= 1000
             ? `${(value / 1000).toFixed(1)}k Hz`
             : value === 0 && (key === "eqHighpass" || key === "eqLowpass")
               ? "Off"
               : `${value > 0 && unit === "dB" ? "+" : ""}${value} ${unit}`;
           return (
-            <label key={key} className="min-w-0 bg-audiophile-surface px-2 py-1.5 flex flex-col justify-center">
+            <label key={key} className="min-w-0 bg-audiophile-surface px-2 py-1.5">
               <span className="flex items-center justify-between gap-1 text-[8px]">
                 <span className="truncate text-audiophile-muted">{label}</span>
-                <span className="shrink-0 text-audiophile-text font-bold" style={{ color: value !== 0 ? appearance.accentColor : undefined }}>{shownValue}</span>
+                <span className="shrink-0 text-audiophile-text">{shownValue}</span>
               </span>
               <input
                 aria-label={label}
@@ -137,10 +136,7 @@ export const EqCompactWidget: React.FC = () => {
                 step={step}
                 value={value}
                 onChange={(event) => updateSetting(key, Number(event.target.value))}
-                className="eq-horizontal-slider mt-1 h-2.5 w-full cursor-pointer"
-                style={{
-                  background: `linear-gradient(to right, ${appearance.accentColor} 0%, ${appearance.accentColor} ${pct}%, var(--app-surface2) ${pct}%, var(--app-surface2) 100%)`,
-                }}
+                className="mt-1 h-1 w-full cursor-pointer accent-cyan-400"
               />
             </label>
           );
