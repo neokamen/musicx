@@ -20,6 +20,10 @@ import { ListeningStatsWidget } from "./ListeningStatsWidget.tsx";
 import { RadioTelemetryWidget } from "./RadioTelemetryWidget.tsx";
 import { AudioDiagnosticsWidget } from "./AudioDiagnosticsWidget.tsx";
 import { DacTelemetryCompactWidget } from "./DacTelemetryCompactWidget.tsx";
+import { SignalMonitorWidget } from "./SignalMonitorWidget.tsx";
+import { EqSpectrumWidget } from "./EqSpectrumWidget.tsx";
+import { LoudnessWidget } from "./LoudnessWidget.tsx";
+import { AudioTelemetryFullWidget } from "./AudioTelemetryFullWidget.tsx";
 
 interface WidgetRendererProps {
   widget: WidgetType;
@@ -71,6 +75,14 @@ export const WidgetRenderer: React.FC<WidgetRendererProps> = ({ widget }) => {
       return <RadioTelemetryWidget />;
     case "audio_diagnostics":
       return <AudioDiagnosticsWidget />;
+    case "signal_monitor_compact":
+      return <SignalMonitorWidget />;
+    case "eq_spectrum":
+      return <EqSpectrumWidget />;
+    case "loudness_normalizer":
+      return <LoudnessWidget />;
+    case "audio_telemetry_full":
+      return <AudioTelemetryFullWidget />;
     default:
       return (
         <div className="p-4 text-center text-audiophile-muted font-mono text-xs">

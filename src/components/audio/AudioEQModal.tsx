@@ -478,10 +478,9 @@ export function AudioEQModal({
                   step={0.5}
                   value={band.gain}
                   onChange={(e) => updateBandGain(i, parseFloat(e.target.value))}
+                  className="eq-bar-slider"
                   style={{
-                    writingMode: "vertical-lr",
-                    direction: "rtl",
-                    WebkitAppearance: "slider-vertical",
+                    background: `linear-gradient(to top, ${accentColor} 0%, ${accentColor} ${((band.gain + 12) / 24) * 100}%, var(--app-surface2) ${((band.gain + 12) / 24) * 100}%, var(--app-surface2) 100%)`,
                     height: 120,
                     width: 24,
                     cursor: "pointer",

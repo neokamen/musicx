@@ -20,7 +20,11 @@ export type WidgetType =
   | "listening_stats"
   | "radio_telemetry"
   | "audio_diagnostics"
-  | "dac_telemetry_compact";
+  | "dac_telemetry_compact"
+  | "signal_monitor_compact"
+  | "eq_spectrum"
+  | "loudness_normalizer"
+  | "audio_telemetry_full";
 
 export interface WidgetMeta {
   type: WidgetType;
@@ -138,6 +142,26 @@ export const AVAILABLE_WIDGETS: WidgetMeta[] = [
     type: "audio_diagnostics",
     label: "Diagnóstico de audio",
     description: "Estado detallado de buffers, XRuns, lectura, fuente y formato",
+  },
+  {
+    type: "signal_monitor_compact",
+    label: "Monitor de señal (compacto)",
+    description: "Sample rate, bit-perfect, bitrate, profundidad y canales",
+  },
+  {
+    type: "eq_spectrum",
+    label: "Espectro de EQ",
+    description: "Curva de respuesta del ecualizador en tiempo real",
+  },
+  {
+    type: "loudness_normalizer",
+    label: "Normalizador Loudness",
+    description: "Control integrado del limitador true-peak del motor de audio",
+  },
+  {
+    type: "audio_telemetry_full",
+    label: "Telemetría de audio (completa)",
+    description: "Espectro, señal, dispositivo, buffer, latencia, XRuns y fuente",
   },
 ];
 

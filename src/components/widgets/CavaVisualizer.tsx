@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { useMusicStore, type AppearanceState } from "../../store/index.ts";
 
 export const CAVA_STYLES: { id: AppearanceState["cavaStyle"]; label: string }[] = [
@@ -18,15 +18,15 @@ export const CavaVisualizer: React.FC = () => {
   const telemetry = useMusicStore((state) => state.telemetry);
   const isPlaying = useMusicStore((state) => state.isPlaying);
   const appearance = useMusicStore((state) => state.appearance);
-  const setAppearance = useMusicStore((state) => state.setAppearance);
-  const latestState = useRef({ telemetry, isPlaying, appearance });
-  latestState.current = { telemetry, isPlaying, appearance };
+  const [visualStyle, setVisualStyle] = useState(appearance.cavaStyle);
+  const latestState = useRef({ telemetry, isPlaying, appearance, visualStyle });
+  latestState.current = { telemetry, isPlaying, appearance, visualStyle };
 
   const handleDoubleClick = () => {
-    const currentStyle = latestState.current.appearance.cavaStyle;
+    const currentStyle = latestState.current.visualStyle;
     const currentIndex = CAVA_STYLES.findIndex((style) => style.id === currentStyle);
     const nextStyle = CAVA_STYLES[(currentIndex + 1) % CAVA_STYLES.length];
-    setAppearance({ cavaStyle: nextStyle.id });
+    setVisualStyle(nextStyle.id);
   };
 
   useEffect(() => {
@@ -90,7 +90,7 @@ export const CavaVisualizer: React.FC = () => {
 
     const render = (time: number) => {
       frameId = requestAnimationFrame(render);
-      const { telemetry: liveTelemetry, isPlaying: liveIsPlaying, appearance: liveAppearance } = latestState.current;
+      const { telemetry: liveTelemetry, isPlaying: liveIsPlaying, appearance: liveAppearance, visualStyle: liveStyle } = latestState.current;
       const fps = Math.max(30, liveAppearance.cavaFps || 60);
       if (time - previousFrame < 1000 / fps) return;
       const delta = Math.min((time - (previousFrame || time)) / 1000, 0.08);
@@ -171,20 +171,27 @@ export const CavaVisualizer: React.FC = () => {
       context.shadowBlur = 22;
       const baseline = liveAppearance.cavaMirrored ? height * 0.5 : height * 0.84;
       const scale = liveAppearance.cavaMirrored ? 0.62 : 0.88;
-      switch (liveAppearance.cavaStyle) {
+      switch (liveStyle) {
         case "bars": {
           const slotWidth = width / count;
           const barWidth = Math.max(1, slotWidth * 0.72);
+          const baseline = height - 2;
           for (let index = 0; index < count; index++) {
-            const barHeight = Math.max(2, levels[index] * height * 0.9);
+            const barHeight = levels[index] * (baseline - 2);
             const x = index * slotWidth + (slotWidth - barWidth) / 2;
-            const y = height - barHeight;
-            context.fillStyle = fluidGradient;
-            context.shadowBlur = 10;
-            context.fillRect(x, y, barWidth, barHeight);
+            const y = baseline - barHeight;
+            if (barHeight > 1) {
+              context.fillStyle = fluidGradient;
+              context.shadowBlur = 10;
+              context.fillRect(x, y, barWidth, barHeight);
+            }
             if (liveAppearance.cavaPeakHold) {
+              const peakY = Math.max(3, baseline - peaks[index] * (baseline - 2));
               context.fillStyle = palette[2];
-              context.fillRect(x, height - peaks[index] * height * 0.9, barWidth, 2);
+              context.shadowColor = palette[2];
+              context.shadowBlur = 8;
+              context.fillRect(x - 1, peakY - 1, barWidth + 2, 2);
+              context.shadowBlur = 0;
             }
           }
           break;

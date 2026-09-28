@@ -81,10 +81,9 @@ export const EqBarsWidget: React.FC = () => {
                   step="0.5"
                   value={gain}
                   onChange={(e) => handleGainChange(idx, parseFloat(e.target.value))}
-                  className="h-full w-1.5 appearance-none bg-slate-800 rounded cursor-pointer accent-cyan-400"
+                  className="eq-bar-slider h-full w-3 cursor-pointer"
                   style={{
-                    writingMode: "vertical-lr",
-                    direction: "rtl",
+                    background: `linear-gradient(to top, ${appearance.accentColor} 0%, ${appearance.accentColor} ${((gain + 12) / 24) * 100}%, var(--app-surface2) ${((gain + 12) / 24) * 100}%, var(--app-surface2) 100%)`,
                   }}
                 />
               </div>

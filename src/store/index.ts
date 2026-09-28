@@ -954,16 +954,22 @@ export const useMusicStore = create<MusicPlayerStore>((set, get) => ({
   },
 
   loadListeningStatsFromSyncFile: async () => {
-    const state = get();
-    const { statsBackupMode, statsSyncFilePath } = state.librarySettings;
+    const { statsBackupMode, statsSyncFilePath } = get().librarySettings;
     if (statsBackupMode !== "sync" || !statsSyncFilePath) {
       return;
     }
     try {
       const raw = await api.readTextFile(statsSyncFilePath);
+      const current = get();
+      if (
+        current.librarySettings.statsBackupMode !== "sync" ||
+        current.librarySettings.statsSyncFilePath !== statsSyncFilePath
+      ) {
+        return;
+      }
       if (!raw) {
         // Nothing on disk yet: seed the sync file with the current local stats
-        syncListeningStatsToFile(state.librarySettings, state.listeningStats);
+        syncListeningStatsToFile(current.librarySettings, current.listeningStats);
         return;
       }
       const backup = JSON.parse(raw);
@@ -971,20 +977,27 @@ export const useMusicStore = create<MusicPlayerStore>((set, get) => ({
       if (!fileStats || !Number.isFinite(fileStats.totalSecondsListened)) {
         return;
       }
-      const local = state.listeningStats;
-      const merged: ListeningStatsState = {
-        totalSecondsListened: Math.max(local.totalSecondsListened, fileStats.totalSecondsListened || 0),
-        totalTracksPlayed: Math.max(local.totalTracksPlayed, fileStats.totalTracksPlayed || 0),
-        totalSessions: Math.max(local.totalSessions, fileStats.totalSessions || 0),
+      const fileStatsAreAuthoritative: ListeningStatsState = {
+        totalSecondsListened: Math.max(0, fileStats.totalSecondsListened),
+        totalTracksPlayed: Math.max(0, Number(fileStats.totalTracksPlayed) || 0),
+        totalSessions: Math.max(0, Number(fileStats.totalSessions) || 0),
       };
-      set({ listeningStats: merged });
-      saveStoredSettings({
-        language: state.language,
-        appearance: state.appearance,
-        audioSettings: state.audioSettings,
-        playbackSettings: state.playbackSettings,
-        listeningStats: merged,
-        librarySettings: state.librarySettings,
+      set((latest) => {
+        if (
+          latest.librarySettings.statsBackupMode !== "sync" ||
+          latest.librarySettings.statsSyncFilePath !== statsSyncFilePath
+        ) {
+          return latest;
+        }
+        saveStoredSettings({
+          language: latest.language,
+          appearance: latest.appearance,
+          audioSettings: latest.audioSettings,
+          playbackSettings: latest.playbackSettings,
+          listeningStats: fileStatsAreAuthoritative,
+          librarySettings: latest.librarySettings,
+        }, { syncFile: false });
+        return { listeningStats: fileStatsAreAuthoritative };
       });
     } catch {
       // Ignore sync read failure (invalid JSON, unavailable path, etc.)

@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useAppStore } from '../../store/index.ts';
 
 export type SpectrumStyle =
@@ -54,20 +54,20 @@ export const SpectrumVisualizer: React.FC<SpectrumVisualizerProps> = ({
   const isPlayingStore = useAppStore((s) => s.isPlaying);
   const storeVolume = useAppStore((s) => s.volume);
   const appearance = useAppStore((s) => s.appearance);
-  const setAppearance = useAppStore((s) => s.setAppearance);
+  const [visualStyle, setVisualStyle] = useState(appearance.spectrumStyle || 'bars');
 
   const isPlaying = (isPlayingStore || telemetry.state === 'Playing') && telemetry.state !== 'Stopped' && telemetry.state !== 'Paused';
   const volume = telemetry.volume ?? storeVolume ?? 1;
   const numBands = Math.max(16, Math.min(128, appearance.cavaBars || 64));
-  const latestState = useRef({ telemetry, isPlaying, volume, appearance });
-  latestState.current = { telemetry, isPlaying, volume, appearance };
+  const latestState = useRef({ telemetry, isPlaying, volume, appearance, visualStyle });
+  latestState.current = { telemetry, isPlaying, volume, appearance, visualStyle };
 
   // Double-click to cycle spectrum visualizer styles
   const handleDoubleClick = () => {
-    const currentStyle = appearance.spectrumStyle || 'bars';
+    const currentStyle = latestState.current.visualStyle;
     const currentIndex = SPECTRUM_STYLES.findIndex((s) => s.id === currentStyle);
     const nextIndex = (currentIndex + 1) % SPECTRUM_STYLES.length;
-    setAppearance({ spectrumStyle: SPECTRUM_STYLES[nextIndex].id });
+    setVisualStyle(SPECTRUM_STYLES[nextIndex].id);
   };
 
   // Ultra-fluid 60 FPS continuous physics rendering loop
@@ -173,23 +173,23 @@ export const SpectrumVisualizer: React.FC<SpectrumVisualizerProps> = ({
         }
       }
 
-      const style = appearance.spectrumStyle || 'bars';
+      const style = liveState.visualStyle;
 
       switch (style) {
         case 'bars': {
           const barWidth = (w / numBands) * 0.8;
           const gap = (w / numBands) * 0.2;
+          const baseline = h - 2;
           for (let i = 0; i < numBands; i++) {
-            // Bars reach up to 98% of total height for full impact
-            const barHeight = Math.max(2, currentBands[i] * (h - 4));
+            const barHeight = currentBands[i] * (baseline - 2);
             const x = i * (barWidth + gap) + gap / 2;
-            const y = h - barHeight;
+            const y = baseline - barHeight;
 
-            if (barHeight > 2) {
-              const grad = ctx.createLinearGradient(0, h, 0, 0);
+            if (barHeight > 1) {
+              const grad = ctx.createLinearGradient(0, baseline, 0, y);
               grad.addColorStop(0, `${accent}40`);
               grad.addColorStop(0.65, accent);
-              grad.addColorStop(1, '#ffffff');
+              grad.addColorStop(1, '#f8fafc');
 
               ctx.fillStyle = grad;
               ctx.shadowColor = accent;
@@ -198,9 +198,12 @@ export const SpectrumVisualizer: React.FC<SpectrumVisualizerProps> = ({
             }
 
             if (peaks[i] > 0.02) {
-              const peakY = Math.max(2, h - peaks[i] * (h - 4));
+              const peakY = Math.max(3, baseline - peaks[i] * (baseline - 2));
               ctx.fillStyle = '#ffffff';
-              ctx.fillRect(x, peakY - 2, barWidth, 2);
+              ctx.shadowColor = accent;
+              ctx.shadowBlur = appearance.neonGlow ? (appearance.neonIntensity / 100) * 13 : 7;
+              ctx.fillRect(x - 1, peakY - 1, barWidth + 2, 2);
+              ctx.shadowBlur = 0;
             }
           }
           break;
@@ -440,7 +443,6 @@ export const SpectrumVisualizer: React.FC<SpectrumVisualizerProps> = ({
             ctx.lineWidth = 5;
             ctx.stroke();
             ctx.shadowBlur = 0;
-
             for (let tick = 0; tick <= 20; tick++) {
               const angle = Math.PI + 0.09 + (tick / 20) * arc;
               const outer = radius + 8;
@@ -462,10 +464,6 @@ export const SpectrumVisualizer: React.FC<SpectrumVisualizerProps> = ({
             ctx.shadowBlur = 12;
             ctx.stroke();
             ctx.shadowBlur = 0;
-            ctx.fillStyle = color;
-            ctx.font = 'bold 9px monospace';
-            ctx.textAlign = 'center';
-            ctx.fillText(channelIdx === 0 ? 'LEFT' : 'RIGHT', centerX, h - 8);
           }
           break;
         }
@@ -527,10 +525,6 @@ export const SpectrumVisualizer: React.FC<SpectrumVisualizerProps> = ({
             ctx.arc(centerX, centerY, 4, 0, Math.PI * 2);
             ctx.fillStyle = '#e7b86d';
             ctx.fill();
-            ctx.fillStyle = '#d6a96f';
-            ctx.font = '8px monospace';
-            ctx.textAlign = 'center';
-            ctx.fillText(channelIdx === 0 ? 'VACUUM / L' : 'VACUUM / R', centerX, h - 10);
           }
           break;
         }
@@ -538,43 +532,35 @@ export const SpectrumVisualizer: React.FC<SpectrumVisualizerProps> = ({
         case 'retro_scope_meter': {
           const gaugeWidth = w / 2;
           const radius = Math.min(gaugeWidth * 0.4, h * 0.54);
-          const centerY = h * 0.79;
+          const centerY = h * 0.79 - 6;
+          const theme = getComputedStyle(canvas);
+          const panelColor = theme.getPropertyValue('--app-surface').trim() || '#0c1220';
+          const borderColor = theme.getPropertyValue('--app-border').trim() || '#334155';
           for (let channelIdx = 0; channelIdx < 2; channelIdx++) {
             const centerX = gaugeWidth * (channelIdx + 0.5);
             const channel = channelBands[channelIdx];
             const level = isPlaying ? channel.reduce((sum, band) => sum + band, 0) / numBands : 0;
             const color = channelIdx === 0 ? '#38bdf8' : '#a3e635';
-            ctx.fillStyle = '#06111a';
+            ctx.fillStyle = panelColor;
+            ctx.strokeStyle = borderColor;
+            ctx.lineWidth = 1.5;
             ctx.beginPath();
             ctx.roundRect(channelIdx * gaugeWidth + 5, 5, gaugeWidth - 10, h - 10, 8);
             ctx.fill();
-            ctx.save();
-            ctx.beginPath();
-            ctx.roundRect(channelIdx * gaugeWidth + 6, 6, gaugeWidth - 12, h - 12, 7);
-            ctx.clip();
-            ctx.strokeStyle = `${color}20`;
-            ctx.lineWidth = 1;
-            for (let grid = 0; grid < 5; grid++) {
-              const y = h * (0.24 + grid * 0.1);
-              ctx.beginPath();
-              ctx.moveTo(channelIdx * gaugeWidth + 10, y);
-              ctx.lineTo((channelIdx + 1) * gaugeWidth - 10, y);
-              ctx.stroke();
-            }
-            ctx.restore();
+            ctx.stroke();
             ctx.beginPath();
             ctx.arc(centerX, centerY, radius, Math.PI, Math.PI * 2);
             ctx.strokeStyle = '#29404d';
-            ctx.lineWidth = 2;
+            ctx.lineWidth = 3.2;
             ctx.stroke();
             const sweep = Math.PI * Math.min(1, level);
             const angle = Math.PI + sweep;
             ctx.beginPath();
             ctx.arc(centerX, centerY, radius, Math.PI, angle);
             ctx.strokeStyle = color;
-            ctx.lineWidth = 3;
+            ctx.lineWidth = 4.5;
             ctx.shadowColor = color;
-            ctx.shadowBlur = 12;
+            ctx.shadowBlur = 18;
             ctx.stroke();
             ctx.shadowBlur = 0;
             for (let tick = 0; tick <= 16; tick++) {
@@ -584,22 +570,30 @@ export const SpectrumVisualizer: React.FC<SpectrumVisualizerProps> = ({
               ctx.moveTo(centerX + Math.cos(tickAngle) * inner, centerY + Math.sin(tickAngle) * inner);
               ctx.lineTo(centerX + Math.cos(tickAngle) * radius, centerY + Math.sin(tickAngle) * radius);
               ctx.strokeStyle = tick > 13 ? '#fb7185' : `${color}cc`;
-              ctx.lineWidth = tick % 4 === 0 ? 1.5 : 0.8;
+              ctx.lineWidth = tick % 4 === 0 ? 2 : 1.1;
               ctx.stroke();
             }
             ctx.beginPath();
             ctx.moveTo(centerX, centerY);
-            ctx.lineTo(centerX + Math.cos(angle) * radius * 0.72, centerY + Math.sin(angle) * radius * 0.72);
-            ctx.strokeStyle = '#f8fafc';
-            ctx.lineWidth = 1.5;
+            const needleTipX = centerX + Math.cos(angle) * radius * 0.77;
+            const needleTipY = centerY + Math.sin(angle) * radius * 0.77;
+            ctx.lineTo(needleTipX, needleTipY);
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = 2.2;
             ctx.shadowColor = color;
-            ctx.shadowBlur = 9;
+            ctx.shadowBlur = 8;
             ctx.stroke();
             ctx.shadowBlur = 0;
+            ctx.beginPath();
+            ctx.arc(centerX, centerY, 2.2, 0, Math.PI * 2);
             ctx.fillStyle = color;
-            ctx.font = 'bold 8px monospace';
+            ctx.shadowColor = color;
+            ctx.shadowBlur = 5;
+            ctx.fill();
+            ctx.shadowBlur = 0;
+            ctx.font = 'bold 9px monospace';
             ctx.textAlign = 'center';
-            ctx.fillText(channelIdx === 0 ? 'CH 01 · L' : 'CH 02 · R', centerX, h - 10);
+            ctx.fillText(channelIdx === 0 ? 'CH 01 · L' : 'CH 02 · R', centerX, h - 16);
           }
           break;
         }
@@ -809,7 +803,7 @@ export const SpectrumVisualizer: React.FC<SpectrumVisualizerProps> = ({
       className="w-full h-full relative rounded-lg overflow-hidden border border-slate-800/80 bg-slate-950/90 shadow-inner cursor-pointer"
       style={{
         ...(height ? { height } : {}),
-        ...(appearance.spectrumStyle === 'retro_needle'
+        ...(visualStyle === 'retro_needle' || visualStyle === 'retro_scope_meter'
           ? { backgroundColor: 'var(--app-bg)', borderColor: 'var(--app-border)' }
           : {}),
       }}
