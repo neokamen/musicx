@@ -250,7 +250,7 @@ export const YTMusicModal: React.FC<YTMusicModalProps> = ({ isOpen, onClose }) =
             <div className="flex flex-col items-center justify-center h-full gap-3 text-slate-500 py-10">
               <Music size={36} className="opacity-25" />
               <p className="text-sm">Busca canciones, artistas o álbumes</p>
-              <p className="text-xs opacity-60">Requiere yt-dlp instalado en el sistema</p>
+              <p className="text-xs opacity-60">Escribe en la barra de arriba y pulsa Buscar</p>
             </div>
           )}
 

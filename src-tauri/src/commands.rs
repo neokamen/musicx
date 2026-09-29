@@ -316,6 +316,7 @@ struct YtDlpEntry {
     id: Option<String>,
     title: Option<String>,
     uploader: Option<String>,
+    channel: Option<String>,
     album: Option<String>,
     duration: Option<f64>,
     duration_string: Option<String>,
@@ -324,31 +325,33 @@ struct YtDlpEntry {
     url: Option<String>,
 }
 
-/// Search YouTube Music using yt-dlp (ytmsearch).
+/// Search YouTube via yt-dlp ytsearch (ytmsearch not available on this yt-dlp build).
 #[tauri::command]
 pub fn ytm_search(query: String, limit: Option<u32>) -> Result<Vec<YtmTrack>, String> {
     let lim = limit.unwrap_or(20);
-    let search_query = format!("ytmsearch{}:{}", lim, query);
+    // ytsearch works universally; ytmsearch requires the music extractor plugin
+    let search_query = format!("ytsearch{}:{}", lim, query);
 
     let output = std::process::Command::new("yt-dlp")
         .args([
             "--dump-json",
             "--no-playlist",
-            "--flat-playlist",
+            // NOTE: do NOT use --flat-playlist — it suppresses the full JSON
             "--quiet",
             "--no-warnings",
             "--ignore-errors",
             &search_query,
         ])
         .output()
-        .map_err(|e| format!("yt-dlp no encontrado o falló: {}", e))?;
+        .map_err(|e| format!("yt-dlp no encontrado: {}", e))?;
 
+    // Stderr may have warnings but stdout has one JSON object per line
     let stdout = String::from_utf8_lossy(&output.stdout);
     let mut tracks = Vec::new();
 
     for line in stdout.lines() {
         let line = line.trim();
-        if line.is_empty() { continue; }
+        if line.is_empty() || !line.starts_with('{') { continue; }
         if let Ok(entry) = serde_json::from_str::<YtDlpEntry>(line) {
             let id = entry.id.clone().unwrap_or_default();
             if id.is_empty() { continue; }
@@ -359,10 +362,14 @@ pub fn ytm_search(query: String, limit: Option<u32>) -> Result<Vec<YtmTrack>, St
             let duration_string = entry.duration_string.unwrap_or_else(|| {
                 format!("{}:{:02}", duration_secs / 60, duration_secs % 60)
             });
+            // artist: prefer uploader, fall back to channel
+            let artist = entry.uploader
+                .or(entry.channel)
+                .unwrap_or_else(|| "Desconocido".to_string());
             tracks.push(YtmTrack {
                 id,
                 title: entry.title.unwrap_or_else(|| "Sin título".to_string()),
-                artist: entry.uploader.unwrap_or_else(|| "Desconocido".to_string()),
+                artist,
                 album: entry.album.unwrap_or_default(),
                 duration: duration_secs,
                 duration_string,
@@ -372,8 +379,16 @@ pub fn ytm_search(query: String, limit: Option<u32>) -> Result<Vec<YtmTrack>, St
         }
     }
 
+    if tracks.is_empty() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        if !stderr.is_empty() {
+            return Err(format!("yt-dlp: {}", stderr.trim()));
+        }
+    }
+
     Ok(tracks)
 }
+
 
 #[derive(serde::Deserialize, Debug)]
 pub struct YtmDownloadOptions {
