@@ -101,6 +101,9 @@ pub fn run() {
             commands::scan_directory,
             commands::read_directory_lazy,
             commands::get_track_cover_art,
+            commands::ytm_search,
+            commands::ytm_download,
+            commands::ytm_stream_to_temp,
         ])
         .run(tauri::generate_context!())
         .expect("error while running musicx audio player application");

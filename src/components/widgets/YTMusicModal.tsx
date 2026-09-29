@@ -1,160 +1,100 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState } from "react";
+import { invoke } from "@tauri-apps/api/core";
 import {
-  X,
-  Music,
-  Search,
-  Download,
-  Loader2,
-  CheckCircle,
-  AlertCircle,
-  FolderOpen,
-  ArrowRight,
-  Disc,
-  CheckSquare,
-  Square,
-  Tag,
-  FolderTree,
-  ChevronDown,
-  ChevronUp,
-  Globe,
+  X, Search, Download, Loader2, Play, Music,
+  CheckSquare, Square, FolderOpen, ChevronDown,
+  ChevronUp, AlertCircle, CheckCircle, Globe,
 } from "lucide-react";
-import SearchBar from './SearchBar';
-
 import { useMusicStore } from "../../store/index.ts";
+import { playTrack } from "../../services/api.ts";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
-interface NeoTrack {
+interface YtmTrack {
   id: string;
   title: string;
   artist: string;
   album: string;
-  year?: string;
-  trackNumber: number;
-  totalTracks: number;
   duration: number;
-  durationString: string;
-  coverUrl: string;
-  sourceUrl?: string;
-}
-
-interface NeoAnalyzeResult {
-  kind: "track" | "playlist" | "album" | "search";
-  name: string;
-  totalTracks: number;
-  tracks: NeoTrack[];
-}
-
-interface NeoTrackProgress {
-  trackId: string;
-  phase: "queued" | "downloading" | "converting" | "tagging" | "done" | "error";
-  percent: number;
-  message: string;
-  filePath?: string;
+  duration_string: string;
+  thumbnail: string;
+  webpage_url: string;
 }
 
 const FORMATS = ["mp3", "flac", "wav", "m4a", "opus", "ogg"] as const;
-const BITRATES = ["lossless", "320k", "256k", "192k", "128k"] as const;
+const BITRATES = ["320k", "256k", "192k", "128k", "lossless"] as const;
 const SAMPLE_RATES = [44100, 48000, 88200, 96000, 192000] as const;
 const NAMING_PATTERNS = [
-  { label: "Artista / Año – Álbum / Nº – Título", value: "{artist}/{year} - {album}/{trackNumber} - {title}" },
-  { label: "Artista / Álbum / Nº – Título", value: "{artist}/{album}/{trackNumber} - {title}" },
-  { label: "Artista – Título", value: "{artist} - {title}" },
-  { label: "Título", value: "{title}" },
-  { label: "Nº – Título", value: "{trackNumber} - {title}" },
+  { label: "Artista / Álbum / Título",        value: "%(uploader)s/%(album)s/%(title)s" },
+  { label: "Artista / Año – Álbum / Nº Título", value: "%(uploader)s/%(release_year)s - %(album)s/%(track_number)s - %(title)s" },
+  { label: "Artista – Título",                 value: "%(uploader)s - %(title)s" },
+  { label: "Título",                           value: "%(title)s" },
 ] as const;
 
-export interface YTMusicModalProps {
+// ── Component ────────────────────────────────────────────────────────────────
+
+interface YTMusicModalProps {
   isOpen: boolean;
   onClose: () => void;
 }
-
-// ── Helpers ──────────────────────────────────────────────────────────────────
-
-async function invokeBackend<T>(cmd: string, args: Record<string, unknown>): Promise<T> {
-  const { invoke } = await import("@tauri-apps/api/core");
-  return invoke<T>(cmd, args);
-}
-
-async function analyzeLink(query: string, limit = 20): Promise<NeoAnalyzeResult> {
-  return invokeBackend<NeoAnalyzeResult>("analyze_source_link", { query, limit });
-}
-
-async function downloadBatch(tracks: NeoTrack[], options: Record<string, unknown>): Promise<string[]> {
-  return invokeBackend<string[]>("download_track_batch", { tracks, options });
-}
-
-async function pickFolder(): Promise<string | null> {
-  try { return invokeBackend<string | null>("pick_output_folder", {}); } catch { return null; }
-}
-
-// ── Component ─────────────────────────────────────────────────────────────────
 
 export const YTMusicModal: React.FC<YTMusicModalProps> = ({ isOpen, onClose }) => {
   const { appearance } = useMusicStore();
   const accent = appearance.accentColor || "#06b6d4";
 
-  const [activeTab, setActiveTab] = useState<"player" | "downloader">("player");
-  const [sourceInput, setSourceInput] = useState("");
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [analyzeResult, setAnalyzeResult] = useState<NeoAnalyzeResult | null>(null);
-  const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  const handleSearch = (query: string) => {
-    console.log('Searching for:', query);
-    // TODO: Implement search functionality
-  };
+  // Search state
+  const [query, setQuery] = useState("");
+  const [results, setResults] = useState<YtmTrack[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const [searchError, setSearchError] = useState<string | null>(null);
 
+  // Selection
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [format, setFormat] = useState<string>("mp3");
-  const [bitrate, setBitrate] = useState<string>("320k");
-  const [sampleRate, setSampleRate] = useState<number>(44100);
-  const [namingPattern, setNamingPattern] = useState<string>(NAMING_PATTERNS[0].value);
-  const [saveInFolder, setSaveInFolder] = useState(true);
-  const [embedId3Tags, setEmbedId3Tags] = useState(true);
-  const [outputFolder, setOutputFolder] = useState("/home/neokamen/Descargas");
-  const [showSettings, setShowSettings] = useState(false);
-  const [isDownloading, setIsDownloading] = useState(false);
-  const [progresses, setProgresses] = useState<Record<string, NeoTrackProgress>>({});
-  const [doneCount, setDoneCount] = useState<number | null>(null);
-  const iframeRef = useRef<HTMLIFrameElement>(null);
 
-  useEffect(() => {
-    if (!isOpen) return;
-    let unlisten: (() => void) | null = null;
-    import("@tauri-apps/api/event").then(({ listen }) => {
-      listen<NeoTrackProgress>("download-track-progress", (ev) => {
-        setProgresses((prev) => ({ ...prev, [ev.payload.trackId]: ev.payload }));
-      }).then((fn) => { unlisten = fn; });
-    });
-    return () => { unlisten?.(); };
-  }, [isOpen]);
+  // Playback state
+  const [playingId, setPlayingId] = useState<string | null>(null);
+  const [isLoadingPlay, setIsLoadingPlay] = useState(false);
+
+  // Download options
+  const [format, setFormat] = useState("mp3");
+  const [bitrate, setBitrate] = useState("320k");
+  const [sampleRate, setSampleRate] = useState(44100);
+  const [namingPattern, setNamingPattern] = useState<string>(NAMING_PATTERNS[0].value);
+  const [embedId3, setEmbedId3] = useState(true);
+  const [outputFolder, setOutputFolder] = useState("/home/neokamen/Descargas");
+  const [showOptions, setShowOptions] = useState(false);
+
+  // Download state
+  const [isDownloading, setIsDownloading] = useState(false);
+  const [downloadMsg, setDownloadMsg] = useState<string | null>(null);
+  const [downloadError, setDownloadError] = useState<string | null>(null);
 
   if (!isOpen) return null;
 
-  const handleAnalyze = async (e?: React.FormEvent) => {
-    if (e) e.preventDefault();
-    const q = sourceInput.trim();
-    if (!q) return;
-    setIsAnalyzing(true);
-    setErrorMsg(null);
-      <SearchBar onSearch={handleSearch} />
+  // ── Handlers ─────────────────────────────────────────────────────────────
 
-    setAnalyzeResult(null);
-    setProgresses({});
-    setDoneCount(null);
+  const handleSearch = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    const q = query.trim();
+    if (!q) return;
+    setIsSearching(true);
+    setSearchError(null);
+    setResults([]);
+    setSelectedIds(new Set());
+    setDownloadMsg(null);
+    setDownloadError(null);
     try {
-      const res = await analyzeLink(q);
-      setAnalyzeResult(res);
-      setSelectedIds(new Set(res.tracks.map((t) => t.id)));
-    } catch (err: unknown) {
-      setErrorMsg(String(err) || "Error al analizar el enlace.");
+      const tracks = await invoke<YtmTrack[]>("ytm_search", { query: q, limit: 20 });
+      setResults(tracks);
+    } catch (err: any) {
+      setSearchError(String(err));
     } finally {
-      setIsAnalyzing(false);
+      setIsSearching(false);
     }
   };
 
-  const toggleTrack = (id: string) => {
-    setSelectedIds((prev) => {
+  const toggleSelect = (id: string) => {
+    setSelectedIds(prev => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id); else next.add(id);
       return next;
@@ -162,279 +102,339 @@ export const YTMusicModal: React.FC<YTMusicModalProps> = ({ isOpen, onClose }) =
   };
 
   const toggleAll = () => {
-    if (!analyzeResult) return;
-    setSelectedIds(
-      selectedIds.size === analyzeResult.tracks.length
-        ? new Set()
-        : new Set(analyzeResult.tracks.map((t) => t.id))
-    );
-  };
-
-  const handlePickFolder = async () => {
-    const f = await pickFolder();
-    if (f) setOutputFolder(f);
-  };
-
-  const handleDownload = async () => {
-    if (!analyzeResult) return;
-    const tracks = analyzeResult.tracks.filter((t) => selectedIds.has(t.id));
-    if (tracks.length === 0) return;
-    setIsDownloading(true);
-    setErrorMsg(null);
-    setDoneCount(null);
-    const init: Record<string, NeoTrackProgress> = {};
-    tracks.forEach((t) => { init[t.id] = { trackId: t.id, phase: "queued", percent: 0, message: "En cola..." }; });
-    setProgresses(init);
-    try {
-      const files = await downloadBatch(tracks, {
-        format, bitrate,
-        sampleRate: format !== "mp4" && sampleRate !== 44100 ? sampleRate : undefined,
-        saveInFolder,
-        folderName: analyzeResult.kind !== "track" ? analyzeResult.name : undefined,
-        namingPattern, embedId3Tags, outputFolder,
-      });
-      setDoneCount(files.length);
-    } catch (err: unknown) {
-      setErrorMsg(String(err) || "Error durante la descarga.");
-    } finally {
-      setIsDownloading(false);
+    if (selectedIds.size === results.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(results.map(t => t.id)));
     }
   };
 
-  const phaseColors: Record<NeoTrackProgress["phase"], string> = {
-    queued: "text-slate-400", downloading: "text-blue-400", converting: "text-amber-400",
-    tagging: "text-purple-400", done: "text-emerald-400", error: "text-rose-400",
+  const handlePlay = async (track: YtmTrack) => {
+    setIsLoadingPlay(true);
+    setPlayingId(track.id);
+    setSearchError(null);
+    try {
+      // Download to temp file then play via musicx audio engine
+      const path = await invoke<string>("ytm_stream_to_temp", { url: track.webpage_url });
+      await playTrack(path);
+    } catch (err: any) {
+      setSearchError(`Error al reproducir: ${String(err)}`);
+      setPlayingId(null);
+    } finally {
+      setIsLoadingPlay(false);
+    }
   };
+
+  const handlePickFolder = async () => {
+    try {
+      const { open } = await import("@tauri-apps/plugin-dialog");
+      const dir = await open({ directory: true, multiple: false, title: "Carpeta de destino" });
+      if (typeof dir === "string") setOutputFolder(dir);
+    } catch { /* ignore */ }
+  };
+
+  const handleDownload = async () => {
+    const tracks = results.filter(t => selectedIds.has(t.id));
+    if (tracks.length === 0) return;
+    setIsDownloading(true);
+    setDownloadMsg(null);
+    setDownloadError(null);
+    let ok = 0;
+    let fail = 0;
+    for (const track of tracks) {
+      try {
+        await invoke("ytm_download", {
+          options: {
+            url: track.webpage_url,
+            output_folder: outputFolder,
+            format,
+            bitrate,
+            sample_rate: sampleRate !== 44100 ? sampleRate : null,
+            embed_id3: embedId3,
+            save_in_folder: true,
+            naming_pattern: namingPattern,
+          }
+        });
+        ok++;
+      } catch {
+        fail++;
+      }
+    }
+    setIsDownloading(false);
+    if (fail > 0) {
+      setDownloadError(`${fail} pista${fail > 1 ? "s" : ""} fallaron. ${ok} descargadas.`);
+    } else {
+      setDownloadMsg(`✓ ${ok} pista${ok > 1 ? "s descargadas" : " descargada"} en ${outputFolder}`);
+    }
+  };
+
+  // ── Render ────────────────────────────────────────────────────────────────
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm"
       onClick={onClose}
     >
       <div
-        className="relative flex flex-col w-[92vw] max-w-4xl h-[88vh] rounded-2xl overflow-hidden shadow-2xl border"
-        style={{ backgroundColor: "#0a0f1a", borderColor: `${accent}40` }}
-        onClick={(e) => e.stopPropagation()}
+        className="relative flex flex-col w-[88vw] max-w-3xl h-[82vh] rounded-xl overflow-hidden shadow-2xl border"
+        style={{ backgroundColor: "var(--app-surface, #0f172a)", borderColor: `${accent}35` }}
+        onClick={e => e.stopPropagation()}
       >
-        {/* Header */}
+        {/* ── Header ──────────────────────────────────────────────────────── */}
         <div
-          className="flex items-center justify-between px-5 py-3 border-b shrink-0"
-          style={{ borderColor: `${accent}30`, background: `${accent}10` }}
+          className="flex items-center gap-3 px-4 py-2.5 border-b shrink-0"
+          style={{ borderColor: `${accent}25`, background: `${accent}0d` }}
         >
-          <div className="flex items-center gap-2.5">
-            <Globe size={18} style={{ color: accent }} />
-            <span className="font-bold text-sm text-white">YT Music</span>
-            <span className="text-[10px] text-slate-400 font-mono px-2 py-0.5 rounded-full border border-slate-700">
-              STREAMING + DOWNLOAD
-            </span>
-          </div>
-
-          <div className="flex items-center gap-1 bg-slate-900/60 rounded-lg p-1">
-            {(["player", "downloader"] as const).map((tab) => (
-              <button
-                key={tab}
-                onClick={() => setActiveTab(tab)}
-                className="px-3 py-1 rounded-md text-xs font-semibold transition-all cursor-pointer"
-                style={activeTab === tab ? { backgroundColor: accent, color: "#fff" } : { color: "#94a3b8" }}
-              >
-                {tab === "player" ? "▶ Reproductor" : "⬇ Descargador"}
-              </button>
-            ))}
-          </div>
-
+          <Globe size={16} style={{ color: accent }} />
+          <span className="font-bold text-sm text-white">YT Music</span>
+          <span className="text-[10px] text-slate-400 px-2 py-0.5 rounded-full border border-slate-700 font-mono">
+            BÚSQUEDA + DESCARGA
+          </span>
+          <div className="flex-1" />
           <button
             onClick={onClose}
-            className="p-1.5 rounded-lg hover:bg-white/10 text-slate-400 hover:text-white transition-colors cursor-pointer"
+            className="p-1.5 rounded hover:bg-white/10 text-slate-400 hover:text-white cursor-pointer transition-colors"
           >
-            <X size={16} />
+            <X size={15} />
           </button>
         </div>
 
-        {/* Content */}
-        <div className="flex-1 min-h-0 overflow-hidden">
-          {/* PLAYER TAB */}
-          {activeTab === "player" && (
-            <iframe
-              ref={iframeRef}
-              src="https://music.youtube.com"
-              title="YouTube Music"
-              className="w-full h-full border-0"
-              allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
-              sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-presentation"
-            />
+        {/* ── Search bar ──────────────────────────────────────────────────── */}
+        <div className="px-4 pt-3 pb-2 shrink-0">
+          <form onSubmit={handleSearch} className="flex gap-2">
+            <div className="relative flex-1">
+              <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
+              <input
+                type="text"
+                value={query}
+                onChange={e => setQuery(e.target.value)}
+                placeholder="Buscar canción, artista o álbum en YouTube Music..."
+                className="w-full pl-9 pr-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-sm text-white placeholder:text-slate-500 focus:outline-none transition-colors"
+                style={{ borderColor: query ? `${accent}60` : undefined }}
+                autoFocus
+              />
+            </div>
+            <button
+              type="submit"
+              disabled={isSearching || !query.trim()}
+              className="px-4 py-2 rounded-lg text-sm font-semibold text-white flex items-center gap-1.5 cursor-pointer disabled:opacity-50 transition-opacity shrink-0"
+              style={{ backgroundColor: accent }}
+            >
+              {isSearching
+                ? <><Loader2 size={13} className="animate-spin" /> Buscando...</>
+                : <><Search size={13} /> Buscar</>}
+            </button>
+          </form>
+        </div>
+
+        {/* ── Feedback messages ────────────────────────────────────────────── */}
+        {searchError && (
+          <div className="mx-4 mb-2 flex items-center gap-2 p-2.5 rounded-lg bg-rose-950/50 border border-rose-500/40 text-xs text-rose-300 shrink-0">
+            <AlertCircle size={13} /> {searchError}
+          </div>
+        )}
+        {downloadMsg && (
+          <div className="mx-4 mb-2 flex items-center gap-2 p-2.5 rounded-lg bg-emerald-950/50 border border-emerald-500/40 text-xs text-emerald-300 shrink-0">
+            <CheckCircle size={13} /> {downloadMsg}
+          </div>
+        )}
+        {downloadError && (
+          <div className="mx-4 mb-2 flex items-center gap-2 p-2.5 rounded-lg bg-amber-950/50 border border-amber-500/40 text-xs text-amber-300 shrink-0">
+            <AlertCircle size={13} /> {downloadError}
+          </div>
+        )}
+
+        {/* ── Results list ─────────────────────────────────────────────────── */}
+        <div className="flex-1 overflow-y-auto px-4 min-h-0">
+          {results.length === 0 && !isSearching && (
+            <div className="flex flex-col items-center justify-center h-full gap-3 text-slate-500 py-10">
+              <Music size={36} className="opacity-25" />
+              <p className="text-sm">Busca canciones, artistas o álbumes</p>
+              <p className="text-xs opacity-60">Requiere yt-dlp instalado en el sistema</p>
+            </div>
           )}
 
-          {/* DOWNLOADER TAB */}
-          {activeTab === "downloader" && (
-            <div className="flex flex-col h-full overflow-y-auto gap-4 p-4 text-sm">
-              {/* Search bar */}
-              <form onSubmit={handleAnalyze} className="flex gap-2">
-                <div className="relative flex-1">
-                  <input
-                    type="text"
-                    value={sourceInput}
-                    onChange={(e) => setSourceInput(e.target.value)}
-                    placeholder="Pega URL de YouTube Music o busca: artista álbum canción..."
-                    className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-2.5 pl-9 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-cyan-500 transition-colors"
-                    style={{ borderColor: `${accent}40` }}
-                  />
-                  <Search size={14} className="absolute left-3 top-3.5 text-slate-500" />
-                </div>
-                <button
-                  type="submit"
-                  disabled={isAnalyzing || !sourceInput.trim()}
-                  className="px-5 py-2.5 rounded-xl font-bold text-sm text-white flex items-center gap-2 transition-all cursor-pointer disabled:opacity-50 shrink-0"
-                  style={{ backgroundColor: accent }}
-                >
-                  {isAnalyzing ? <Loader2 size={14} className="animate-spin" /> : <ArrowRight size={14} />}
-                  {isAnalyzing ? "Analizando..." : "Analizar"}
-                </button>
-              </form>
+          {results.length > 0 && (
+            <div className="flex flex-col divide-y" style={{ borderColor: `${accent}15` }}>
+              {results.map(track => {
+                const isSelected = selectedIds.has(track.id);
+                const isThisPlaying = playingId === track.id;
+                return (
+                  <div
+                    key={track.id}
+                    className="flex items-center gap-3 py-2 group hover:bg-white/3 rounded-lg px-1 transition-colors"
+                  >
+                    {/* Checkbox */}
+                    <button
+                      type="button"
+                      onClick={() => toggleSelect(track.id)}
+                      className="shrink-0 cursor-pointer transition-colors"
+                      style={{ color: isSelected ? accent : "#475569" }}
+                    >
+                      {isSelected ? <CheckSquare size={15} /> : <Square size={15} />}
+                    </button>
 
-              {errorMsg && (
-                <div className="flex items-center gap-2 p-3 rounded-xl bg-rose-950/40 border border-rose-500/40 text-xs text-rose-300">
-                  <AlertCircle size={14} />{errorMsg}
-                </div>
-              )}
-              {doneCount !== null && (
-                <div className="flex items-center gap-2 p-3 rounded-xl bg-emerald-950/40 border border-emerald-500/40 text-xs text-emerald-300">
-                  <CheckCircle size={14} />¡{doneCount} pista{doneCount !== 1 ? "s" : ""} descargada{doneCount !== 1 ? "s" : ""}!
-                </div>
-              )}
-
-              {/* Settings panel */}
-              <div className="rounded-xl border border-slate-700/60 overflow-hidden">
-                <button
-                  type="button"
-                  onClick={() => setShowSettings(!showSettings)}
-                  className="w-full flex items-center justify-between px-4 py-2.5 bg-slate-900/60 hover:bg-slate-800/60 transition-colors cursor-pointer text-xs text-slate-300 font-semibold"
-                >
-                  <span className="flex items-center gap-2">
-                    <FolderTree size={13} style={{ color: accent }} />
-                    Opciones de Descarga
-                  </span>
-                  {showSettings ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
-                </button>
-
-                {showSettings && (
-                  <div className="p-4 bg-slate-950/40 grid grid-cols-2 md:grid-cols-3 gap-3 text-xs">
-                    <label className="flex flex-col gap-1">
-                      <span className="text-slate-400 uppercase tracking-wider text-[10px]">Formato</span>
-                      <select value={format} onChange={(e) => setFormat(e.target.value)}
-                        className="bg-slate-800 border border-slate-700 rounded-lg px-2 py-1.5 text-white focus:outline-none" style={{ colorScheme: "dark" }}>
-                        {FORMATS.map((f) => <option key={f} value={f}>{f.toUpperCase()}</option>)}
-                      </select>
-                    </label>
-                    <label className="flex flex-col gap-1">
-                      <span className="text-slate-400 uppercase tracking-wider text-[10px]">Bitrate</span>
-                      <select value={bitrate} onChange={(e) => setBitrate(e.target.value)}
-                        className="bg-slate-800 border border-slate-700 rounded-lg px-2 py-1.5 text-white focus:outline-none" style={{ colorScheme: "dark" }}>
-                        {BITRATES.map((b) => <option key={b} value={b}>{b === "lossless" ? "Sin pérdida" : b}</option>)}
-                      </select>
-                    </label>
-                    <label className="flex flex-col gap-1">
-                      <span className="text-slate-400 uppercase tracking-wider text-[10px]">Sample Rate</span>
-                      <select value={sampleRate} onChange={(e) => setSampleRate(Number(e.target.value))}
-                        className="bg-slate-800 border border-slate-700 rounded-lg px-2 py-1.5 text-white focus:outline-none" style={{ colorScheme: "dark" }}>
-                        {SAMPLE_RATES.map((r) => <option key={r} value={r}>{r >= 1000 ? `${r / 1000} kHz` : r}</option>)}
-                      </select>
-                    </label>
-                    <label className="flex flex-col gap-1 col-span-2">
-                      <span className="text-slate-400 uppercase tracking-wider text-[10px]">Estructura de carpetas</span>
-                      <select value={namingPattern} onChange={(e) => setNamingPattern(e.target.value)}
-                        className="bg-slate-800 border border-slate-700 rounded-lg px-2 py-1.5 text-white focus:outline-none" style={{ colorScheme: "dark" }}>
-                        {NAMING_PATTERNS.map((p) => <option key={p.value} value={p.value}>{p.label}</option>)}
-                      </select>
-                    </label>
-                    <div className="flex flex-col gap-1">
-                      <span className="text-slate-400 uppercase tracking-wider text-[10px]">Carpeta destino</span>
-                      <button type="button" onClick={handlePickFolder}
-                        className="flex items-center gap-1.5 bg-slate-800 border border-slate-700 rounded-lg px-2 py-1.5 text-slate-300 hover:text-white hover:border-slate-500 transition-colors cursor-pointer">
-                        <FolderOpen size={12} />
-                        <span className="truncate max-w-[120px] text-[10px]">{outputFolder || "Seleccionar..."}</span>
-                      </button>
+                    {/* Thumbnail */}
+                    <div className="w-9 h-9 rounded shrink-0 overflow-hidden bg-slate-800 relative">
+                      {track.thumbnail ? (
+                        <img
+                          src={track.thumbnail}
+                          alt={track.title}
+                          className="w-full h-full object-cover"
+                          onError={e => { (e.target as HTMLImageElement).style.display = "none"; }}
+                        />
+                      ) : (
+                        <Music size={14} className="absolute inset-0 m-auto text-slate-600" />
+                      )}
                     </div>
-                    <div className="col-span-full flex items-center gap-4">
-                      <label className="flex items-center gap-2 cursor-pointer select-none">
-                        <button type="button" onClick={() => setSaveInFolder(!saveInFolder)} className="cursor-pointer" style={{ color: saveInFolder ? accent : "#64748b" }}>
-                          {saveInFolder ? <CheckSquare size={15} /> : <Square size={15} />}
-                        </button>
-                        <span className="text-slate-300">Guardar en carpeta del álbum</span>
-                      </label>
-                      <label className="flex items-center gap-2 cursor-pointer select-none">
-                        <button type="button" onClick={() => setEmbedId3Tags(!embedId3Tags)} className="cursor-pointer" style={{ color: embedId3Tags ? accent : "#64748b" }}>
-                          {embedId3Tags ? <CheckSquare size={15} /> : <Square size={15} />}
-                        </button>
-                        <span className="text-slate-300 flex items-center gap-1"><Tag size={11} /> Incrustar ID3 / metadatos</span>
-                      </label>
+
+                    {/* Info */}
+                    <div className="flex-1 min-w-0">
+                      <div className="text-[12px] font-semibold text-white truncate leading-tight">{track.title}</div>
+                      <div className="text-[10px] text-slate-400 truncate">
+                        {track.artist}{track.album ? ` · ${track.album}` : ""}
+                      </div>
                     </div>
+
+                    {/* Duration */}
+                    <span className="text-[10px] text-slate-500 font-mono shrink-0">{track.duration_string}</span>
+
+                    {/* Play button */}
+                    <button
+                      type="button"
+                      onClick={() => handlePlay(track)}
+                      disabled={isLoadingPlay}
+                      className="shrink-0 p-1.5 rounded-lg cursor-pointer transition-all opacity-0 group-hover:opacity-100 disabled:opacity-40"
+                      style={{ backgroundColor: `${accent}20`, color: accent }}
+                      title="Reproducir ahora"
+                    >
+                      {isThisPlaying && isLoadingPlay
+                        ? <Loader2 size={13} className="animate-spin" />
+                        : <Play size={13} fill="currentColor" />}
+                    </button>
                   </div>
-                )}
-              </div>
-
-              {/* Track list */}
-              {analyzeResult && (
-                <div className="flex flex-col gap-3">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <Disc size={14} style={{ color: accent }} />
-                      <span className="font-bold text-white">{analyzeResult.name}</span>
-                      <span className="text-[10px] text-slate-400 px-1.5 py-0.5 rounded-full bg-slate-800 border border-slate-700">
-                        {analyzeResult.totalTracks} pistas
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <button type="button" onClick={toggleAll}
-                        className="text-[10px] text-slate-400 hover:text-white px-2 py-0.5 rounded bg-slate-800 border border-slate-700 cursor-pointer transition-colors">
-                        {selectedIds.size === analyzeResult.tracks.length ? "Deseleccionar todo" : "Seleccionar todo"}
-                      </button>
-                      <button type="button" onClick={handleDownload}
-                        disabled={isDownloading || selectedIds.size === 0}
-                        className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-bold text-white transition-all cursor-pointer disabled:opacity-50"
-                        style={{ backgroundColor: accent }}>
-                        {isDownloading ? <Loader2 size={12} className="animate-spin" /> : <Download size={12} />}
-                        Descargar ({selectedIds.size})
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="flex flex-col gap-1 max-h-72 overflow-y-auto rounded-xl border border-slate-700/60">
-                    {analyzeResult.tracks.map((track) => {
-                      const progress = progresses[track.id];
-                      const isSelected = selectedIds.has(track.id);
-                      return (
-                        <div key={track.id} onClick={() => toggleTrack(track.id)}
-                          className="flex items-center gap-3 px-3 py-2 hover:bg-slate-800/40 cursor-pointer transition-colors">
-                          <div style={{ color: isSelected ? accent : "#475569" }}>
-                            {isSelected ? <CheckSquare size={14} /> : <Square size={14} />}
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="text-[11px] font-semibold text-white truncate">{track.title}</div>
-                            <div className="text-[10px] text-slate-400 truncate">{track.artist} · {track.album}</div>
-                          </div>
-                          {progress && (
-                            <div className={`text-[10px] font-mono ${phaseColors[progress.phase]} shrink-0`}>
-                              {progress.phase === "done" ? "✓" : progress.phase === "error" ? "✗" : `${progress.percent.toFixed(0)}%`}
-                            </div>
-                          )}
-                          <div className="text-[10px] text-slate-500 shrink-0 font-mono">{track.durationString}</div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-
-              {!analyzeResult && !isAnalyzing && (
-                <div className="flex flex-col items-center justify-center flex-1 gap-3 text-slate-500 py-12">
-                  <Music size={40} className="opacity-30" />
-                  <p className="text-sm">Busca música en Steam Music</p>
-                  <p className="text-xs opacity-60">Disfruta de nuestra extensa biblioteca musical de Steam Music</p>
-                </div>
-              )}
+                );
+              })}
             </div>
           )}
         </div>
+
+        {/* ── Download bar (only when results exist) ───────────────────────── */}
+        {results.length > 0 && (
+          <div
+            className="shrink-0 border-t px-4 py-2"
+            style={{ borderColor: `${accent}20`, background: `${accent}08` }}
+          >
+            {/* Options toggle */}
+            <div className="flex items-center justify-between mb-1.5">
+              <button
+                type="button"
+                onClick={() => setShowOptions(v => !v)}
+                className="flex items-center gap-1.5 text-[11px] text-slate-400 hover:text-white cursor-pointer transition-colors"
+              >
+                {showOptions ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+                Opciones de descarga
+              </button>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={toggleAll}
+                  className="text-[10px] text-slate-500 hover:text-white px-2 py-0.5 rounded bg-slate-800 border border-slate-700 cursor-pointer"
+                >
+                  {selectedIds.size === results.length ? "Ninguno" : "Todos"}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleDownload}
+                  disabled={isDownloading || selectedIds.size === 0}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-white cursor-pointer disabled:opacity-50 transition-opacity"
+                  style={{ backgroundColor: accent }}
+                >
+                  {isDownloading
+                    ? <><Loader2 size={12} className="animate-spin" /> Descargando...</>
+                    : <><Download size={12} /> Descargar ({selectedIds.size})</>}
+                </button>
+              </div>
+            </div>
+
+            {/* Expandable options */}
+            {showOptions && (
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-2 pt-1.5 pb-0.5 text-[11px]">
+                <label className="flex flex-col gap-0.5">
+                  <span className="text-slate-500 uppercase tracking-wider text-[9px]">Formato</span>
+                  <select
+                    value={format}
+                    onChange={e => setFormat(e.target.value)}
+                    className="bg-slate-800 border border-slate-700 rounded px-1.5 py-1 text-white focus:outline-none"
+                    style={{ colorScheme: "dark" }}
+                  >
+                    {FORMATS.map(f => <option key={f} value={f}>{f.toUpperCase()}</option>)}
+                  </select>
+                </label>
+
+                <label className="flex flex-col gap-0.5">
+                  <span className="text-slate-500 uppercase tracking-wider text-[9px]">Calidad</span>
+                  <select
+                    value={bitrate}
+                    onChange={e => setBitrate(e.target.value)}
+                    className="bg-slate-800 border border-slate-700 rounded px-1.5 py-1 text-white focus:outline-none"
+                    style={{ colorScheme: "dark" }}
+                  >
+                    {BITRATES.map(b => <option key={b} value={b}>{b === "lossless" ? "Sin pérdida" : b}</option>)}
+                  </select>
+                </label>
+
+                <label className="flex flex-col gap-0.5">
+                  <span className="text-slate-500 uppercase tracking-wider text-[9px]">Sample Rate</span>
+                  <select
+                    value={sampleRate}
+                    onChange={e => setSampleRate(Number(e.target.value))}
+                    className="bg-slate-800 border border-slate-700 rounded px-1.5 py-1 text-white focus:outline-none"
+                    style={{ colorScheme: "dark" }}
+                  >
+                    {SAMPLE_RATES.map(r => <option key={r} value={r}>{r >= 1000 ? `${r / 1000} kHz` : r}</option>)}
+                  </select>
+                </label>
+
+                <label className="flex flex-col gap-0.5">
+                  <span className="text-slate-500 uppercase tracking-wider text-[9px]">Estructura</span>
+                  <select
+                    value={namingPattern}
+                    onChange={e => setNamingPattern(e.target.value)}
+                    className="bg-slate-800 border border-slate-700 rounded px-1.5 py-1 text-white focus:outline-none"
+                    style={{ colorScheme: "dark" }}
+                  >
+                    {NAMING_PATTERNS.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
+                  </select>
+                </label>
+
+                {/* Folder + ID3 toggle */}
+                <div className="col-span-full flex items-center gap-4 pt-0.5">
+                  <button
+                    type="button"
+                    onClick={handlePickFolder}
+                    className="flex items-center gap-1.5 text-[10px] text-slate-400 hover:text-white bg-slate-800 border border-slate-700 rounded px-2 py-1 cursor-pointer transition-colors"
+                  >
+                    <FolderOpen size={11} />
+                    <span className="truncate max-w-[180px]">{outputFolder}</span>
+                  </button>
+                  <label className="flex items-center gap-1.5 cursor-pointer select-none text-[10px] text-slate-400">
+                    <button
+                      type="button"
+                      onClick={() => setEmbedId3(v => !v)}
+                      style={{ color: embedId3 ? accent : "#475569" }}
+                      className="cursor-pointer"
+                    >
+                      {embedId3 ? <CheckSquare size={13} /> : <Square size={13} />}
+                    </button>
+                    Incrustar carátula + ID3
+                  </label>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
