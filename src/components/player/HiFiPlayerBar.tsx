@@ -19,6 +19,7 @@ import {
   Flame,
   Layers,
   Sparkles,
+  Zap,
 } from "lucide-react";
 
 const FORMAT_COLORS: Record<string, string> = {
@@ -575,133 +576,167 @@ export const HiFiPlayerBar: React.FC<HiFiPlayerBarProps> = ({ height, isEditing,
             </div>
 
             {isEqPopupOpen && (
-              <div className="absolute bottom-12 right-0 w-88 p-3.5 rounded-xl bg-slate-950 border border-slate-700 shadow-2xl z-50 animate-fadeIn font-mono text-xs">
-                <div className="flex items-center justify-between pb-2 mb-2.5 border-b border-slate-800">
-                  <div className="flex items-center gap-2">
-                    <Sliders size={13} style={{ color: accentColor }} />
-                    <span className="font-bold text-slate-100 uppercase tracking-wide">
-                      Audio EQ
-                    </span>
-                    <span
-                      className="text-[9px] px-1.5 py-0.5 rounded font-bold border"
-                      style={{
-                        borderColor: isEqActive ? accentColor : "#334155",
-                        color: isEqActive ? accentColor : "#64748b",
-                        backgroundColor: isEqActive ? `${accentColor}15` : "#0f172a",
-                      }}
-                    >
-                      {isEqActive ? "ON" : "BYPASS"}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <select
-                      onChange={(e) => {
-                        const presets: Record<string, number[]> = {
-                          flat: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-                          rock: [4, 3, 2, 0, 0, 0, 1, 2, 3, 3],
-                          bass: [5, 4, 3, 1, 0, 0, 0, 0, 1, 1],
-                          pop: [-1, 1, 3, 4, 4, 3, 1, -1, -1, -1],
-                          jazz: [3, 2, 1, 2, -1, -1, 0, 1, 2, 3],
-                          vocal: [-2, -1, 0, 3, 4, 4, 3, 1, 0, -1],
-                          electronic: [4, 3.5, 1, 0, -1, 2, 1, 3, 4, 4],
-                          audiophile: [1, 0.5, 0, 0, 0, 0, 0, 0.5, 1, 1.5],
-                        };
-                        const selected = presets[e.target.value];
-                        if (selected) {
-                          setAudioSettings({ eqGains: selected, isEqEnabled: true });
-                        }
-                      }}
-                      defaultValue=""
-                      className="bg-slate-900 border border-slate-700 text-slate-200 rounded px-1.5 py-0.5 text-[10px] focus:outline-none"
-                    >
-                      <option value="" disabled>Presets Soundix</option>
-                      <option value="flat">Plano (0 dB)</option>
-                      <option value="rock">Rock</option>
-                      <option value="bass">Bass Boost</option>
-                      <option value="pop">Pop</option>
-                      <option value="jazz">Jazz</option>
-                      <option value="vocal">Voz / Presencia</option>
-                      <option value="electronic">Electrónica</option>
-                      <option value="audiophile">Audiophile Master</option>
-                    </select>
+              <div className="absolute bottom-12 right-0 w-96 p-3.5 rounded-xl bg-slate-950 border border-slate-700 shadow-2xl z-50 animate-fadeIn font-mono text-xs">
+                {(() => {
+                  const presetsMap: Record<string, number[]> = {
+                    flat: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+                    rock: [4, 3, 2, 0, 0, 0, 1, 2, 3, 3],
+                    bass: [5, 4, 3, 1, 0, 0, 0, 0, 1, 1],
+                    pop: [-1, 1, 3, 4, 4, 3, 1, -1, -1, -1],
+                    jazz: [3, 2, 1, 2, -1, -1, 0, 1, 2, 3],
+                    vocal: [-2, -1, 0, 3, 4, 4, 3, 1, 0, -1],
+                    electronic: [4, 3.5, 1, 0, -1, 2, 1, 3, 4, 4],
+                    audiophile: [1, 0.5, 0, 0, 0, 0, 0, 0.5, 1, 1.5],
+                  };
 
-                    <button
-                      onClick={() => setIsEqPopupOpen(false)}
-                      className="text-slate-400 hover:text-white text-xs px-1 cursor-pointer"
-                    >
-                      ✕
-                    </button>
-                  </div>
-                </div>
+                  const activePresetKey = Object.keys(presetsMap).find((key) =>
+                    presetsMap[key].every((val, i) => Math.abs(val - (eqGains[i] ?? 0)) < 0.1)
+                  ) || "custom";
 
-                <div className="flex justify-between items-center gap-1 h-28 py-1">
-                  {freqs.map((freq, idx) => {
-                    const gain = eqGains[idx] || 0;
-                    return (
-                      <div key={freq} className="flex-1 flex flex-col items-center justify-between h-full">
-                        <span className="text-[8px] text-slate-400">
-                          {gain > 0 ? `+${gain.toFixed(0)}` : gain.toFixed(0)}
-                        </span>
-                        <input
-                          type="range"
-                          min="-12"
-                          max="12"
-                          step="0.5"
-                          value={gain}
-                          onChange={(e) => {
-                            const next = [...eqGains];
-                            next[idx] = parseFloat(e.target.value);
-                            setAudioSettings({ eqGains: next, isEqEnabled: true });
-                          }}
-                          className="h-16 w-1.5 appearance-none bg-slate-800 rounded cursor-pointer"
-                          style={{
-                            writingMode: "vertical-lr",
-                            direction: "rtl",
-                            accentColor,
-                          }}
-                        />
-                        <span className="text-[8px] text-slate-400 font-bold">{freq}</span>
+                  return (
+                    <>
+                      <div className="flex items-center justify-between pb-2 mb-2.5 border-b border-slate-800">
+                        <div className="flex items-center gap-2">
+                          <Sliders size={13} style={{ color: accentColor }} />
+                          <span className="font-bold text-slate-100 uppercase tracking-wide">
+                            Audio EQ
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <select
+                            value={activePresetKey}
+                            onChange={(e) => {
+                              const selected = presetsMap[e.target.value];
+                              if (selected) {
+                                setAudioSettings({ eqGains: selected, isEqEnabled: true });
+                              }
+                            }}
+                            className="bg-slate-900 border border-slate-700 text-slate-200 rounded px-1.5 py-0.5 text-[10px] focus:outline-none cursor-pointer"
+                          >
+                            {activePresetKey === "custom" && (
+                              <option value="custom">Personalizado</option>
+                            )}
+                            <option value="flat">Plano (0 dB)</option>
+                            <option value="rock">Rock</option>
+                            <option value="bass">Bass Boost</option>
+                            <option value="pop">Pop</option>
+                            <option value="jazz">Jazz</option>
+                            <option value="vocal">Voz / Presencia</option>
+                            <option value="electronic">Electrónica</option>
+                            <option value="audiophile">Audiophile Master</option>
+                          </select>
+
+                          <button
+                            onClick={() => setIsEqPopupOpen(false)}
+                            className="text-slate-400 hover:text-white text-xs px-1 cursor-pointer"
+                          >
+                            ✕
+                          </button>
+                        </div>
                       </div>
-                    );
-                  })}
-                </div>
 
-                <div className="pt-2 mt-2 border-t border-slate-800/80 flex items-center justify-between text-[10px]">
-                  <div className="flex items-center gap-1.5">
-                    <button
-                      onClick={() => setAudioSettings({ isXdssEnabled: !isXdssActive })}
-                      className={`px-2 py-0.5 rounded font-bold border transition cursor-pointer flex items-center gap-1 ${
-                        isXdssActive
-                          ? "border-amber-500 bg-amber-950/60 text-amber-300 shadow-[0_0_8px_rgba(245,158,11,0.3)]"
-                          : "border-slate-800 text-slate-400 hover:text-slate-200"
-                      }`}
-                      title="LG XDSS Plus: Realce dinámico extremo de graves y pegada punch"
-                    >
-                      <Flame size={10} />
-                      XDSS Plus
-                    </button>
-                    <button
-                      onClick={() => setAudioSettings({ isXtsProEnabled: !isXtsProActive })}
-                      className="px-2 py-0.5 rounded font-bold border transition cursor-pointer flex items-center gap-1"
-                      style={{
-                        borderColor: isXtsProActive ? accentColor : "#334155",
-                        color: isXtsProActive ? accentColor : "#94a3b8",
-                        backgroundColor: isXtsProActive ? `${accentColor}15` : "transparent",
-                      }}
-                      title="LG XTS Pro: Excelente balance de frecuencias altas y expansión acústica"
-                    >
-                      <Layers size={10} />
-                      XTS Pro
-                    </button>
-                  </div>
+                      <div className="flex justify-between items-center gap-1 h-28 py-1">
+                        {freqs.map((freq, idx) => {
+                          const gain = eqGains[idx] || 0;
+                          const pct = Math.max(0, Math.min(100, ((gain + 12) / 24) * 100));
+                          const alphaIntensity = Math.max(0.25, pct / 100);
 
-                  <button
-                    onClick={() => setAudioSettings({ eqGains: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0] })}
-                    className="text-slate-400 hover:text-white underline text-[9px] cursor-pointer"
-                  >
-                    Reset 0dB
-                  </button>
-                </div>
+                          return (
+                            <div key={freq} className="flex-1 flex flex-col items-center justify-between h-full">
+                              <span className="text-[8px] text-slate-400 font-mono">
+                                {gain > 0 ? `+${gain.toFixed(0)}` : gain.toFixed(0)}
+                              </span>
+                              <div className="relative h-16 w-4 flex items-center justify-center py-0.5">
+                                <input
+                                  type="range"
+                                  min="-12"
+                                  max="12"
+                                  step="0.5"
+                                  value={gain}
+                                  onChange={(e) => {
+                                    const next = [...eqGains];
+                                    next[idx] = parseFloat(e.target.value);
+                                    setAudioSettings({ eqGains: next, isEqEnabled: true });
+                                  }}
+                                  className="eq-pocket-vertical-fill z-10 h-16 cursor-pointer"
+                                  style={{
+                                    background: pct > 0
+                                      ? `linear-gradient(to top, ${accentColor}25 0%, ${accentColor}85 ${pct * 0.7}%, ${accentColor} ${pct}%, rgba(15, 23, 42, 0.95) ${pct}%, rgba(15, 23, 42, 0.95) 100%)`
+                                      : `linear-gradient(to top, rgba(15, 23, 42, 0.95) 0%, rgba(15, 23, 42, 0.95) 100%)`,
+                                    boxShadow: pct > 0
+                                      ? `inset 0 1px 3px rgba(0,0,0,0.85), 0 0 ${Math.round(4 + alphaIntensity * 8)}px ${accentColor}45`
+                                      : `inset 0 1px 3px rgba(0,0,0,0.85)`,
+                                  }}
+                                  title={`${freq}: ${gain > 0 ? "+" : ""}${gain} dB`}
+                                />
+                              </div>
+                              <span className="text-[8px] text-slate-400 font-bold font-mono">{freq}</span>
+                            </div>
+                          );
+                        })}
+                      </div>
+
+                      <div className="pt-2 mt-2 border-t border-slate-800/80 flex items-center justify-between text-[10px]">
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            onClick={() => setAudioSettings({ isXdssEnabled: !isXdssActive })}
+                            className={`px-2 py-0.5 rounded font-bold border transition cursor-pointer flex items-center gap-1 ${
+                              isXdssActive
+                                ? "border-amber-500 bg-amber-950/60 text-amber-300 shadow-[0_0_8px_rgba(245,158,11,0.3)]"
+                                : "border-slate-800 text-slate-400 hover:text-slate-200"
+                            }`}
+                            title="LG XDSS Plus: Realce dinámico extremo de graves y pegada punch"
+                          >
+                            <Flame size={10} />
+                            XDSS Plus
+                          </button>
+                          <button
+                            onClick={() => setAudioSettings({ isXtsProEnabled: !isXtsProActive })}
+                            className="px-2 py-0.5 rounded font-bold border transition cursor-pointer flex items-center gap-1"
+                            style={{
+                              borderColor: isXtsProActive ? accentColor : "#334155",
+                              color: isXtsProActive ? accentColor : "#94a3b8",
+                              backgroundColor: isXtsProActive ? `${accentColor}15` : "transparent",
+                            }}
+                            title="LG XTS Pro: Excelente balance de frecuencias altas y expansión acústica"
+                          >
+                            <Layers size={10} />
+                            XTS Pro
+                          </button>
+                          <button
+                            onClick={() => setAudioSettings({ isEqEnabled: !isEqActive })}
+                            className="px-2 py-0.5 rounded font-bold border transition cursor-pointer flex items-center gap-1"
+                            style={
+                              isEqActive
+                                ? {
+                                    borderColor: `${accentColor}80`,
+                                    color: accentColor,
+                                    backgroundColor: `${accentColor}25`,
+                                    boxShadow: `0 0 8px ${accentColor}35`,
+                                  }
+                                : {
+                                    borderColor: "#334155",
+                                    color: "#94a3b8",
+                                    backgroundColor: "transparent",
+                                  }
+                            }
+                            title="Activar/Desactivar Ecualizador"
+                          >
+                            <Zap size={10} />
+                            {isEqActive ? "EQ ON" : "EQ OFF"}
+                          </button>
+                        </div>
+
+                        <button
+                          onClick={() => setAudioSettings({ eqGains: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0] })}
+                          className="text-slate-400 hover:text-white underline text-[9px] cursor-pointer"
+                        >
+                          Reset 0dB
+                        </button>
+                      </div>
+                    </>
+                  );
+                })()}
               </div>
             )}
           </div>
