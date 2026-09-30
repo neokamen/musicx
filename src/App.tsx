@@ -12,6 +12,7 @@ import { initTheme } from "./lib/theme.ts";
 import { FIRST_RUN_PROFILE } from "./components/layout/defaultLayout.ts";
 import whiteLogo from "../simple-white-logo.png";
 import blackLogo from "../simple-black-logo.png";
+import packageInfo from "../package.json";
 
 const LAST_WINDOW_STATE_KEY = "musicx_last_window_state";
 const NORMAL_WINDOW_SIZE_KEY = "musicx_normal_window_size";
@@ -399,8 +400,19 @@ export default function App() {
               />
             </button>
             <div className="flex flex-col leading-none">
-              <span className="text-[15px] font-bold font-mono text-white">Music<span className="text-cyan-400">x</span></span>
-              <span className="mt-1 text-[8px] font-mono text-slate-500">THE AUDIO PLAYER</span>
+              <div className="flex items-baseline gap-1.5">
+                <span className="text-[15px] font-bold font-mono text-white">
+                  Music<span style={{ color: appearance.accentColor || "#06b6d4" }}>x</span>
+                </span>
+                <span
+                  className="font-mono text-[9px] font-light tracking-widest select-none opacity-85"
+                  style={{ color: appearance.accentColor || "#06b6d4" }}
+                  title={`Versión actual: v${packageInfo.version}`}
+                >
+                  v{packageInfo.version}
+                </span>
+              </div>
+              <span className="mt-0.5 text-[8px] font-mono text-slate-500">THE AUDIO PLAYER</span>
             </div>
           </div>
 
