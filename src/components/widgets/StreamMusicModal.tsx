@@ -198,11 +198,17 @@ export const StreamMusicModal: React.FC<StreamMusicModalProps> = ({ isOpen, onCl
     );
   }, [rawTracks, localFilter]);
 
-  // ── Search & Filter Logic ──────────────────────────────────────────────────
+  // Auto-cargar catálogo de música en streaming al abrir
+  const hasAutoLoadedRef = useRef(false);
+  useEffect(() => {
+    if (isVisible && !hasAutoLoadedRef.current && rawTracks.length === 0) {
+      hasAutoLoadedRef.current = true;
+      executeSearch("Top Hits 2026", "songs");
+    }
+  }, [isVisible, rawTracks.length]);
 
   const executeSearch = async (searchTerm: string, category: SearchFilterCategory = searchFilter) => {
-    const q = searchTerm.trim();
-    if (!q) return;
+    const q = (searchTerm.trim() || "Top Hits").trim();
 
     setIsSearching(true);
     setSearchError(null);
@@ -241,14 +247,15 @@ export const StreamMusicModal: React.FC<StreamMusicModalProps> = ({ isOpen, onCl
 
   const handleSearchSubmit = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
-    executeSearch(query, searchFilter);
+    const term = query.trim() || "Top Hits";
+    if (!query.trim()) setQuery("Top Hits");
+    executeSearch(term, searchFilter);
   };
 
   const handleFilterCategoryChange = (cat: SearchFilterCategory) => {
     setSearchFilter(cat);
-    if (query.trim()) {
-      executeSearch(query, cat);
-    }
+    const term = query.trim() || "Top Hits";
+    executeSearch(term, cat);
   };
 
   // Quick filter clicks from the table: search all tracks from artist / album
@@ -649,13 +656,73 @@ export const StreamMusicModal: React.FC<StreamMusicModalProps> = ({ isOpen, onCl
 
           {/* List Content */}
           <div className="flex-1 overflow-y-auto min-h-0 divide-y divide-slate-800/40">
+            {/* Animated Skeleton Loader while searching */}
+            {isSearching && (
+              <div className="flex flex-col gap-2 p-4">
+                <div className="flex items-center gap-2 mb-2 text-xs font-mono" style={{ color: accent }}>
+                  <Loader2 size={16} className="animate-spin" />
+                  <span className="font-semibold tracking-wide">Cargando catálogo de música en streaming...</span>
+                </div>
+                {[1, 2, 3, 4, 5, 6].map((i) => (
+                  <div
+                    key={i}
+                    className="flex items-center gap-3 py-2.5 px-3 rounded-xl bg-slate-900/40 border border-slate-800/40 animate-pulse"
+                  >
+                    <div className="w-8 h-4 bg-slate-800/80 rounded" />
+                    <div className="size-10 bg-slate-800 rounded-md shrink-0" />
+                    <div className="flex-1 flex flex-col gap-1.5 min-w-0">
+                      <div className="h-3 w-1/3 bg-slate-800 rounded" />
+                      <div className="h-2.5 w-1/4 bg-slate-800/60 rounded" />
+                    </div>
+                    <div className="w-28 h-3 bg-slate-800/50 rounded hidden sm:block" />
+                    <div className="w-12 h-3 bg-slate-800/50 rounded" />
+                    <div className="w-16 h-7 bg-slate-800/60 rounded-lg shrink-0" />
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Quick Explore Genres & Discovery when empty */}
             {filteredTracks.length === 0 && !isSearching && (
-              <div className="flex flex-col items-center justify-center h-full gap-3 text-slate-500 py-16">
-                <Music size={46} className="opacity-20" />
-                <p className="text-sm font-medium">Busca canciones, artistas, o álbumes en Stream Music</p>
-                <p className="text-xs opacity-60 max-w-sm text-center">
-                  Prueba escribiendo el nombre de un grupo musical o pegando directamente un enlace de YouTube o Spotify.
-                </p>
+              <div className="flex flex-col items-center justify-center h-full gap-4 text-slate-400 py-12 px-6">
+                <div
+                  className="size-12 rounded-2xl flex items-center justify-center shadow-lg"
+                  style={{ backgroundColor: `${accent}15`, color: accent }}
+                >
+                  <Globe size={26} />
+                </div>
+                <div className="text-center">
+                  <p className="text-sm font-bold text-white tracking-wide">Explora música en streaming</p>
+                  <p className="text-xs text-slate-400 mt-1 max-w-md">
+                    Selecciona un estilo musical para empezar a escuchar inmediatamente o busca cualquier artista.
+                  </p>
+                </div>
+
+                {/* Genre chips */}
+                <div className="flex flex-wrap items-center justify-center gap-2 max-w-lg mt-2">
+                  {[
+                    { label: "🔥 Top Hits Globales", q: "Top Hits 2026" },
+                    { label: "🎸 Rock Clásico", q: "Classic Rock Hits" },
+                    { label: "🎧 Lo-Fi Chill Beats", q: "Lofi hip hop beats" },
+                    { label: "⚡ Electrónica / Dance", q: "Electronic dance music" },
+                    { label: "🎷 Smooth Jazz & Soul", q: "Smooth Jazz Relax" },
+                    { label: "🎹 Pop Éxitos", q: "Pop Music Hits" },
+                    { label: "🎤 Hip-Hop / Urban", q: "Hip Hop Hits" },
+                    { label: "🎻 Acústica & Relax", q: "Acoustic chill songs" },
+                  ].map((g) => (
+                    <button
+                      key={g.label}
+                      type="button"
+                      onClick={() => {
+                        setQuery(g.q);
+                        executeSearch(g.q, "songs");
+                      }}
+                      className="px-3 py-1.5 rounded-xl border border-slate-800 bg-slate-900/70 hover:bg-slate-800 text-xs text-slate-300 hover:text-white transition cursor-pointer shadow-sm hover:border-slate-700"
+                    >
+                      {g.label}
+                    </button>
+                  ))}
+                </div>
               </div>
             )}
 

@@ -440,37 +440,75 @@ export function AudioEQModal({
         </div>
 
         <div
-          className={`flex gap-1 justify-between bg-slate-950/40 p-3 rounded-xl border border-slate-800/80 transition-opacity ${
+          className={`flex gap-1.5 justify-between bg-slate-950/60 p-3.5 rounded-xl border border-slate-800/80 shadow-inner transition-opacity ${
             !audioSettings.isEqEnabled ? "opacity-35 pointer-events-none" : ""
           }`}
         >
           {bands.map((band, i) => (
-            <div key={i} className="flex flex-col items-center gap-1.5 flex-1">
+            <div key={i} className="flex flex-col items-center gap-1.5 flex-1 group">
               <span
-                className="text-[10px] font-mono font-bold"
-                style={
-                  band.gain > 0.5
-                    ? { color: accentColor }
-                    : band.gain < -0.5
-                    ? { color: "#f87171" }
-                    : { color: "rgba(255,255,255,0.4)" }
-                }
+                className={`text-[10px] font-mono leading-none tracking-tight transition-all ${
+                  band.gain > 0
+                    ? "font-bold text-white drop-shadow-[0_0_6px_rgba(255,255,255,0.7)]"
+                    : band.gain < 0
+                    ? "text-rose-400 font-medium"
+                    : "text-slate-500"
+                }`}
+                style={{
+                  color: band.gain > 0 ? accentColor : undefined,
+                  textShadow: band.gain > 0 ? `0 0 8px ${accentColor}` : undefined,
+                }}
               >
                 {band.gain > 0 ? `+${band.gain.toFixed(1)}` : band.gain.toFixed(1)}
               </span>
 
-              <div className="relative flex flex-col items-center" style={{ height: 120 }}>
+              <div className="relative flex flex-col items-center justify-center py-1" style={{ height: 130 }}>
+                {/* Visual hardware slot with 3D inset depth */}
+                <div className="absolute inset-y-1 w-3 rounded-full bg-slate-950 border border-slate-800/90 shadow-[inset_0_2px_5px_rgba(0,0,0,0.95)] overflow-hidden">
+                  {/* Subtle 0 dB center reference line */}
+                  <div className="absolute top-1/2 left-0 right-0 h-[1.5px] bg-slate-600/90 -translate-y-1/2 z-0" />
+
+                  {/* Reactive illuminated LED fill underneath the boosted zone */}
+                  {band.gain > 0 && (
+                    <div
+                      className="absolute bottom-1/2 left-0.5 right-0.5 rounded-t-sm transition-all pointer-events-none"
+                      style={{
+                        height: `${(band.gain / 12) * 50}%`,
+                        background: `linear-gradient(to top, ${accentColor}30 0%, ${accentColor}85 100%)`,
+                        boxShadow: `0 0 10px ${accentColor}60, inset 0 0 4px ${accentColor}40`,
+                      }}
+                    />
+                  )}
+
+                  {/* Reactive illuminated LED fill for cut zone */}
+                  {band.gain < 0 && (
+                    <div
+                      className="absolute top-1/2 left-0.5 right-0.5 rounded-b-sm transition-all pointer-events-none"
+                      style={{
+                        height: `${(Math.abs(band.gain) / 12) * 50}%`,
+                        background: `linear-gradient(to bottom, rgba(244,63,94,0.3) 0%, rgba(244,63,94,0.8) 100%)`,
+                        boxShadow: `0 0 8px rgba(244,63,94,0.5)`,
+                      }}
+                    />
+                  )}
+                </div>
+
+                {/* Subtle side calibration notches at -12, -6, 0, 6, 12 */}
                 {[-12, -6, 0, 6, 12].map((db) => (
                   <div
                     key={db}
-                    className={`absolute left-1/2 -translate-x-1/2 w-2 h-px pointer-events-none ${
-                      db === 0 ? "bg-slate-400/40" : "bg-slate-700/40"
+                    className={`absolute pointer-events-none ${
+                      db === 0
+                        ? "w-5 h-[1.5px] bg-slate-500/50"
+                        : "w-3 h-px bg-slate-700/40"
                     }`}
                     style={{
-                      top: `${((12 - db) / 24) * 110 + 5}px`,
+                      top: `${((12 - db) / 24) * 120 + 5}px`,
                     }}
                   />
                 ))}
+
+                {/* Slider Input with .eq-pocket-vertical */}
                 <input
                   type="range"
                   min={-12}
@@ -478,19 +516,21 @@ export function AudioEQModal({
                   step={0.5}
                   value={band.gain}
                   onChange={(e) => updateBandGain(i, parseFloat(e.target.value))}
-                  className="eq-bar-slider"
-                  style={{
-                    background: `linear-gradient(to top, ${accentColor} 0%, ${accentColor} ${((band.gain + 12) / 24) * 100}%, var(--app-surface2) ${((band.gain + 12) / 24) * 100}%, var(--app-surface2) 100%)`,
-                    height: 120,
-                    width: 24,
-                    cursor: "pointer",
-                    accentColor,
-                  }}
+                  className="eq-pocket-vertical relative z-10 w-6 cursor-pointer"
+                  style={{ height: 130 }}
                   title={`${BAND_NAMES[i]}: ${band.gain > 0 ? "+" : ""}${band.gain.toFixed(1)} dB`}
                 />
               </div>
 
-              <span className="text-[10px] text-slate-300 font-mono font-bold">{BAND_LABELS[i]}</span>
+              <span
+                className="text-[10px] font-mono font-bold transition-colors"
+                style={{
+                  color: band.gain > 0 ? accentColor : "#cbd5e1",
+                  opacity: band.gain > 0 ? 1 : 0.8,
+                }}
+              >
+                {BAND_LABELS[i]}
+              </span>
               <span className="text-[9px] text-slate-500 text-center leading-tight truncate w-full">
                 {BAND_NAMES[i]}
               </span>
@@ -498,96 +538,112 @@ export function AudioEQModal({
           ))}
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 p-3 bg-slate-950/40 rounded-xl border border-slate-800/80">
-          <div className="flex flex-col gap-1">
-            <div className="flex items-center justify-between text-[11px]">
-              <span className="text-slate-400">Sub Boost</span>
-              <span className="font-mono font-bold" style={{ color: accentColor }}>
-                {subBoost > 0 ? `+${subBoost}` : subBoost} dB
-              </span>
-            </div>
-            <input
-              type="range"
-              min={-6}
-              max={12}
-              step={0.5}
-              value={subBoost}
-              onChange={(e) => {
-                const value = parseFloat(e.target.value);
-                setSubBoost(value);
-                setAudioSettings({ eqSubBoost: value });
-              }}
-              style={{ accentColor, cursor: "pointer" }}
-              className="w-full"
-            />
-          </div>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 p-3 bg-slate-950/60 rounded-xl border border-slate-800/80 shadow-inner">
+          {[
+            {
+              label: "Sub Boost",
+              val: subBoost,
+              min: -6,
+              max: 12,
+              step: 0.5,
+              unit: "dB",
+              onChange: (v: number) => {
+                setSubBoost(v);
+                setAudioSettings({ eqSubBoost: v });
+              },
+            },
+            {
+              label: "Bass Boost",
+              val: bassBoost,
+              min: -6,
+              max: 12,
+              step: 0.5,
+              unit: "dB",
+              onChange: (v: number) => {
+                setBassBoost(v);
+                setAudioSettings({ eqBassBoost: v });
+              },
+            },
+            {
+              label: "Highpass",
+              val: highpass,
+              min: 0,
+              max: 400,
+              step: 5,
+              unit: "Hz",
+              onChange: (v: number) => {
+                setHighpass(v);
+                setAudioSettings({ eqHighpass: v });
+              },
+            },
+            {
+              label: "Lowpass",
+              val: lowpass,
+              min: 0,
+              max: 22000,
+              step: 500,
+              unit: "Hz",
+              onChange: (v: number) => {
+                setLowpass(v);
+                setAudioSettings({ eqLowpass: v });
+              },
+            },
+          ].map(({ label, val, min, max, step, onChange }) => {
+            const pct = Math.max(0, Math.min(100, ((val - min) / (max - min)) * 100));
+            const isActive = val !== 0 && !(label === "Lowpass" && val === 22000);
+            const displayVal =
+              label === "Lowpass"
+                ? val > 0 && val < 22000
+                  ? `${(val / 1000).toFixed(1)}k Hz`
+                  : "Off"
+                : label === "Highpass"
+                ? val > 0
+                  ? `${val} Hz`
+                  : "Off"
+                : `${val > 0 ? `+${val}` : val} dB`;
 
-          <div className="flex flex-col gap-1">
-            <div className="flex items-center justify-between text-[11px]">
-              <span className="text-slate-400">Bass Boost</span>
-              <span className="font-mono font-bold" style={{ color: accentColor }}>
-                {bassBoost > 0 ? `+${bassBoost}` : bassBoost} dB
-              </span>
-            </div>
-            <input
-              type="range"
-              min={-6}
-              max={12}
-              step={0.5}
-              value={bassBoost}
-              onChange={(e) => {
-                const value = parseFloat(e.target.value);
-                setBassBoost(value);
-                setAudioSettings({ eqBassBoost: value });
-              }}
-              style={{ accentColor, cursor: "pointer" }}
-              className="w-full"
-            />
-          </div>
-
-          <div className="flex flex-col gap-1">
-            <div className="flex items-center justify-between text-[11px]">
-              <span className="text-slate-400">Highpass</span>
-              <span className="font-mono text-slate-400">{highpass > 0 ? `${highpass} Hz` : "Off"}</span>
-            </div>
-            <input
-              type="range"
-              min={0}
-              max={400}
-              step={5}
-              value={highpass}
-              onChange={(e) => {
-                const value = parseInt(e.target.value);
-                setHighpass(value);
-                setAudioSettings({ eqHighpass: value });
-              }}
-              style={{ accentColor, cursor: "pointer" }}
-              className="w-full"
-            />
-          </div>
-
-          <div className="flex flex-col gap-1">
-            <div className="flex items-center justify-between text-[11px]">
-              <span className="text-slate-400">Lowpass</span>
-              <span className="font-mono text-slate-400">
-                {lowpass > 0 && lowpass < 22000 ? `${(lowpass / 1000).toFixed(1)}k Hz` : "Off"}
-              </span>
-            </div>
-            <input
-              type="range"
-              min={0}
-              max={22000}
-              step={500}
-              value={lowpass}
-              onChange={(e) => {
-                const value = parseInt(e.target.value);
-                setLowpass(value);
-                setAudioSettings({ eqLowpass: value });
-              }}
-              style={{ accentColor, cursor: "pointer" }}
-              className="w-full"
-            />
-          </div>
+            return (
+              <div
+                key={label}
+                className="flex flex-col justify-between gap-1.5 p-2 rounded-lg border border-slate-800/80 bg-slate-900/60 shadow-sm transition hover:border-slate-700"
+              >
+                <div className="flex items-center justify-between text-[10px]">
+                  <span className="font-semibold uppercase tracking-wider text-slate-400">
+                    {label}
+                  </span>
+                  <span
+                    className="font-mono font-bold px-1.5 py-0.5 rounded text-[10px] transition-all"
+                    style={{
+                      color: isActive ? accentColor : "#94a3b8",
+                      backgroundColor: isActive ? `${accentColor}18` : "rgba(15,23,42,0.6)",
+                      border: `1px solid ${isActive ? `${accentColor}45` : "rgba(51,65,85,0.4)"}`,
+                      boxShadow: isActive ? `0 0 8px ${accentColor}25` : undefined,
+                    }}
+                  >
+                    {displayVal}
+                  </span>
+                </div>
+                <div className="relative flex items-center mt-1">
+                  <input
+                    type="range"
+                    min={min}
+                    max={max}
+                    step={step}
+                    value={val}
+                    onChange={(e) => onChange(parseFloat(e.target.value))}
+                    className="eq-pocket-horizontal w-full cursor-pointer z-10"
+                    style={{
+                      background: `linear-gradient(to right, ${accentColor}85 0%, ${accentColor} ${pct}%, rgba(15, 23, 42, 0.95) ${pct}%, rgba(15, 23, 42, 0.95) 100%)`,
+                      boxShadow: isActive
+                        ? `inset 0 1px 3px rgba(0,0,0,0.85), 0 0 8px ${accentColor}25`
+                        : undefined,
+                    }}
+                    title={`${label}: ${displayVal}`}
+                  />
+                </div>
+              </div>
+            );
+          })}
         </div>
 
         <div className="rounded-xl bg-slate-950/60 border border-slate-800 p-4 flex flex-col gap-3">

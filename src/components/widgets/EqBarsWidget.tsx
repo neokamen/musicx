@@ -64,16 +64,62 @@ export const EqBarsWidget: React.FC = () => {
         </div>
       </div>
 
-      <div className="flex-1 p-3 flex items-center justify-between gap-1 overflow-x-auto custom-scrollbar">
+      <div className="flex-1 p-3 flex items-center justify-between gap-1 overflow-x-auto custom-scrollbar bg-slate-950/30">
         {freqs.map((freq, idx) => {
           const gain = gains[idx] || 0;
+          const isBoost = gain > 0;
+          const isCut = gain < 0;
+          const accent = appearance.accentColor;
+
           return (
-            <div key={freq} className="flex-1 min-w-[28px] flex flex-col items-center gap-2 h-full justify-center">
-              <span className="font-mono text-[9px] text-slate-400">
+            <div key={freq} className="flex-1 min-w-[28px] flex flex-col items-center gap-1.5 h-full justify-center group">
+              <span
+                className={`font-mono text-[9px] transition-colors leading-none ${
+                  isBoost
+                    ? "font-bold text-white drop-shadow-[0_0_5px_rgba(255,255,255,0.7)]"
+                    : isCut
+                    ? "text-rose-400 font-medium"
+                    : "text-slate-500"
+                }`}
+                style={{
+                  color: isBoost ? accent : undefined,
+                  textShadow: isBoost ? `0 0 6px ${accent}` : undefined,
+                }}
+              >
                 {gain > 0 ? `+${gain.toFixed(0)}` : gain.toFixed(0)}
               </span>
 
               <div className="relative flex-1 flex items-center justify-center w-full py-1">
+                {/* 3D Hardware slot with inset depth */}
+                <div className="absolute inset-y-1 w-2.5 rounded-full bg-slate-950 border border-slate-800/90 shadow-[inset_0_2px_4px_rgba(0,0,0,0.95)] overflow-hidden">
+                  {/* Subtle 0 dB reference line */}
+                  <div className="absolute top-1/2 left-0 right-0 h-[1.5px] bg-slate-600/80 -translate-y-1/2 z-0" />
+
+                  {/* Reactive illuminated LED fill underneath the boosted zone */}
+                  {isBoost && (
+                    <div
+                      className="absolute bottom-1/2 left-0.5 right-0.5 rounded-t-sm transition-all pointer-events-none"
+                      style={{
+                        height: `${(gain / 12) * 50}%`,
+                        background: `linear-gradient(to top, ${accent}30 0%, ${accent}85 100%)`,
+                        boxShadow: `0 0 8px ${accent}60`,
+                      }}
+                    />
+                  )}
+
+                  {/* Reactive illuminated LED fill for cut zone */}
+                  {isCut && (
+                    <div
+                      className="absolute top-1/2 left-0.5 right-0.5 rounded-b-sm transition-all pointer-events-none"
+                      style={{
+                        height: `${(Math.abs(gain) / 12) * 50}%`,
+                        background: `linear-gradient(to bottom, rgba(244,63,94,0.3) 0%, rgba(244,63,94,0.8) 100%)`,
+                        boxShadow: `0 0 6px rgba(244,63,94,0.5)`,
+                      }}
+                    />
+                  )}
+                </div>
+
                 <input
                   type="range"
                   min="-12"
@@ -81,14 +127,17 @@ export const EqBarsWidget: React.FC = () => {
                   step="0.5"
                   value={gain}
                   onChange={(e) => handleGainChange(idx, parseFloat(e.target.value))}
-                  className="eq-bar-slider h-full w-3 cursor-pointer"
-                  style={{
-                    background: `linear-gradient(to top, ${appearance.accentColor} 0%, ${appearance.accentColor} ${((gain + 12) / 24) * 100}%, var(--app-surface2) ${((gain + 12) / 24) * 100}%, var(--app-surface2) 100%)`,
-                  }}
+                  className="eq-pocket-vertical relative z-10 h-full w-5 cursor-pointer"
+                  title={`${freq}: ${gain > 0 ? "+" : ""}${gain} dB`}
                 />
               </div>
 
-              <span className="font-mono text-[9px] text-slate-300 font-bold truncate">
+              <span
+                className="font-mono text-[9px] font-bold truncate transition-colors"
+                style={{
+                  color: isBoost ? accent : "#94a3b8",
+                }}
+              >
                 {freq}
               </span>
             </div>
