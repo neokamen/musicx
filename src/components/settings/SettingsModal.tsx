@@ -241,7 +241,7 @@ export const SettingsModal: React.FC = () => {
 
       for (let i = 0; i < localStorage.length; i++) {
         const key = localStorage.key(i);
-        if (key && !EXCLUDED_KEYS.includes(key) && (key.startsWith('musicx_') || key.startsWith('audio_converter_'))) {
+        if (key && !EXCLUDED_KEYS.includes(key)) {
           const value = localStorage.getItem(key);
           if (value !== null) data[key] = value;
         }
@@ -281,16 +281,32 @@ export const SettingsModal: React.FC = () => {
 
       const EXCLUDED_KEYS = ['musicx_listening_stats', 'musicx_stats_backup'];
 
+      const preservedStats: Record<string, string | null> = {};
+      for (const k of EXCLUDED_KEYS) {
+        preservedStats[k] = localStorage.getItem(k);
+      }
+
+      for (let i = localStorage.length - 1; i >= 0; i--) {
+        const key = localStorage.key(i);
+        if (key && !EXCLUDED_KEYS.includes(key)) {
+          localStorage.removeItem(key);
+        }
+      }
+
       for (const [key, value] of Object.entries<unknown>(backup.data)) {
         if (typeof value === 'string' && !EXCLUDED_KEYS.includes(key)) {
           localStorage.setItem(key, value);
         }
       }
 
+      for (const [k, v] of Object.entries(preservedStats)) {
+        if (v !== null) localStorage.setItem(k, v);
+      }
+
       setSavedMessage('Copia de seguridad restaurada con éxito. Recargando app...');
       setTimeout(() => {
         window.location.reload();
-      }, 1200);
+      }, 1000);
     } catch {
       setSavedMessage('No se pudo restaurar la copia de seguridad.');
       setTimeout(() => setSavedMessage(null), 3000);
