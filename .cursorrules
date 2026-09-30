@@ -17,3 +17,7 @@
      - Actualizar la versión en los 3 archivos.
      - Hacer commit y **subir los cambios a GitHub** (`git push origin main`).
      - Crear el tag correspondiente (ej. `v0.3.0` o `v1.0.0`) y subirlo a GitHub (`git push origin v...`) para disparar el workflow de Release en GitHub Actions.
+
+4. **Sin Caché y Sin Pestañas Obsoletas (Cambios siempre directos y efectuados)**:
+   - Dejar pestañas abiertas en el editor con versiones antiguas no deja ver los cambios reales y puede sobreescribir el disco con buffers obsoletos.
+   - Prohibido depender de cachés; los cambios deben efectuarse y sincronizarse siempre de manera directa, fresca y verificable en disco.
