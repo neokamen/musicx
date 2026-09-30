@@ -30,6 +30,7 @@ import {
 import { open, save } from '@tauri-apps/plugin-dialog';
 import { readTextFile, writeTextFile } from '../../services/api.ts';
 import packageInfo from '../../../package.json';
+import { FIRST_RUN_PROFILE } from '../layout/defaultLayout.ts';
 import { SPECTRUM_STYLES } from '../widgets/SpectrumVisualizer.tsx';
 import { CAVA_STYLES } from '../widgets/CavaVisualizer.tsx';
 import { TRANSPORT_STYLES, type TransportStyle } from '../../lib/transportStyles.ts';
@@ -190,9 +191,40 @@ export const SettingsModal: React.FC = () => {
   };
 
   const handleResetSettings = () => {
-    if (window.confirm('¿Restablecer todos los ajustes a los valores de fábrica?')) {
+    if (window.confirm('¿Restablecer todos los ajustes, disposiciones de widgets, espectros y tamaño de ventana a los parámetros por defecto de fábrica?')) {
+      const EXCLUDED_KEYS = ['musicx_listening_stats', 'musicx_stats_backup'];
+
+      const preservedStats: Record<string, string | null> = {};
+      for (const k of EXCLUDED_KEYS) {
+        preservedStats[k] = localStorage.getItem(k);
+      }
+
+      for (let i = localStorage.length - 1; i >= 0; i--) {
+        const key = localStorage.key(i);
+        if (key && !EXCLUDED_KEYS.includes(key)) {
+          localStorage.removeItem(key);
+        }
+      }
+
+      for (const [k, v] of Object.entries(preservedStats)) {
+        if (v !== null) localStorage.setItem(k, v);
+      }
+
       resetSettings();
-      window.location.reload();
+
+      localStorage.setItem('musicx_playerbar_height_ratio', String(FIRST_RUN_PROFILE.playerBarHeightRatio));
+      localStorage.setItem('normal_window_size_v1', JSON.stringify(FIRST_RUN_PROFILE.windowSize));
+      localStorage.setItem('musicx_normal_window_size', JSON.stringify(FIRST_RUN_PROFILE.windowSize));
+      localStorage.setItem('musicx_last_window_state', JSON.stringify({ ...FIRST_RUN_PROFILE.windowSize, isMiniPlayer: false }));
+      localStorage.setItem('musicx_last_window_mode', 'full');
+      localStorage.setItem('musicx_layout_config_v16', JSON.stringify(FIRST_RUN_PROFILE.layout));
+
+      applyTheme('blue', 'dark_gray');
+
+      setSavedMessage('Ajustes restablecidos a valores por defecto de fábrica. Recargando...');
+      setTimeout(() => {
+        window.location.reload();
+      }, 1000);
     }
   };
 
@@ -235,6 +267,25 @@ export const SettingsModal: React.FC = () => {
         filters: [{ name: 'JSON', extensions: ['json'] }],
       });
       if (typeof selected !== 'string') return;
+
+      const currentStoreState = {
+        language,
+        appearance,
+        audioSettings,
+        playbackSettings,
+        listeningStats,
+        librarySettings,
+      };
+      localStorage.setItem('musicx_settings_v5', JSON.stringify(currentStoreState));
+
+      if (appearance.accentPreset) localStorage.setItem('musicx_accent_preset', appearance.accentPreset);
+      if (appearance.accentColor) localStorage.setItem('musicx_accent_color', appearance.accentColor);
+      if (appearance.bgPreset) localStorage.setItem('musicx_theme_preset', appearance.bgPreset);
+      if (appearance.bgColor) localStorage.setItem('musicx_theme_color', appearance.bgColor);
+      if (bgOpacity !== undefined) localStorage.setItem('musicx_bg_opacity', String(bgOpacity));
+      if (appearance.neonGlow !== undefined) localStorage.setItem('musicx_neon_glow', String(appearance.neonGlow));
+      if (appearance.neonIntensity !== undefined) localStorage.setItem('musicx_neon_glow_intensity', String(appearance.neonIntensity));
+      if (appearance.borderRadius !== undefined) localStorage.setItem('musicx_corner_radius', String(appearance.borderRadius));
 
       const data: Record<string, string> = {};
       const EXCLUDED_KEYS = ['musicx_listening_stats', 'musicx_stats_backup'];
@@ -301,6 +352,36 @@ export const SettingsModal: React.FC = () => {
 
       for (const [k, v] of Object.entries(preservedStats)) {
         if (v !== null) localStorage.setItem(k, v);
+      }
+
+      const settingsRaw = localStorage.getItem('musicx_settings_v5');
+      if (settingsRaw) {
+        try {
+          const parsed = JSON.parse(settingsRaw);
+          if (parsed.appearance) {
+            const app = parsed.appearance;
+            if (app.accentPreset) localStorage.setItem('musicx_accent_preset', app.accentPreset);
+            if (app.accentColor) localStorage.setItem('musicx_accent_color', app.accentColor);
+            if (app.bgPreset) localStorage.setItem('musicx_theme_preset', app.bgPreset);
+            if (app.bgColor) localStorage.setItem('musicx_theme_color', app.bgColor);
+            if (app.bgOpacity !== undefined) localStorage.setItem('musicx_bg_opacity', String(app.bgOpacity));
+            if (app.neonGlow !== undefined) localStorage.setItem('musicx_neon_glow', String(app.neonGlow));
+            if (app.neonIntensity !== undefined) localStorage.setItem('musicx_neon_glow_intensity', String(app.neonIntensity));
+            if (app.borderRadius !== undefined) localStorage.setItem('musicx_corner_radius', String(app.borderRadius));
+
+            applyTheme(
+              app.accentPreset || 'cyan',
+              app.bgPreset || 'dark_slate',
+              app.accentColor || '#06b6d4',
+              app.bgColor || '#0f172a',
+              app.bgOpacity ?? 0.85,
+              app.neonGlow ?? true,
+              app.neonIntensity ?? 0.5,
+            );
+          }
+        } catch {
+          // Ignore parse failure
+        }
       }
 
       setSavedMessage('Copia de seguridad restaurada con éxito. Recargando app...');
