@@ -90,46 +90,34 @@ export const EqBarsWidget: React.FC = () => {
               </span>
 
               <div className="relative flex-1 flex items-center justify-center w-full py-1">
-                {/* 3D Hardware slot with inset depth */}
-                <div className="absolute inset-y-1 w-2.5 rounded-full bg-slate-950 border border-slate-800/90 shadow-[inset_0_2px_4px_rgba(0,0,0,0.95)] overflow-hidden">
-                  {/* Subtle 0 dB reference line */}
-                  <div className="absolute top-1/2 left-0 right-0 h-[1.5px] bg-slate-600/80 -translate-y-1/2 z-0" />
+                {(() => {
+                  const pct = Math.max(0, Math.min(100, ((gain + 12) / 24) * 100));
 
-                  {/* Reactive illuminated LED fill underneath the boosted zone */}
-                  {isBoost && (
-                    <div
-                      className="absolute bottom-1/2 left-0.5 right-0.5 rounded-t-sm transition-all pointer-events-none"
+                  return (
+                    <input
+                      type="range"
+                      min="-12"
+                      max="12"
+                      step="0.5"
+                      value={gain}
+                      onChange={(e) => handleGainChange(idx, parseFloat(e.target.value))}
+                      className="eq-pocket-vertical-fill z-10 h-full cursor-pointer"
                       style={{
-                        height: `${(gain / 12) * 50}%`,
-                        background: `linear-gradient(to top, ${accent}30 0%, ${accent}85 100%)`,
-                        boxShadow: `0 0 8px ${accent}60`,
+                        background: isBoost
+                          ? `linear-gradient(to top, rgba(15, 23, 42, 0.95) 0%, rgba(15, 23, 42, 0.95) 50%, ${accent}85 50%, ${accent} ${pct}%, rgba(15, 23, 42, 0.95) ${pct}%, rgba(15, 23, 42, 0.95) 100%)`
+                          : isCut
+                          ? `linear-gradient(to top, rgba(15, 23, 42, 0.95) 0%, rgba(15, 23, 42, 0.95) ${pct}%, rgba(244, 63, 94, 0.9) ${pct}%, rgba(244, 63, 94, 0.75) 50%, rgba(15, 23, 42, 0.95) 50%, rgba(15, 23, 42, 0.95) 100%)`
+                          : `linear-gradient(to top, rgba(15, 23, 42, 0.95) 0%, rgba(15, 23, 42, 0.95) 100%)`,
+                        boxShadow: isBoost
+                          ? `inset 0 1px 3px rgba(0,0,0,0.85), 0 0 10px ${accent}35`
+                          : isCut
+                          ? `inset 0 1px 3px rgba(0,0,0,0.85), 0 0 8px rgba(244,63,94,0.3)`
+                          : `inset 0 1px 3px rgba(0,0,0,0.85)`,
                       }}
+                      title={`${freq}: ${gain > 0 ? "+" : ""}${gain} dB`}
                     />
-                  )}
-
-                  {/* Reactive illuminated LED fill for cut zone */}
-                  {isCut && (
-                    <div
-                      className="absolute top-1/2 left-0.5 right-0.5 rounded-b-sm transition-all pointer-events-none"
-                      style={{
-                        height: `${(Math.abs(gain) / 12) * 50}%`,
-                        background: `linear-gradient(to bottom, rgba(244,63,94,0.3) 0%, rgba(244,63,94,0.8) 100%)`,
-                        boxShadow: `0 0 6px rgba(244,63,94,0.5)`,
-                      }}
-                    />
-                  )}
-                </div>
-
-                <input
-                  type="range"
-                  min="-12"
-                  max="12"
-                  step="0.5"
-                  value={gain}
-                  onChange={(e) => handleGainChange(idx, parseFloat(e.target.value))}
-                  className="eq-pocket-vertical relative z-10 h-full w-5 cursor-pointer"
-                  title={`${freq}: ${gain > 0 ? "+" : ""}${gain} dB`}
-                />
+                  );
+                })()}
               </div>
 
               <span

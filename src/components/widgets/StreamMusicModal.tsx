@@ -50,6 +50,113 @@ const NAMING_PATTERNS = [
   { label: "Título", value: "title" },
 ] as const;
 
+export const DEFAULT_STREAM_TRACKS: NeoTrack[] = [
+  {
+    id: "yt_cZnBNuqqz5g",
+    title: "Bohemian Rhapsody",
+    artist: "Queen",
+    album: "A Night at the Opera",
+    year: "1975",
+    trackNumber: 1,
+    totalTracks: 8,
+    duration: 355,
+    durationString: "5:55",
+    coverUrl: "https://i.ytimg.com/vi/cZnBNuqqz5g/hq720.jpg",
+    sourceUrl: "https://www.youtube.com/watch?v=cZnBNuqqz5g",
+  },
+  {
+    id: "yt_fTKqtvXjkvo",
+    title: "Trending Global Pop Hits",
+    artist: "Dua Lipa & Top Artists",
+    album: "Top Hits 2026",
+    year: "2026",
+    trackNumber: 2,
+    totalTracks: 8,
+    duration: 215,
+    durationString: "3:35",
+    coverUrl: "https://i.ytimg.com/vi/fTKqtvXjkvo/hq720.jpg",
+    sourceUrl: "https://www.youtube.com/watch?v=fTKqtvXjkvo",
+  },
+  {
+    id: "yt_oSBx5IfabCo",
+    title: "Blinding Lights / Billboard Top",
+    artist: "The Weeknd & Ed Sheeran",
+    album: "After Hours / Chart Hits",
+    year: "2025",
+    trackNumber: 3,
+    totalTracks: 8,
+    duration: 202,
+    durationString: "3:22",
+    coverUrl: "https://i.ytimg.com/vi/oSBx5IfabCo/hq720.jpg",
+    sourceUrl: "https://www.youtube.com/watch?v=oSBx5IfabCo",
+  },
+  {
+    id: "yt_WBy8ETk_Fqs",
+    title: "Die With A Smile / Pop Acoustic",
+    artist: "Lady Gaga & Bruno Mars",
+    album: "Spotify Hits Collection",
+    year: "2025",
+    trackNumber: 4,
+    totalTracks: 8,
+    duration: 251,
+    durationString: "4:11",
+    coverUrl: "https://i.ytimg.com/vi/WBy8ETk_Fqs/hq720.jpg",
+    sourceUrl: "https://www.youtube.com/watch?v=WBy8ETk_Fqs",
+  },
+  {
+    id: "yt_i26406_EldM",
+    title: "Don't Stop Me Now / Live Tribute",
+    artist: "Queen & Elton John",
+    album: "The Platinum Collection",
+    year: "1992",
+    trackNumber: 5,
+    totalTracks: 8,
+    duration: 220,
+    durationString: "3:40",
+    coverUrl: "https://i.ytimg.com/vi/i26406_EldM/hq720.jpg",
+    sourceUrl: "https://www.youtube.com/watch?v=i26406_EldM",
+  },
+  {
+    id: "yt_Fpdr4ZlPItg",
+    title: "Every Breath You Take",
+    artist: "The Police",
+    album: "Synchronicity",
+    year: "1983",
+    trackNumber: 6,
+    totalTracks: 8,
+    duration: 254,
+    durationString: "4:14",
+    coverUrl: "https://i.ytimg.com/vi/Fpdr4ZlPItg/hq720.jpg",
+    sourceUrl: "https://www.youtube.com/watch?v=Fpdr4ZlPItg",
+  },
+  {
+    id: "yt_7aURX_GwFmk",
+    title: "Espresso / UK Top Singles",
+    artist: "Sabrina Carpenter",
+    album: "Short n' Sweet",
+    year: "2024",
+    trackNumber: 7,
+    totalTracks: 8,
+    duration: 175,
+    durationString: "2:55",
+    coverUrl: "https://i.ytimg.com/vi/7aURX_GwFmk/hq720.jpg",
+    sourceUrl: "https://www.youtube.com/watch?v=7aURX_GwFmk",
+  },
+  {
+    id: "yt_97K9ByldojI",
+    title: "Summer Vibes & Chill Sunset",
+    artist: "Coldplay & Avicii",
+    album: "Summer Chill Collection",
+    year: "2025",
+    trackNumber: 8,
+    totalTracks: 8,
+    duration: 230,
+    durationString: "3:50",
+    coverUrl: "https://i.ytimg.com/vi/97K9ByldojI/hq720.jpg",
+    sourceUrl: "https://www.youtube.com/watch?v=97K9ByldojI",
+  },
+];
+
 type SearchFilterCategory = "all" | "songs" | "artists" | "albums";
 
 interface StreamMusicModalProps {
@@ -64,10 +171,15 @@ export const StreamMusicModal: React.FC<StreamMusicModalProps> = ({ isOpen, onCl
   // Visual modal open state (synced with props and store)
   const isVisible = isOpen || isStreamMusicOpen;
 
-  // Search state
+  // Search state — initialized with curated default stream catalog
   const [query, setQuery] = useState("");
   const [searchFilter, setSearchFilter] = useState<SearchFilterCategory>("all");
-  const [result, setResult] = useState<AnalyzeResult | null>(null);
+  const [result, setResult] = useState<AnalyzeResult | null>({
+    kind: "search",
+    name: "Catálogo Recomendado en Streaming",
+    totalTracks: DEFAULT_STREAM_TRACKS.length,
+    tracks: DEFAULT_STREAM_TRACKS,
+  });
   const [isSearching, setIsSearching] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
 
@@ -198,22 +310,28 @@ export const StreamMusicModal: React.FC<StreamMusicModalProps> = ({ isOpen, onCl
     );
   }, [rawTracks, localFilter]);
 
-  // Auto-cargar catálogo de música en streaming al abrir
+  // Auto-cargar catálogo fresco de música en streaming al abrir si está en el default
   const hasAutoLoadedRef = useRef(false);
   useEffect(() => {
-    if (isVisible && !hasAutoLoadedRef.current && rawTracks.length === 0) {
+    if (isVisible && !hasAutoLoadedRef.current) {
       hasAutoLoadedRef.current = true;
-      executeSearch("Top Hits 2026", "songs");
+      // Fetch fresh Top Hits in the background without clearing the initial tracks
+      executeSearch("Top Hits 2026", "songs", true);
     }
-  }, [isVisible, rawTracks.length]);
+  }, [isVisible]);
 
-  const executeSearch = async (searchTerm: string, category: SearchFilterCategory = searchFilter) => {
+  const executeSearch = async (
+    searchTerm: string,
+    category: SearchFilterCategory = searchFilter,
+    isBackgroundInitial = false
+  ) => {
     const q = (searchTerm.trim() || "Top Hits").trim();
 
     setIsSearching(true);
     setSearchError(null);
-    setResult(null);
-    setSelectedIds(new Set());
+    if (!isBackgroundInitial) {
+      setSelectedIds(new Set());
+    }
     setProgress({});
     setDownloadSuccessMsg(null);
 
@@ -235,11 +353,15 @@ export const StreamMusicModal: React.FC<StreamMusicModalProps> = ({ isOpen, onCl
         urlOrQuery: finalQuery,
         limit: 25,
       });
-      setResult(res);
-      // Automatically preselect all found tracks for convenience
-      setSelectedIds(new Set(res.tracks.map((t) => t.id)));
+      if (res && res.tracks && res.tracks.length > 0) {
+        setResult(res);
+        setSelectedIds(new Set(res.tracks.map((t) => t.id)));
+      }
     } catch (err: any) {
-      setSearchError(String(err));
+      console.warn("Stream search error:", err);
+      if (!isBackgroundInitial) {
+        setSearchError(String(err));
+      }
     } finally {
       setIsSearching(false);
     }
@@ -249,13 +371,13 @@ export const StreamMusicModal: React.FC<StreamMusicModalProps> = ({ isOpen, onCl
     if (e) e.preventDefault();
     const term = query.trim() || "Top Hits";
     if (!query.trim()) setQuery("Top Hits");
-    executeSearch(term, searchFilter);
+    executeSearch(term, searchFilter, false);
   };
 
   const handleFilterCategoryChange = (cat: SearchFilterCategory) => {
     setSearchFilter(cat);
     const term = query.trim() || "Top Hits";
-    executeSearch(term, cat);
+    executeSearch(term, cat, false);
   };
 
   // Quick filter clicks from the table: search all tracks from artist / album
@@ -656,8 +778,8 @@ export const StreamMusicModal: React.FC<StreamMusicModalProps> = ({ isOpen, onCl
 
           {/* List Content */}
           <div className="flex-1 overflow-y-auto min-h-0 divide-y divide-slate-800/40">
-            {/* Animated Skeleton Loader while searching */}
-            {isSearching && (
+            {/* Animated Skeleton Loader while searching if no tracks yet */}
+            {isSearching && filteredTracks.length === 0 && (
               <div className="flex flex-col gap-2 p-4">
                 <div className="flex items-center gap-2 mb-2 text-xs font-mono" style={{ color: accent }}>
                   <Loader2 size={16} className="animate-spin" />
@@ -679,6 +801,21 @@ export const StreamMusicModal: React.FC<StreamMusicModalProps> = ({ isOpen, onCl
                     <div className="w-16 h-7 bg-slate-800/60 rounded-lg shrink-0" />
                   </div>
                 ))}
+              </div>
+            )}
+
+            {/* Subtle banner if refreshing tracks in background */}
+            {isSearching && filteredTracks.length > 0 && (
+              <div
+                className="flex items-center gap-2 px-4 py-1.5 text-[11px] font-mono border-b shrink-0"
+                style={{
+                  backgroundColor: `${accent}12`,
+                  borderColor: `${accent}25`,
+                  color: accent,
+                }}
+              >
+                <Loader2 size={13} className="animate-spin" />
+                <span>Actualizando catálogo en streaming...</span>
               </div>
             )}
 

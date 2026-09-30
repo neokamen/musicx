@@ -463,43 +463,13 @@ export function AudioEQModal({
               </span>
 
               <div className="relative flex flex-col items-center justify-center py-1" style={{ height: 130 }}>
-                {/* Visual hardware slot with 3D inset depth */}
-                <div className="absolute inset-y-1 w-3 rounded-full bg-slate-950 border border-slate-800/90 shadow-[inset_0_2px_5px_rgba(0,0,0,0.95)] overflow-hidden">
-                  {/* Subtle 0 dB center reference line */}
-                  <div className="absolute top-1/2 left-0 right-0 h-[1.5px] bg-slate-600/90 -translate-y-1/2 z-0" />
-
-                  {/* Reactive illuminated LED fill underneath the boosted zone */}
-                  {band.gain > 0 && (
-                    <div
-                      className="absolute bottom-1/2 left-0.5 right-0.5 rounded-t-sm transition-all pointer-events-none"
-                      style={{
-                        height: `${(band.gain / 12) * 50}%`,
-                        background: `linear-gradient(to top, ${accentColor}30 0%, ${accentColor}85 100%)`,
-                        boxShadow: `0 0 10px ${accentColor}60, inset 0 0 4px ${accentColor}40`,
-                      }}
-                    />
-                  )}
-
-                  {/* Reactive illuminated LED fill for cut zone */}
-                  {band.gain < 0 && (
-                    <div
-                      className="absolute top-1/2 left-0.5 right-0.5 rounded-b-sm transition-all pointer-events-none"
-                      style={{
-                        height: `${(Math.abs(band.gain) / 12) * 50}%`,
-                        background: `linear-gradient(to bottom, rgba(244,63,94,0.3) 0%, rgba(244,63,94,0.8) 100%)`,
-                        boxShadow: `0 0 8px rgba(244,63,94,0.5)`,
-                      }}
-                    />
-                  )}
-                </div>
-
                 {/* Subtle side calibration notches at -12, -6, 0, 6, 12 */}
                 {[-12, -6, 0, 6, 12].map((db) => (
                   <div
                     key={db}
                     className={`absolute pointer-events-none ${
                       db === 0
-                        ? "w-5 h-[1.5px] bg-slate-500/50"
+                        ? "w-5 h-[1.5px] bg-slate-500/60"
                         : "w-3 h-px bg-slate-700/40"
                     }`}
                     style={{
@@ -508,18 +478,38 @@ export function AudioEQModal({
                   />
                 ))}
 
-                {/* Slider Input with .eq-pocket-vertical */}
-                <input
-                  type="range"
-                  min={-12}
-                  max={12}
-                  step={0.5}
-                  value={band.gain}
-                  onChange={(e) => updateBandGain(i, parseFloat(e.target.value))}
-                  className="eq-pocket-vertical relative z-10 w-6 cursor-pointer"
-                  style={{ height: 130 }}
-                  title={`${BAND_NAMES[i]}: ${band.gain > 0 ? "+" : ""}${band.gain.toFixed(1)} dB`}
-                />
+                {/* Vertical Native Input Slider with custom CSS styling matching horizontal sliders */}
+                {(() => {
+                  const pct = Math.max(0, Math.min(100, ((band.gain + 12) / 24) * 100));
+                  const isBoost = band.gain > 0;
+                  const isCut = band.gain < 0;
+
+                  return (
+                    <input
+                      type="range"
+                      min={-12}
+                      max={12}
+                      step={0.5}
+                      value={band.gain}
+                      onChange={(e) => updateBandGain(i, parseFloat(e.target.value))}
+                      className="eq-pocket-vertical-fill z-10 cursor-pointer"
+                      style={{
+                        height: 130,
+                        background: isBoost
+                          ? `linear-gradient(to top, rgba(15, 23, 42, 0.95) 0%, rgba(15, 23, 42, 0.95) 50%, ${accentColor}85 50%, ${accentColor} ${pct}%, rgba(15, 23, 42, 0.95) ${pct}%, rgba(15, 23, 42, 0.95) 100%)`
+                          : isCut
+                          ? `linear-gradient(to top, rgba(15, 23, 42, 0.95) 0%, rgba(15, 23, 42, 0.95) ${pct}%, rgba(244, 63, 94, 0.9) ${pct}%, rgba(244, 63, 94, 0.75) 50%, rgba(15, 23, 42, 0.95) 50%, rgba(15, 23, 42, 0.95) 100%)`
+                          : `linear-gradient(to top, rgba(15, 23, 42, 0.95) 0%, rgba(15, 23, 42, 0.95) 100%)`,
+                        boxShadow: isBoost
+                          ? `inset 0 1px 3px rgba(0,0,0,0.85), 0 0 10px ${accentColor}35`
+                          : isCut
+                          ? `inset 0 1px 3px rgba(0,0,0,0.85), 0 0 8px rgba(244,63,94,0.3)`
+                          : `inset 0 1px 3px rgba(0,0,0,0.85)`,
+                      }}
+                      title={`${BAND_NAMES[i]}: ${band.gain > 0 ? "+" : ""}${band.gain.toFixed(1)} dB`}
+                    />
+                  );
+                })()}
               </div>
 
               <span

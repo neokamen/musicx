@@ -145,46 +145,35 @@ export const EqCompactWidget: React.FC = () => {
 
               {/* Fader Track & Channel Column */}
               <div className="relative h-18 w-5 flex items-center justify-center py-1">
-                {/* Visual hardware slot with 3D inset depth */}
-                <div className="absolute inset-y-1 w-2.5 rounded-full bg-slate-950 border border-slate-800/90 shadow-[inset_0_2px_4px_rgba(0,0,0,0.9)] overflow-hidden">
-                  {/* Subtle 0 dB center reference line */}
-                  <div className="absolute top-1/2 left-0 right-0 h-[1.5px] bg-slate-700/80 -translate-y-1/2 z-0" />
+                {(() => {
+                  const pct = Math.max(0, Math.min(100, ((gain + 12) / 24) * 100));
 
-                  {/* Reactive illuminated LED bar from 0 dB */}
-                  {isBoost && (
-                    <div
-                      className="absolute bottom-1/2 left-0.5 right-0.5 rounded-t-sm transition-all"
+                  return (
+                    <input
+                      aria-label={`${frequency} Hz, ${gain} dB`}
+                      type="range"
+                      min="-12"
+                      max="12"
+                      step="0.5"
+                      value={gain}
+                      onChange={(event) => updateGain(index, Number(event.target.value))}
+                      className="eq-pocket-vertical-fill z-10 h-16 cursor-pointer"
                       style={{
-                        height: `${(gain / 12) * 50}%`,
-                        background: `linear-gradient(to top, ${accent}80, ${accent})`,
-                        boxShadow: `0 0 8px ${accent}`,
+                        background: isBoost
+                          ? `linear-gradient(to top, rgba(15, 23, 42, 0.95) 0%, rgba(15, 23, 42, 0.95) 50%, ${accent}85 50%, ${accent} ${pct}%, rgba(15, 23, 42, 0.95) ${pct}%, rgba(15, 23, 42, 0.95) 100%)`
+                          : isCut
+                          ? `linear-gradient(to top, rgba(15, 23, 42, 0.95) 0%, rgba(15, 23, 42, 0.95) ${pct}%, rgba(244, 63, 94, 0.9) ${pct}%, rgba(244, 63, 94, 0.75) 50%, rgba(15, 23, 42, 0.95) 50%, rgba(15, 23, 42, 0.95) 100%)`
+                          : `linear-gradient(to top, rgba(15, 23, 42, 0.95) 0%, rgba(15, 23, 42, 0.95) 100%)`,
+                        boxShadow: isBoost
+                          ? `inset 0 1px 3px rgba(0,0,0,0.85), 0 0 10px ${accent}35`
+                          : isCut
+                          ? `inset 0 1px 3px rgba(0,0,0,0.85), 0 0 8px rgba(244,63,94,0.3)`
+                          : `inset 0 1px 3px rgba(0,0,0,0.85)`,
                       }}
+                      title={`${frequency} Hz: ${gain > 0 ? "+" : ""}${gain} dB`}
                     />
-                  )}
-                  {isCut && (
-                    <div
-                      className="absolute top-1/2 left-0.5 right-0.5 rounded-b-sm transition-all"
-                      style={{
-                        height: `${(Math.abs(gain) / 12) * 50}%`,
-                        background: `linear-gradient(to bottom, rgba(244,63,94,0.7), rgba(244,63,94,0.9))`,
-                        boxShadow: `0 0 6px rgba(244,63,94,0.6)`,
-                      }}
-                    />
-                  )}
-                </div>
-
-                {/* Vertical Native Input Slider with custom CSS styling */}
-                <input
-                  aria-label={`${frequency} Hz, ${gain} dB`}
-                  type="range"
-                  min="-12"
-                  max="12"
-                  step="0.5"
-                  value={gain}
-                  onChange={(event) => updateGain(index, Number(event.target.value))}
-                  className="eq-pocket-vertical relative z-10 h-16 w-5 cursor-pointer"
-                  title={`${frequency} Hz: ${gain > 0 ? "+" : ""}${gain} dB`}
-                />
+                  );
+                })()}
               </div>
 
               {/* Serigraphed frequency mark */}
