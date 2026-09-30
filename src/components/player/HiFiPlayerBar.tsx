@@ -106,11 +106,7 @@ export const HiFiPlayerBar: React.FC<HiFiPlayerBarProps> = ({ height, isEditing,
     currentTrack?.format ||
     (telemetry.filepath ? telemetry.filepath.split(".").pop()?.toUpperCase() : "PCM");
   const normalizedFormat = (format || "PCM").toUpperCase();
-  const isRadio = Boolean(
-    activeRadioStation ||
-    currentTrack?.format === "RADIO" ||
-    (currentTrack?.filepath && (currentTrack.filepath.startsWith("http://") || currentTrack.filepath.startsWith("https://")))
-  );
+  const isRadio = Boolean(activeRadioStation || currentTrack?.format === "RADIO");
 
   const channels = telemetry.channels || 2;
   const isMono = channels === 1;

@@ -4,10 +4,11 @@ import { listen } from "@tauri-apps/api/event";
 import {
   Globe, Search, Download, Play, Pause, Loader2, Music,
   CheckSquare, Square, FolderOpen, ChevronDown, ChevronUp,
-  AlertCircle, CheckCircle, X, SlidersHorizontal, Volume2,
-  VolumeX, User, Disc, Filter, Check,
+  AlertCircle, CheckCircle, X, SlidersHorizontal,
+  User, Disc, Filter, Check, ListPlus, ListMusic,
 } from "lucide-react";
 import { useMusicStore } from "../../store/index.ts";
+import { isStreamTrack, streamFilepath, streamTrackFromNeo } from "../../lib/streamTracks.ts";
 
 // ── Types (Identical to Soundix NeoDownloader) ───────────────────────────────
 
@@ -165,7 +166,16 @@ interface StreamMusicModalProps {
 }
 
 export const StreamMusicModal: React.FC<StreamMusicModalProps> = ({ isOpen, onClose }) => {
-  const { appearance, isStreamMusicOpen, setStreamMusicOpen } = useMusicStore();
+  const {
+    appearance,
+    isStreamMusicOpen,
+    setStreamMusicOpen,
+    play,
+    addToQueue,
+    currentTrack,
+    isPlaying,
+    togglePlayPause,
+  } = useMusicStore();
   const accent = appearance.accentColor || "#06b6d4";
 
   // Visual modal open state (synced with props and store)
@@ -202,73 +212,8 @@ export const StreamMusicModal: React.FC<StreamMusicModalProps> = ({ isOpen, onCl
   const [progress, setProgress] = useState<Record<string, TrackProgress>>({});
   const [isDownloading, setIsDownloading] = useState(false);
   const [downloadSuccessMsg, setDownloadSuccessMsg] = useState<string | null>(null);
-
-  // ── Streaming / Temporal Preview Audio Player ──
-  const audioRef = useRef<HTMLAudioElement | null>(null);
-  const [streamingTrack, setStreamingTrack] = useState<NeoTrack | null>(null);
-  const [isStreamPlaying, setIsStreamPlaying] = useState(false);
-  const [isLoadingStream, setIsLoadingStream] = useState(false);
-  const [streamCurrentTime, setStreamCurrentTime] = useState(0);
-  const [streamDuration, setStreamDuration] = useState(0);
-  const [streamVolume, setStreamVolume] = useState(0.85);
-  const [isMuted, setIsMuted] = useState(false);
-
-  // Initialize Audio Element for temporal stream preview
-  useEffect(() => {
-    const audio = new Audio();
-    audio.preload = "none";
-    audio.volume = streamVolume;
-    audioRef.current = audio;
-
-    const handleTimeUpdate = () => {
-      setStreamCurrentTime(audio.currentTime);
-      if (audio.duration && !isNaN(audio.duration) && audio.duration !== Infinity) {
-        setStreamDuration(audio.duration);
-      }
-    };
-
-    const handleDurationChange = () => {
-      if (audio.duration && !isNaN(audio.duration) && audio.duration !== Infinity) {
-        setStreamDuration(audio.duration);
-      }
-    };
-
-    const handlePlay = () => setIsStreamPlaying(true);
-    const handlePause = () => setIsStreamPlaying(false);
-    const handleEnded = () => {
-      setIsStreamPlaying(false);
-      setStreamCurrentTime(0);
-    };
-    const handleError = () => {
-      setIsStreamPlaying(false);
-      setIsLoadingStream(false);
-    };
-
-    audio.addEventListener("timeupdate", handleTimeUpdate);
-    audio.addEventListener("durationchange", handleDurationChange);
-    audio.addEventListener("play", handlePlay);
-    audio.addEventListener("pause", handlePause);
-    audio.addEventListener("ended", handleEnded);
-    audio.addEventListener("error", handleError);
-
-    return () => {
-      audio.pause();
-      audio.src = "";
-      audio.removeEventListener("timeupdate", handleTimeUpdate);
-      audio.removeEventListener("durationchange", handleDurationChange);
-      audio.removeEventListener("play", handlePlay);
-      audio.removeEventListener("pause", handlePause);
-      audio.removeEventListener("ended", handleEnded);
-      audio.removeEventListener("error", handleError);
-    };
-  }, []);
-
-  // Sync volume with audio element
-  useEffect(() => {
-    if (audioRef.current) {
-      audioRef.current.volume = isMuted ? 0 : streamVolume;
-    }
-  }, [streamVolume, isMuted]);
+  const [pendingPlayId, setPendingPlayId] = useState<string | null>(null);
+  const [queueHint, setQueueHint] = useState<string | null>(null);
 
   // Listen to Soundix download-track-progress events
   useEffect(() => {
@@ -352,10 +297,6 @@ export const StreamMusicModal: React.FC<StreamMusicModalProps> = ({ isOpen, onCl
   }, [rawTracks, localFilter]);
 
   const handleModalClose = () => {
-    if (audioRef.current) {
-      audioRef.current.pause();
-    }
-    setIsStreamPlaying(false);
     onClose();
     setStreamMusicOpen(false);
   };
@@ -386,50 +327,35 @@ export const StreamMusicModal: React.FC<StreamMusicModalProps> = ({ isOpen, onCl
     executeSearch(albumName, "albums");
   };
 
-  // ── Streaming / Temporal Preview Playback ──────────────────────────────────
-
-  const handleStreamToggle = async (track: NeoTrack) => {
-    if (!audioRef.current) return;
-
-    // If clicking on the currently loaded track: toggle pause/play
-    if (streamingTrack?.id === track.id) {
-      if (isStreamPlaying) {
-        audioRef.current.pause();
-      } else {
-        audioRef.current.play().catch(() => {});
-      }
+  const handlePlayNow = async (track: NeoTrack) => {
+    const mxTrack = streamTrackFromNeo(track);
+    if (currentTrack?.filepath === mxTrack.filepath) {
+      await togglePlayPause();
       return;
     }
-
-    // New track: resolve direct streaming URL and play instantly
-    setIsLoadingStream(true);
-    setStreamingTrack(track);
-    setStreamCurrentTime(0);
-    setStreamDuration(track.duration || 0);
-
+    setPendingPlayId(track.id);
+    setSearchError(null);
     try {
-      const streamUrl = await invoke<string>("get_stream_audio_url", {
-        urlOrId: track.sourceUrl || track.id,
-      });
-
-      audioRef.current.src = streamUrl;
-      await audioRef.current.play();
-      setIsStreamPlaying(true);
-    } catch (err: any) {
+      await play(mxTrack);
+    } catch (err: unknown) {
       setSearchError(`Error al iniciar stream: ${String(err)}`);
-      setIsStreamPlaying(false);
-      setStreamingTrack(null);
     } finally {
-      setIsLoadingStream(false);
+      setPendingPlayId(null);
     }
   };
 
-  const handleSeek = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const newTime = parseFloat(e.target.value);
-    setStreamCurrentTime(newTime);
-    if (audioRef.current) {
-      audioRef.current.currentTime = newTime;
-    }
+  const handleAddToQueue = (track: NeoTrack) => {
+    addToQueue(streamTrackFromNeo(track));
+    setQueueHint(`Añadida a la cola: ${track.title}`);
+    window.setTimeout(() => setQueueHint(null), 2200);
+  };
+
+  const handleAddSelectedToQueue = () => {
+    const selected = filteredTracks.filter((t) => selectedIds.has(t.id)).map(streamTrackFromNeo);
+    if (selected.length === 0) return;
+    addToQueue(selected);
+    setQueueHint(`${selected.length} canciones añadidas a la cola de MusicX`);
+    window.setTimeout(() => setQueueHint(null), 2200);
   };
 
   const formatSeconds = (sec: number) => {
@@ -600,11 +526,11 @@ export const StreamMusicModal: React.FC<StreamMusicModalProps> = ({ isOpen, onCl
                   backgroundColor: `${accent}10`,
                 }}
               >
-                Hi-Fi Stream & Downloader
+                Integrado en MusicX
               </span>
             </div>
             <p className="text-[11px] text-slate-400">
-              Escucha en stream temporal directo o descarga con metadatos ID3 y carátulas integradas
+              Reproduce en el player de MusicX, mezcla con tu cola local y usa EQ Pro, volumen e In Play
             </p>
           </div>
 
@@ -745,6 +671,13 @@ export const StreamMusicModal: React.FC<StreamMusicModalProps> = ({ isOpen, onCl
           </div>
         )}
 
+        {queueHint && (
+          <div className="mx-5 my-2 flex items-center gap-2.5 p-3 rounded-xl bg-slate-900/80 border text-xs text-slate-200 shrink-0 animate-fade-in" style={{ borderColor: `${accent}40` }}>
+            <ListMusic size={15} className="shrink-0" style={{ color: accent }} />
+            <span className="flex-1">{queueHint}</span>
+          </div>
+        )}
+
         {/* ── Main Library / Virtual Track List View ──────────────────────── */}
         <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
           {/* Table Header */}
@@ -768,7 +701,7 @@ export const StreamMusicModal: React.FC<StreamMusicModalProps> = ({ isOpen, onCl
             <div className="w-48 px-2">Artista</div>
             <div className="w-44 px-2">Álbum</div>
             <div className="w-16 text-right pr-2">Duración</div>
-            <div className="w-24 text-center">Acciones</div>
+            <div className="w-32 text-center">MusicX</div>
           </div>
 
           {/* List Content */}
@@ -824,9 +757,9 @@ export const StreamMusicModal: React.FC<StreamMusicModalProps> = ({ isOpen, onCl
                   <Globe size={26} />
                 </div>
                 <div className="text-center">
-                  <p className="text-sm font-bold text-white tracking-wide">Explora música en streaming</p>
+                  <p className="text-sm font-bold text-white tracking-wide">Explora y mezcla con tu biblioteca</p>
                   <p className="text-xs text-slate-400 mt-1 max-w-md">
-                    Selecciona un estilo musical para empezar a escuchar inmediatamente o busca cualquier artista.
+                    Busca canciones, reprodúcelas en MusicX o añádelas a la cola junto a tus archivos locales.
                   </p>
                 </div>
 
@@ -860,14 +793,17 @@ export const StreamMusicModal: React.FC<StreamMusicModalProps> = ({ isOpen, onCl
 
             {filteredTracks.map((track) => {
               const isSelected = selectedIds.has(track.id);
-              const isCurrentPlaying = streamingTrack?.id === track.id && isStreamPlaying;
-              const isCurrentLoading = streamingTrack?.id === track.id && isLoadingStream;
+              const mxPath = streamFilepath(track.id);
+              const isCurrent = currentTrack?.filepath === mxPath && isStreamTrack(currentTrack);
+              const isCurrentPlaying = isCurrent && isPlaying;
+              const isCurrentLoading = pendingPlayId === track.id;
               const prog = progress[track.id];
 
               return (
                 <div
                   key={track.id}
-                  className={`flex items-center px-4 py-2 hover:bg-white/[0.03] transition-colors group ${
+                  onDoubleClick={() => void handlePlayNow(track)}
+                  className={`flex items-center px-4 py-2 hover:bg-white/[0.03] transition-colors group cursor-default ${
                     isCurrentPlaying ? "bg-white/[0.05]" : ""
                   }`}
                   style={{
@@ -907,9 +843,9 @@ export const StreamMusicModal: React.FC<StreamMusicModalProps> = ({ isOpen, onCl
                       {/* Play overlay button on artwork */}
                       <button
                         type="button"
-                        onClick={() => handleStreamToggle(track)}
+                        onClick={() => void handlePlayNow(track)}
                         className="absolute inset-0 bg-black/60 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer text-white"
-                        title={isCurrentPlaying ? "Pausar stream" : "Escuchar stream"}
+                        title={isCurrentPlaying ? "Pausar en MusicX" : "Reproducir en MusicX"}
                       >
                         {isCurrentLoading ? (
                           <Loader2 size={16} className="animate-spin text-cyan-400" />
@@ -976,18 +912,17 @@ export const StreamMusicModal: React.FC<StreamMusicModalProps> = ({ isOpen, onCl
                   </div>
 
                   {/* Action buttons (Listen Stream & Download) */}
-                  <div className="w-24 flex items-center justify-center gap-1.5 shrink-0">
-                    {/* Play/Pause Stream Button */}
+                  <div className="w-32 flex items-center justify-center gap-1.5 shrink-0">
                     <button
                       type="button"
-                      onClick={() => handleStreamToggle(track)}
+                      onClick={() => void handlePlayNow(track)}
                       disabled={isCurrentLoading}
                       className="p-1.5 rounded-lg border transition cursor-pointer text-white"
                       style={{
                         backgroundColor: isCurrentPlaying ? accent : `${accent}15`,
                         borderColor: isCurrentPlaying ? accent : `${accent}40`,
                       }}
-                      title={isCurrentPlaying ? "Pausar escucha" : "Escuchar en streaming temporal"}
+                      title={isCurrentPlaying ? "Pausar en MusicX" : "Reproducir ahora (detiene local si suena)"}
                     >
                       {isCurrentLoading ? (
                         <Loader2 size={13} className="animate-spin text-cyan-400" />
@@ -998,7 +933,15 @@ export const StreamMusicModal: React.FC<StreamMusicModalProps> = ({ isOpen, onCl
                       )}
                     </button>
 
-                    {/* Direct Single Download Button */}
+                    <button
+                      type="button"
+                      onClick={() => handleAddToQueue(track)}
+                      className="p-1.5 rounded-lg border border-slate-700 bg-slate-900 text-slate-300 hover:text-white hover:border-slate-500 transition cursor-pointer"
+                      title="Añadir a la cola de MusicX (se mezcla con locales)"
+                    >
+                      <ListPlus size={13} />
+                    </button>
+
                     <button
                       type="button"
                       onClick={() => handleDownloadSingleTrack(track)}
@@ -1025,122 +968,6 @@ export const StreamMusicModal: React.FC<StreamMusicModalProps> = ({ isOpen, onCl
           </div>
         </div>
 
-        {/* ── Persistent Streaming Dock (Escucha tipo temporal) ────────────── */}
-        {streamingTrack && (
-          <div
-            className="shrink-0 border-t px-5 py-2.5 flex items-center gap-4 bg-slate-950/95 shadow-2xl relative z-10"
-            style={{
-              borderColor: `${accent}30`,
-              boxShadow: `0 -5px 25px rgba(0,0,0,0.6)`,
-            }}
-          >
-            {/* Stream Track Artwork */}
-            <div className="relative size-11 rounded-lg overflow-hidden border border-slate-700 shrink-0 bg-slate-900">
-              {streamingTrack.coverUrl ? (
-                <img
-                  src={streamingTrack.coverUrl}
-                  alt={streamingTrack.title}
-                  className="w-full h-full object-cover"
-                />
-              ) : (
-                <div className="flex items-center justify-center w-full h-full text-slate-600">
-                  <Music size={16} />
-                </div>
-              )}
-            </div>
-
-            {/* Stream Info */}
-            <div className="w-52 min-w-0">
-              <div className="text-xs font-bold text-white truncate leading-tight">
-                {streamingTrack.title}
-              </div>
-              <div className="text-[11px] text-slate-400 truncate">
-                {streamingTrack.artist} {streamingTrack.album ? `• ${streamingTrack.album}` : ""}
-              </div>
-            </div>
-
-            {/* Play / Pause button */}
-            <button
-              type="button"
-              onClick={() => handleStreamToggle(streamingTrack)}
-              disabled={isLoadingStream}
-              className="size-9 rounded-full flex items-center justify-center text-white shrink-0 shadow-lg cursor-pointer transition"
-              style={{ backgroundColor: accent }}
-            >
-              {isLoadingStream ? (
-                <Loader2 size={16} className="animate-spin" />
-              ) : isStreamPlaying ? (
-                <Pause size={16} />
-              ) : (
-                <Play size={16} fill="currentColor" />
-              )}
-            </button>
-
-            {/* Progress / Seek bar */}
-            <div className="flex-1 flex items-center gap-2.5 min-w-0">
-              <span className="text-[10px] font-mono text-slate-400 w-9 text-right shrink-0">
-                {formatSeconds(streamCurrentTime)}
-              </span>
-
-              <input
-                type="range"
-                min={0}
-                max={streamDuration || 100}
-                step={0.5}
-                value={streamCurrentTime}
-                onChange={handleSeek}
-                className="flex-1 h-1.5 rounded-lg appearance-none bg-slate-800 accent-cyan-400 cursor-pointer"
-                style={{ accentColor: accent }}
-              />
-
-              <span className="text-[10px] font-mono text-slate-400 w-9 shrink-0">
-                {formatSeconds(streamDuration)}
-              </span>
-            </div>
-
-            {/* Volume Control */}
-            <div className="flex items-center gap-1.5 shrink-0 pl-2">
-              <button
-                type="button"
-                onClick={() => setIsMuted((m) => !m)}
-                className="text-slate-400 hover:text-white p-1"
-                title={isMuted ? "Desmutear" : "Mutear"}
-              >
-                {isMuted || streamVolume === 0 ? <VolumeX size={15} /> : <Volume2 size={15} />}
-              </button>
-              <input
-                type="range"
-                min={0}
-                max={1}
-                step={0.05}
-                value={isMuted ? 0 : streamVolume}
-                onChange={(e) => {
-                  setStreamVolume(parseFloat(e.target.value));
-                  if (isMuted) setIsMuted(false);
-                }}
-                className="w-16 h-1 rounded-lg appearance-none bg-slate-800 accent-cyan-400 cursor-pointer"
-                style={{ accentColor: accent }}
-              />
-            </div>
-
-            {/* Quick Download this stream track button */}
-            <button
-              type="button"
-              onClick={() => handleDownloadSingleTrack(streamingTrack)}
-              className="px-3 py-1.5 rounded-lg border text-xs font-semibold flex items-center gap-1.5 shrink-0 cursor-pointer transition shadow-sm"
-              style={{
-                borderColor: `${accent}60`,
-                backgroundColor: `${accent}15`,
-                color: "#ffffff",
-              }}
-              title="Descargar esta canción que estás escuchando"
-            >
-              <Download size={13} style={{ color: accent }} />
-              <span>Descargar</span>
-            </button>
-          </div>
-        )}
-
         {/* ── Bottom Download Bar & Options Drawer ─────────────────────────── */}
         {filteredTracks.length > 0 && (
           <div
@@ -1159,6 +986,16 @@ export const StreamMusicModal: React.FC<StreamMusicModalProps> = ({ isOpen, onCl
               </button>
 
               <div className="flex items-center gap-2.5">
+                <button
+                  type="button"
+                  onClick={handleAddSelectedToQueue}
+                  disabled={selectedIds.size === 0}
+                  className="px-3 py-1.5 rounded-lg border text-xs font-semibold text-slate-200 flex items-center gap-1.5 cursor-pointer disabled:opacity-40"
+                  style={{ borderColor: `${accent}50`, backgroundColor: `${accent}12` }}
+                  title="Añadir selección a la cola de MusicX"
+                >
+                  <ListPlus size={13} /> A cola ({selectedIds.size})
+                </button>
                 <button
                   type="button"
                   onClick={toggleAll}

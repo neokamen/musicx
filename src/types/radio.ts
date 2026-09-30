@@ -19,6 +19,8 @@ export interface RadioStation {
 export interface RadioPlaybackState {
 	status: "playing" | "paused" | "stopped" | "error";
 	elapsedSeconds: number;
+	duration?: number;
+	seekable?: boolean;
 	error?: string;
 	streamTitle?: string;
 	// Instantaneous stream bitrate reported by the station (kbps)

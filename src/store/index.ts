@@ -9,6 +9,7 @@ import type { TransportStyle } from "../lib/transportStyles.ts";
 import type { RadioStation } from "../types/radio.ts";
 import { radioAudioService } from "../services/radioAudioService.ts";
 import { addRecentStation } from "../services/radioStorage.ts";
+import { isStreamTrack } from "../lib/streamTracks.ts";
 import { getSavedMarqueeSpeed, saveMarqueeSpeed, getSavedMarqueeDelay, saveMarqueeDelay } from "../lib/theme.ts";
 
 let statsCloseInProgress = false;
@@ -483,15 +484,86 @@ export const useMusicStore = create<MusicPlayerStore>((set, get) => ({
   coverArtCache: {},
 
   play: async (track?: Track) => {
+    radioAudioService.stop();
     if (get().activeRadioStation) {
-      radioAudioService.stop();
       set({ activeRadioStation: null, isRadioPlaying: false });
     }
 
     const targetTrack = track ?? get().currentTrack;
     if (!targetTrack) return;
 
-    const { bitPerfectMode, selectedDevice, fetchTrackCoverArt, listeningStats } = get();
+    const { bitPerfectMode, selectedDevice, fetchTrackCoverArt, listeningStats, volume } = get();
+
+    const applyQueueAndStats = (cover: string | null, extra?: Partial<MusicPlayerStore>) => {
+      const nextStats = {
+        ...listeningStats,
+        totalTracksPlayed: listeningStats.totalTracksPlayed + 1,
+        totalSessions: listeningStats.totalSessions + 1,
+      };
+
+      set((state) => {
+        const idx = state.queue.findIndex((t) => t.filepath === targetTrack.filepath);
+        let newQueue = state.queue;
+        let newIdx = idx;
+
+        if (idx === -1) {
+          newQueue = [...state.queue, targetTrack];
+          newIdx = newQueue.length - 1;
+        }
+
+        saveStoredSettings({
+          language: state.language,
+          appearance: state.appearance,
+          audioSettings: state.audioSettings,
+          playbackSettings: state.playbackSettings,
+          listeningStats: nextStats,
+          librarySettings: state.librarySettings,
+        });
+
+        return {
+          currentTrack: targetTrack,
+          isPlaying: true,
+          queue: newQueue,
+          queueIndex: newIdx,
+          listeningStats: nextStats,
+          currentCoverArt: cover,
+          ...extra,
+        };
+      });
+    };
+
+    if (isStreamTrack(targetTrack)) {
+      await api.stopAudio().catch(() => {});
+      const source = targetTrack.stream_source || targetTrack.filepath.replace(/^stream:/, "");
+      const streamUrl = await api.getStreamAudioUrl(source);
+      await radioAudioService.playMedia(streamUrl, volume, {
+        duration: targetTrack.duration_seconds,
+        bitrate: targetTrack.bitrate_kbps,
+      });
+      const cover = targetTrack.cover_url || get().coverArtCache[targetTrack.filepath] || null;
+      if (cover && targetTrack.cover_url) {
+        set((state) => ({
+          coverArtCache: { ...state.coverArtCache, [targetTrack.filepath]: cover },
+        }));
+      }
+      applyQueueAndStats(cover, {
+        telemetry: {
+          ...get().telemetry,
+          state: "Playing",
+          track_title: targetTrack.title,
+          track_artist: targetTrack.artist,
+          track_album: targetTrack.album,
+          filepath: targetTrack.filepath,
+          current_time: 0,
+          duration: targetTrack.duration_seconds,
+          bitrate: targetTrack.bitrate_kbps,
+          sample_rate: targetTrack.sample_rate,
+          bits_per_sample: targetTrack.bit_depth,
+          is_bit_perfect: false,
+        },
+      } as Partial<MusicPlayerStore>);
+      return;
+    }
 
     await api.playTrack(
       targetTrack.filepath,
@@ -499,47 +571,13 @@ export const useMusicStore = create<MusicPlayerStore>((set, get) => ({
       selectedDevice === "Default" ? undefined : selectedDevice
     );
 
-    // Fetch cover art concurrently
     fetchTrackCoverArt(targetTrack.filepath);
 
-    // Update listening stats
-    const nextStats = {
-      ...listeningStats,
-      totalTracksPlayed: listeningStats.totalTracksPlayed + 1,
-      totalSessions: listeningStats.totalSessions + 1,
-    };
-
-    set((state) => {
-      const idx = state.queue.findIndex((t) => t.filepath === targetTrack.filepath);
-      let newQueue = state.queue;
-      let newIdx = idx;
-
-      if (idx === -1) {
-        newQueue = [...state.queue, targetTrack];
-        newIdx = newQueue.length - 1;
-      }
-
-      saveStoredSettings({
-        language: state.language,
-        appearance: state.appearance,
-        audioSettings: state.audioSettings,
-        playbackSettings: state.playbackSettings,
-        listeningStats: nextStats,
-        librarySettings: state.librarySettings,
-      });
-
-      return {
-        currentTrack: targetTrack,
-        isPlaying: true,
-        queue: newQueue,
-        queueIndex: newIdx,
-        listeningStats: nextStats,
-      };
-    });
+    applyQueueAndStats(get().coverArtCache[targetTrack.filepath] || get().currentCoverArt);
   },
 
   pause: async () => {
-    if (get().activeRadioStation) {
+    if (get().activeRadioStation || isStreamTrack(get().currentTrack)) {
       radioAudioService.pause();
       set({ isPlaying: false, isRadioPlaying: false });
     } else {
@@ -549,9 +587,12 @@ export const useMusicStore = create<MusicPlayerStore>((set, get) => ({
   },
 
   resume: async () => {
-    if (get().activeRadioStation) {
+    if (get().activeRadioStation || isStreamTrack(get().currentTrack)) {
       await radioAudioService.resume();
-      set({ isPlaying: true, isRadioPlaying: true });
+      set({
+        isPlaying: true,
+        isRadioPlaying: Boolean(get().activeRadioStation),
+      });
     } else {
       await api.resumeAudio();
       set({ isPlaying: true });
@@ -559,17 +600,18 @@ export const useMusicStore = create<MusicPlayerStore>((set, get) => ({
   },
 
   stop: async () => {
-    if (get().activeRadioStation) {
-      radioAudioService.stop();
-      set({ activeRadioStation: null, isRadioPlaying: false, isPlaying: false });
-    }
+    radioAudioService.stop();
     await api.stopAudio();
-    set({ isPlaying: false });
+    set({
+      activeRadioStation: null,
+      isRadioPlaying: false,
+      isPlaying: false,
+    });
   },
 
   togglePlayPause: async () => {
     const { isPlaying, activeRadioStation, currentTrack, queue, telemetry, play, pause, resume } = get();
-    if (activeRadioStation) {
+    if (activeRadioStation || isStreamTrack(currentTrack)) {
       if (isPlaying) {
         await pause();
       } else {
@@ -594,6 +636,13 @@ export const useMusicStore = create<MusicPlayerStore>((set, get) => ({
 
   seek: async (seconds: number) => {
     if (get().activeRadioStation) return;
+    if (isStreamTrack(get().currentTrack)) {
+      radioAudioService.seek(seconds);
+      set((state) => ({
+        telemetry: { ...state.telemetry, current_time: seconds },
+      }));
+      return;
+    }
     await api.seekAudio(seconds);
     set((state) => ({
       telemetry: { ...state.telemetry, current_time: seconds },
@@ -1126,7 +1175,7 @@ export const useMusicStore = create<MusicPlayerStore>((set, get) => ({
   updateTelemetry: (telemetry: AudioTelemetry) => {
     set((state) => {
       // If a radio station is active, don't overwrite with backend stopped state
-      if (state.activeRadioStation) {
+      if (state.activeRadioStation || isStreamTrack(state.currentTrack)) {
         return state;
       }
 
@@ -1217,6 +1266,20 @@ export const useMusicStore = create<MusicPlayerStore>((set, get) => ({
   initListeners: async () => {
     await get().loadListeningStatsFromSyncFile();
 
+    const audio = get().audioSettings;
+    radioAudioService.setVolume(get().volume);
+    radioAudioService.setDspSettings({
+      isEqEnabled: audio.isEqEnabled,
+      eqGains: audio.eqGains,
+      subBoost: audio.eqSubBoost,
+      bassBoost: audio.eqBassBoost,
+      highpass: audio.eqHighpass,
+      lowpass: audio.eqLowpass,
+      isNormalizerEnabled: audio.isNormalizerEnabled,
+      isXdssEnabled: audio.isXdssEnabled,
+      isXtsProEnabled: audio.isXtsProEnabled,
+    });
+
     // Ensure the sync file gets a final flush on exit, regardless of the chosen frequency
     const appWindow = getCurrentWindow();
     const unlistenClose = await appWindow.onCloseRequested(async (event) => {
@@ -1250,7 +1313,7 @@ export const useMusicStore = create<MusicPlayerStore>((set, get) => ({
 
     radioAudioService.setSpectrumCallback((spectrum, left, right) => {
       const state = get();
-      if (state.activeRadioStation && state.isRadioPlaying) {
+      if ((state.activeRadioStation && state.isRadioPlaying) || (isStreamTrack(state.currentTrack) && state.isPlaying)) {
         set((s) => ({
           telemetry: {
             ...s.telemetry,
@@ -1262,9 +1325,17 @@ export const useMusicStore = create<MusicPlayerStore>((set, get) => ({
       }
     });
 
+    radioAudioService.setOnEnded(() => {
+      const track = get().currentTrack;
+      if (track && isStreamTrack(track)) {
+        void get().handleTrackEnded(track.filepath);
+      }
+    });
+
     const unlistenRadio = radioAudioService.subscribe((radioState) => {
       const current = get();
-      if (!current.activeRadioStation) return;
+      const isStream = isStreamTrack(current.currentTrack);
+      if (!current.activeRadioStation && !isStream) return;
       const isPlaying = radioState.status === "playing";
 
       let updatedStats = current.listeningStats;
@@ -1290,14 +1361,16 @@ export const useMusicStore = create<MusicPlayerStore>((set, get) => ({
       }
 
       set((s) => ({
-        isRadioPlaying: isPlaying,
+        isRadioPlaying: Boolean(current.activeRadioStation) && isPlaying,
         isPlaying: isPlaying,
         listeningStats: updatedStats,
         telemetry: {
           ...s.telemetry,
           state: isPlaying ? "Playing" : radioState.status === "paused" ? "Paused" : "Stopped",
           current_time: radioState.elapsedSeconds,
-          duration: 0,
+          duration: current.activeRadioStation
+            ? 0
+            : (radioState.duration || current.currentTrack?.duration_seconds || s.telemetry.duration),
         },
       }));
     });

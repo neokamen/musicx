@@ -30,7 +30,7 @@ export const QueueWidget: React.FC = () => {
       <div className="flex-1 overflow-y-auto p-1 font-mono text-[11px]">
         {queue.length === 0 ? (
           <div className="p-6 text-center text-audiophile-muted font-sans text-xs">
-            La cola está vacía. Añade pistas desde la biblioteca o carpetas.
+            La cola está vacía. Añade pistas locales o desde Stream Music.
           </div>
         ) : (
           queue.map((track: Track, idx: number) => {
@@ -57,7 +57,7 @@ export const QueueWidget: React.FC = () => {
                   <div className="truncate">
                     <span className="truncate block">{track.title}</span>
                     <span className="text-[10px] text-audiophile-muted truncate block">
-                      {track.artist}
+                      {track.format === "STREAM" ? "Stream · " : ""}{track.artist}
                     </span>
                   </div>
                 </div>

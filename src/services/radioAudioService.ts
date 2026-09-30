@@ -66,6 +66,8 @@ class RadioAudioService {
 	private autoRecordEnabled = false;
 	private lastKnownStation: RadioStation | null = null;
 	private activeRecordingTitle: string | null = null;
+	private playbackKind: "idle" | "radio" | "media" = "idle";
+	private endedHandler: (() => void) | null = null;
 
 	// Recording pipeline
 	private mediaRecorder: MediaRecorder | null = null;
@@ -82,17 +84,52 @@ class RadioAudioService {
 		this.audio.crossOrigin = "anonymous";
 
 		this.audio.addEventListener("playing", () => {
-			this.startTimer();
+			if (this.playbackKind === "radio") {
+				this.startTimer();
+			}
 			this.startSpectrumLoop();
-			this.publish({ status: "playing", elapsedSeconds: this.state.elapsedSeconds });
+			this.publish({
+				status: "playing",
+				elapsedSeconds: this.playbackKind === "media" ? this.audio.currentTime : this.state.elapsedSeconds,
+				duration: this.playbackKind === "media" ? this.mediaDuration() : 0,
+				seekable: this.playbackKind === "media",
+			});
 		});
 
 		this.audio.addEventListener("pause", () => {
 			this.stopTimer();
 			this.stopSpectrumLoop();
 			if (!this.audio.ended && this.state.status !== "stopped") {
-				this.publish({ status: "paused", elapsedSeconds: this.state.elapsedSeconds });
+				this.publish({
+					status: "paused",
+					elapsedSeconds: this.playbackKind === "media" ? this.audio.currentTime : this.state.elapsedSeconds,
+					duration: this.mediaDuration(),
+					seekable: this.playbackKind === "media",
+				});
 			}
+		});
+
+		this.audio.addEventListener("timeupdate", () => {
+			if (this.playbackKind !== "media") return;
+			this.publish({
+				status: this.audio.paused ? "paused" : "playing",
+				elapsedSeconds: this.audio.currentTime || 0,
+				duration: this.mediaDuration(),
+				seekable: true,
+			});
+		});
+
+		this.audio.addEventListener("ended", () => {
+			if (this.playbackKind !== "media") return;
+			this.stopTimer();
+			this.stopSpectrumLoop();
+			this.publish({
+				status: "stopped",
+				elapsedSeconds: this.mediaDuration() ?? 0,
+				duration: this.mediaDuration(),
+				seekable: true,
+			});
+			this.endedHandler?.();
 		});
 
 		this.audio.addEventListener("error", () => {
@@ -101,7 +138,9 @@ class RadioAudioService {
 			this.publish({
 				status: "error",
 				elapsedSeconds: this.state.elapsedSeconds,
-				error: "No se pudo reproducir esta emisora.",
+				error: this.playbackKind === "media"
+					? "No se pudo reproducir este stream."
+					: "No se pudo reproducir esta emisora.",
 			});
 		});
 	}
@@ -338,6 +377,19 @@ class RadioAudioService {
 		this.startRecording(this.lastKnownStation, title);
 	}
 
+	private mediaDuration(): number | undefined {
+		if (this.playbackKind !== "media") return undefined;
+		const fromElement = this.audio.duration;
+		if (fromElement && !Number.isNaN(fromElement) && fromElement !== Infinity) {
+			return fromElement;
+		}
+		return this.state.duration;
+	}
+
+	setOnEnded(handler: (() => void) | null): void {
+		this.endedHandler = handler;
+	}
+
 	async playStation(station: RadioStation, volume: number): Promise<void> {
 		const url = station.url_resolved || station.url;
 		if (!url) throw new Error("La emisora no tiene una URL de streaming válida.");
@@ -345,6 +397,7 @@ class RadioAudioService {
 		this.currentStreamTitle = "";
 		this.currentBitrateKbps = station.bitrate && station.bitrate > 0 ? station.bitrate : 0;
 		this.lastKnownStation = station;
+		this.playbackKind = "radio";
 
 		// Fold the previous stream's usage into the session baseline before starting a new one
 		this.sessionBytesBaseline += this.currentStreamBytes;
@@ -380,6 +433,46 @@ class RadioAudioService {
 		await this.audio.play();
 	}
 
+	async playMedia(url: string, volume: number, options?: { duration?: number; bitrate?: number }): Promise<void> {
+		if (!url) throw new Error("No hay URL de stream válida.");
+		this.playbackKind = "media";
+		this.lastKnownStation = null;
+		this.currentStreamTitle = "";
+		this.currentBitrateKbps = options?.bitrate && options.bitrate > 0 ? options.bitrate : 160;
+		this.state.elapsedSeconds = 0;
+		this.state.duration = options?.duration && options.duration > 0 ? options.duration : undefined;
+		if (this.relayActive) {
+			this.relayActive = false;
+			void stopRadioRelay().catch(() => {});
+		}
+
+		this.audio.src = url;
+		this.setVolume(volume);
+		this.audio.load();
+
+		try {
+			if (this.audioContext && this.audioContext.state === "suspended") {
+				await this.audioContext.resume();
+			}
+			this.setupWebAudio();
+		} catch {
+			// Ignore audio context errors
+		}
+
+		await this.audio.play();
+	}
+
+	seek(seconds: number): void {
+		if (this.playbackKind !== "media" || !Number.isFinite(seconds)) return;
+		this.audio.currentTime = Math.max(0, seconds);
+		this.publish({
+			status: this.audio.paused ? "paused" : "playing",
+			elapsedSeconds: this.audio.currentTime,
+			duration: this.mediaDuration(),
+			seekable: true,
+		});
+	}
+
 	async resume(): Promise<void> {
 		if (this.audioContext && this.audioContext.state === "suspended") {
 			await this.audioContext.resume();
@@ -392,6 +485,7 @@ class RadioAudioService {
 	}
 
 	stop(): void {
+		this.playbackKind = "idle";
 		this.stopTimer();
 		this.stopSpectrumLoop();
 		this.currentBitrateKbps = 0;
@@ -406,7 +500,7 @@ class RadioAudioService {
 				// Ignore: relay may already be stopped
 			});
 		}
-		this.publish({ status: "stopped", elapsedSeconds: 0 });
+		this.publish({ status: "stopped", elapsedSeconds: 0, duration: 0, seekable: false });
 		this.audio.pause();
 		this.audio.removeAttribute("src");
 		this.audio.load();

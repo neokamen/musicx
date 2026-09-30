@@ -16,6 +16,8 @@ export interface Track {
   bitrate_kbps: number;
   file_size: number;
   mtime: number;
+  cover_url?: string;
+  stream_source?: string;
 }
 
 export interface FileNode {

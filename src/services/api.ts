@@ -223,6 +223,10 @@ export async function onRadioRelayTrack(callback: (title: string) => void): Prom
   });
 }
 
+export async function getStreamAudioUrl(urlOrId: string): Promise<string> {
+  return invoke<string>("get_stream_audio_url", { urlOrId });
+}
+
 // Aliases
 export const pauseAudio = pause;
 export const resumeAudio = resume;
