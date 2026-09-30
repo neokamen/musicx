@@ -28,9 +28,10 @@ import { AudioTelemetryFullWidget } from "./AudioTelemetryFullWidget.tsx";
 interface WidgetRendererProps {
   widget: WidgetType;
   nodeKey?: string;
+  isEditing?: boolean;
 }
 
-export const WidgetRenderer: React.FC<WidgetRendererProps> = ({ widget, nodeKey }) => {
+export const WidgetRenderer: React.FC<WidgetRendererProps> = ({ widget, nodeKey, isEditing }) => {
   switch (widget) {
     case "folder_explorer":
       return <FolderExplorerWidget />;
@@ -43,9 +44,9 @@ export const WidgetRenderer: React.FC<WidgetRendererProps> = ({ widget, nodeKey 
     case "eq_bars":
       return <EqBarsWidget />;
     case "spectrum":
-      return <StandaloneSpectrumWidget nodeKey={nodeKey} />;
+      return <StandaloneSpectrumWidget nodeKey={nodeKey} isEditing={isEditing} />;
     case "cava_visualizer":
-      return <CavaVisualizer nodeKey={nodeKey} />;
+      return <CavaVisualizer nodeKey={nodeKey} isEditing={isEditing} />;
     case "dac_telemetry":
       return <DacTelemetryWidget />;
     case "dac_telemetry_compact":

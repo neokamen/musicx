@@ -15,9 +15,10 @@ export const CAVA_STYLES: { id: AppearanceState["cavaStyle"]; label: string }[] 
 
 export interface CavaVisualizerProps {
   nodeKey?: string;
+  isEditing?: boolean;
 }
 
-export const CavaVisualizer: React.FC<CavaVisualizerProps> = ({ nodeKey }) => {
+export const CavaVisualizer: React.FC<CavaVisualizerProps> = ({ nodeKey, isEditing }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const telemetry = useMusicStore((state) => state.telemetry);
   const isPlaying = useMusicStore((state) => state.isPlaying);
@@ -423,9 +424,26 @@ export const CavaVisualizer: React.FC<CavaVisualizerProps> = ({ nodeKey }) => {
     <div
       onDoubleClick={handleDoubleClick}
       title="Doble clic para cambiar estilo CAVA"
-      className="h-full w-full min-h-0 bg-slate-950 p-2 flex items-stretch relative overflow-hidden"
+      className="h-full w-full min-h-0 bg-slate-950 p-2 flex items-stretch relative overflow-hidden group cursor-pointer"
     >
       <canvas ref={canvasRef} className="h-full w-full" aria-label="Visualizador CAVA" />
+      {isEditing && (
+        <div className="absolute top-1 right-1 z-30">
+          <select
+            value={visualStyle}
+            onChange={(e) => setStyleAndSave(e.target.value as AppearanceState["cavaStyle"])}
+            onClick={(e) => e.stopPropagation()}
+            onDoubleClick={(e) => e.stopPropagation()}
+            className="bg-slate-900/95 border border-cyan-500/50 text-[10px] text-cyan-300 rounded px-1.5 py-0.5 font-mono focus:outline-none focus:border-cyan-400 cursor-pointer shadow-lg backdrop-blur"
+          >
+            {CAVA_STYLES.map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.label}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
     </div>
   );
 };
