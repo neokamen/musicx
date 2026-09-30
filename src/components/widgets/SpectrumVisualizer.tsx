@@ -798,7 +798,7 @@ export const SpectrumVisualizer: React.FC<SpectrumVisualizerProps> = ({
   return (
     <div
       onDoubleClick={handleDoubleClick}
-      className="w-full h-full relative rounded-lg overflow-hidden border border-slate-800/80 bg-slate-950/90 shadow-inner cursor-pointer group"
+      className="w-full h-full relative rounded-lg overflow-hidden border border-slate-800/80 bg-slate-950/90 shadow-inner cursor-pointer"
       style={{
         ...(height ? { height } : {}),
         ...(visualStyle === 'retro_needle' || visualStyle === 'retro_scope_meter'
@@ -808,21 +808,6 @@ export const SpectrumVisualizer: React.FC<SpectrumVisualizerProps> = ({
       title="Doble clic para cambiar estilo de espectro"
     >
       <canvas ref={canvasRef} className="w-full h-full block" />
-      <div className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity z-10">
-        <select
-          value={visualStyle}
-          onChange={(e) => setStyleAndSave(e.target.value as SpectrumStyle)}
-          onClick={(e) => e.stopPropagation()}
-          onDoubleClick={(e) => e.stopPropagation()}
-          className="bg-slate-900/90 border border-slate-700 text-[10px] text-slate-300 rounded px-1 py-0.5 font-mono focus:outline-none focus:border-cyan-500 cursor-pointer shadow"
-        >
-          {SPECTRUM_STYLES.map((s) => (
-            <option key={s.id} value={s.id}>
-              {s.name}
-            </option>
-          ))}
-        </select>
-      </div>
     </div>
   );
 };

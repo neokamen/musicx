@@ -423,24 +423,9 @@ export const CavaVisualizer: React.FC<CavaVisualizerProps> = ({ nodeKey }) => {
     <div
       onDoubleClick={handleDoubleClick}
       title="Doble clic para cambiar estilo CAVA"
-      className="h-full w-full min-h-0 bg-slate-950 p-2 flex items-stretch relative overflow-hidden group cursor-pointer"
+      className="h-full w-full min-h-0 bg-slate-950 p-2 flex items-stretch relative overflow-hidden"
     >
       <canvas ref={canvasRef} className="h-full w-full" aria-label="Visualizador CAVA" />
-      <div className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity z-10">
-        <select
-          value={visualStyle}
-          onChange={(e) => setStyleAndSave(e.target.value as AppearanceState["cavaStyle"])}
-          onClick={(e) => e.stopPropagation()}
-          onDoubleClick={(e) => e.stopPropagation()}
-          className="bg-slate-900/90 border border-slate-700 text-[10px] text-slate-300 rounded px-1 py-0.5 font-mono focus:outline-none focus:border-cyan-500 cursor-pointer shadow"
-        >
-          {CAVA_STYLES.map((s) => (
-            <option key={s.id} value={s.id}>
-              {s.label}
-            </option>
-          ))}
-        </select>
-      </div>
     </div>
   );
 };
