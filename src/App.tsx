@@ -400,19 +400,19 @@ export default function App() {
               />
             </button>
             <div className="flex flex-col leading-none">
-              <div className="flex items-baseline gap-1.5">
-                <span className="text-[15px] font-bold font-mono text-white">
-                  Music<span style={{ color: appearance.accentColor || "#06b6d4" }}>x</span>
-                </span>
+              <span className="text-[15px] font-bold font-mono text-white">
+                Music<span style={{ color: appearance.accentColor || "#06b6d4" }}>x</span>
+              </span>
+              <div className="mt-0.5 flex items-center gap-1.5 font-mono text-[8px] text-slate-500">
+                <span>THE AUDIO PLAYER</span>
                 <span
-                  className="font-mono text-[9px] font-light tracking-widest select-none opacity-85"
+                  className="font-mono text-[8px] font-light tracking-widest select-none opacity-85"
                   style={{ color: appearance.accentColor || "#06b6d4" }}
                   title={`Versión actual: v${packageInfo.version}`}
                 >
                   v{packageInfo.version}
                 </span>
               </div>
-              <span className="mt-0.5 text-[8px] font-mono text-slate-500">THE AUDIO PLAYER</span>
             </div>
           </div>
 

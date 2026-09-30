@@ -77,7 +77,7 @@ export const LayoutNodeRenderer: React.FC<LayoutNodeRendererProps> = ({
 
         {/* Contenido del widget */}
         <div className={`min-h-0 w-full flex-1 ${isEditing ? "pt-8" : ""}`}>
-          <WidgetRenderer widget={node.widget} />
+          <WidgetRenderer widget={node.widget} nodeKey={node.id} />
         </div>
       </div>
     );
