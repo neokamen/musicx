@@ -417,6 +417,7 @@ class RadioAudioService {
 			this.relayActive = false;
 		}
 
+		this.audio.crossOrigin = "anonymous";
 		this.audio.src = playbackUrl;
 		this.setVolume(volume);
 		this.audio.load();
@@ -446,9 +447,12 @@ class RadioAudioService {
 			void stopRadioRelay().catch(() => {});
 		}
 
-		this.audio.src = url;
 		this.setVolume(volume);
-		this.audio.load();
+
+		let isRemote = !url.startsWith("http://127.0.0.1") && !url.startsWith("http://localhost");
+		let played = isRemote
+			? await this.playRemoteMedia(url)
+			: await this.tryPlayUrl(url, true);
 
 		try {
 			if (this.audioContext && this.audioContext.state === "suspended") {
@@ -459,7 +463,46 @@ class RadioAudioService {
 			// Ignore audio context errors
 		}
 
-		await this.audio.play();
+		if (!played) {
+			throw new Error("Este stream no es reproducible en el WebView (formato o CORS).");
+		}
+	}
+
+	private async playRemoteMedia(url: string): Promise<boolean> {
+		try {
+			const relayUrl = await startRadioRelay(url);
+			this.relayActive = true;
+			if (await this.tryPlayUrl(relayUrl, true)) {
+				return true;
+			}
+		} catch {
+			this.relayActive = false;
+		}
+
+		this.relayActive = false;
+		void stopRadioRelay().catch(() => {});
+		return this.tryPlayUrl(url, false);
+	}
+
+	private async tryPlayUrl(url: string, useCors: boolean): Promise<boolean> {
+		try {
+			this.audio.crossOrigin = useCors ? "anonymous" : null;
+		} catch {
+			if (!useCors) this.audio.removeAttribute("crossorigin");
+		}
+		this.audio.src = url;
+		this.audio.load();
+		try {
+			await this.audio.play();
+			return true;
+		} catch (error) {
+			const name = error instanceof DOMException ? error.name : "";
+			const message = error instanceof Error ? error.message : String(error);
+			if (name === "NotSupportedError" || /not supported/i.test(message)) {
+				return false;
+			}
+			throw error;
+		}
 	}
 
 	seek(seconds: number): void {

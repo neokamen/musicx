@@ -1213,9 +1213,10 @@ pub async fn get_stream_audio_url(url_or_id: String) -> Result<String, String> {
     let mut args: Vec<String> = vec![
         "-g".into(),
         "-f".into(),
-        "ba/b".into(),
+        "bestaudio[ext=m4a]/bestaudio[acodec^=mp4a]/bestaudio[ext=mp3]/bestaudio[protocol^=http][ext!=m3u8]/bestaudio/ba/b".into(),
         "--no-warnings".into(),
         "--no-playlist".into(),
+        "--no-check-certificates".into(),
         target,
     ];
     append_modern_ytdlp_args(&mut args);
@@ -1232,9 +1233,23 @@ pub async fn get_stream_audio_url(url_or_id: String) -> Result<String, String> {
     }
 
     let stdout = String::from_utf8_lossy(&output.stdout);
-    let url = stdout.lines().next().unwrap_or("").trim().to_string();
-    if url.is_empty() {
-        return Err("No se pudo obtener URL de stream".to_string());
-    }
+    let url = pick_playable_stream_url(&stdout)
+        .ok_or_else(|| "No se pudo obtener una URL de audio reproducible (m4a/mp3).".to_string())?;
     Ok(url)
+}
+
+fn pick_playable_stream_url(stdout: &str) -> Option<String> {
+    let urls: Vec<String> = stdout
+        .lines()
+        .map(|line| line.trim().to_string())
+        .filter(|line| line.starts_with("http://") || line.starts_with("https://"))
+        .collect();
+    if urls.is_empty() {
+        return None;
+    }
+    let progressive = urls.iter().find(|url| {
+        let lower = url.to_lowercase();
+        !lower.contains(".m3u8") && !lower.contains("manifest") && !lower.contains("/hls_")
+    });
+    progressive.cloned().or_else(|| urls.last().cloned())
 }

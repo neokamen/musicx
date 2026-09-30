@@ -67,6 +67,21 @@ pub fn stop(state: &RadioRelayState) {
     }
 }
 
+fn open_upstream(agent: &ureq::Agent, url: &str) -> Result<ureq::Response, ureq::Error> {
+    let mut request = agent
+        .get(url)
+        .set("Icy-MetaData", "1")
+        .set(
+            "User-Agent",
+            "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        )
+        .set("Accept", "*/*");
+    if url.contains("googlevideo.com") || url.contains("youtube.com") {
+        request = request.set("Referer", "https://www.youtube.com/");
+    }
+    request.call()
+}
+
 fn run_relay(
     url: String,
     listener: TcpListener,
@@ -118,11 +133,7 @@ fn run_relay(
         if stop_flag.load(Ordering::SeqCst) {
             return;
         }
-        match agent
-            .get(&url)
-            .set("Icy-MetaData", "1")
-            .set("User-Agent", "musicx/1.0")
-            .call()
+        match open_upstream(&agent, &url)
         {
             Ok(response) => break response,
             Err(_) => {
@@ -220,11 +231,7 @@ fn run_relay(
             if stop_flag.load(Ordering::SeqCst) {
                 break;
             }
-            match agent
-                .get(&url)
-                .set("Icy-MetaData", "1")
-                .set("User-Agent", "musicx/1.0")
-                .call()
+            match open_upstream(&agent, &url)
             {
                 Ok(response) => {
                     retry_delay_seconds = 1;
