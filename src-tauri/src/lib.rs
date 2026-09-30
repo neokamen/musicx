@@ -100,10 +100,11 @@ pub fn run() {
             commands::scan_directory,
             commands::read_directory_lazy,
             commands::get_track_cover_art,
-            // ── YT Music / Downloader (ported from Soundix) ──
+            // ── Stream Music / Downloader (ported from Soundix) ──
             downloader::analyze_source_link,
             downloader::download_track_batch,
             downloader::cancel_download_batch,
+            downloader::get_stream_audio_url,
         ])
         .run(tauri::generate_context!())
         .expect("error while running musicx audio player application");

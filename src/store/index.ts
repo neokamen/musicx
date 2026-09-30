@@ -121,6 +121,7 @@ export interface MusicPlayerStore {
   activeRadioStation: RadioStation | null;
   isRadioPlaying: boolean;
   isRadioHubOpen: boolean;
+  isStreamMusicOpen: boolean;
 
   telemetry: AudioTelemetry;
   availableDevices: string[];
@@ -170,6 +171,7 @@ export interface MusicPlayerStore {
   playRadioStation: (station: RadioStation) => Promise<void>;
   stopRadio: () => void;
   setRadioHubOpen: (open: boolean) => void;
+  setStreamMusicOpen: (open: boolean) => void;
 
   setBitPerfectMode: (enabled: boolean) => Promise<void>;
   setOutputDevice: (deviceName: string) => Promise<void>;
@@ -446,6 +448,7 @@ export const useMusicStore = create<MusicPlayerStore>((set, get) => ({
   activeRadioStation: null,
   isRadioPlaying: false,
   isRadioHubOpen: false,
+  isStreamMusicOpen: false,
 
   telemetry: initialTelemetry,
   availableDevices: [],
@@ -661,6 +664,7 @@ export const useMusicStore = create<MusicPlayerStore>((set, get) => ({
   },
 
   setRadioHubOpen: (open: boolean) => set({ isRadioHubOpen: open }),
+  setStreamMusicOpen: (open: boolean) => set({ isStreamMusicOpen: open }),
 
   nextTrack: async () => {
     const { queue, queueIndex, shuffle, repeat, play } = get();

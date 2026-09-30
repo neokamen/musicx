@@ -12,6 +12,7 @@ import {
   Volume2,
   SlidersHorizontal,
   Radio as RadioIcon,
+  Globe,
 } from "lucide-react";
 import type { Track } from "../../types/index.ts";
 import { RadioHubModal } from "../radio/RadioHubModal.tsx";
@@ -169,6 +170,7 @@ export const VirtualTrackList: React.FC = () => {
     addToQueue,
     fetchLibraryTracks,
     scanStatus,
+    setStreamMusicOpen,
   } = useMusicStore();
 
   const [search, setSearch] = useState("");
@@ -368,6 +370,16 @@ export const VirtualTrackList: React.FC = () => {
             aria-label="Mostrar radio"
           >
             <RadioIcon size={13} />
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setStreamMusicOpen(true)}
+            className="grid size-7 place-items-center rounded border border-slate-700 bg-slate-900 text-slate-300 transition hover:border-cyan-500/60 hover:text-cyan-300"
+            title="Abrir Stream Music (Búsqueda online y descargas)"
+            aria-label="Abrir Stream Music"
+          >
+            <Globe size={13} />
           </button>
 
           <button

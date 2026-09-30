@@ -17,6 +17,7 @@ import {
   SlidersHorizontal,
   FolderPlus,
   House,
+  Globe,
 } from "lucide-react";
 import type { FileNode, Track } from "../../types/index.ts";
 import { ColumnResizeHandle } from "./ColumnResizeHandle.tsx";
@@ -185,6 +186,7 @@ export const FolderExplorerWidget: React.FC = () => {
     fetchLibraryTracks,
     libraryTracks,
     appearance,
+    setStreamMusicOpen,
   } = useMusicStore();
 
   const [inputPath, setInputPath] = useState(explorer.currentPath);
@@ -379,6 +381,14 @@ export const FolderExplorerWidget: React.FC = () => {
             title="Refrescar carpeta"
           >
             <RefreshCw size={13} className={explorer.isLoading ? "animate-spin" : ""} />
+          </button>
+          <button
+            onClick={() => setStreamMusicOpen(true)}
+            className="p-1 rounded hover:bg-audiophile-border text-audiophile-text transition-colors cursor-pointer"
+            title="Abrir Stream Music (Búsqueda online y descargas)"
+            aria-label="Abrir Stream Music"
+          >
+            <Globe size={14} />
           </button>
 
           <div className="flex-1 flex items-center bg-slate-950 border border-slate-800 rounded px-2 py-0.5 ml-1">

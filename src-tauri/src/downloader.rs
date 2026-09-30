@@ -488,12 +488,40 @@ async fn analyze_youtube_or_search(query: &str, limit: u32) -> Result<AnalyzeRes
             }
 
             let id = v.get("id").and_then(|x| x.as_str()).unwrap_or("").to_string();
-            let title = v.get("title").and_then(|x| x.as_str()).unwrap_or("Audio").to_string();
-            let uploader = v.get("channel")
+            let mut raw_title = v.get("title").and_then(|x| x.as_str()).unwrap_or("Audio").to_string();
+            let mut uploader = v.get("channel")
                 .or_else(|| v.get("uploader"))
+                .or_else(|| v.get("creator"))
                 .and_then(|x| x.as_str())
-                .unwrap_or("YouTube")
+                .unwrap_or("Desconocido")
                 .to_string();
+
+            // Improve artist/title separation if title contains " - "
+            if raw_title.contains(" - ") {
+                let parts: Vec<&str> = raw_title.splitn(2, " - ").collect();
+                if parts.len() == 2 && !parts[0].trim().is_empty() && !parts[1].trim().is_empty() {
+                    uploader = parts[0].trim().to_string();
+                    raw_title = parts[1].trim().to_string();
+                }
+            }
+
+            let album_name = v.get("album")
+                .and_then(|x| x.as_str())
+                .unwrap_or(&playlist_name)
+                .to_string();
+
+            let year_str = v.get("release_year")
+                .or_else(|| v.get("year"))
+                .and_then(|x| {
+                    if let Some(s) = x.as_str() {
+                        Some(s.to_string())
+                    } else if let Some(n) = x.as_i64() {
+                        Some(n.to_string())
+                    } else {
+                        None
+                    }
+                })
+                .unwrap_or_default();
 
             let dur_sec = v.get("duration").and_then(|x| x.as_f64()).map(|d| d as u32).unwrap_or(0);
             let dur_str = v.get("duration_string").and_then(|x| x.as_str())
@@ -517,10 +545,10 @@ async fn analyze_youtube_or_search(query: &str, limit: u32) -> Result<AnalyzeRes
 
             tracks.push(RipperTrack {
                 id: format!("yt_{}", if !id.is_empty() { id } else { fastrand_id() }),
-                title,
+                title: raw_title,
                 artist: uploader,
-                album: playlist_name.clone(),
-                year: "".to_string(),
+                album: album_name,
+                year: year_str,
                 track_number: (idx + 1) as u32,
                 total_tracks: 1,
                 duration: dur_sec,
@@ -899,7 +927,12 @@ pub async fn download_track_batch(
                 if let Some(c_url) = &cover_url_opt {
                     let _ = tokio::fs::create_dir_all(&temp_cover_dir).await;
                     let cover_file = temp_cover_dir.join("cover.jpg");
-                    if let Ok(resp) = reqwest::get(c_url).await {
+                    let client = reqwest::Client::builder()
+                        .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+                        .timeout(std::time::Duration::from_secs(12))
+                        .build()
+                        .unwrap_or_default();
+                    if let Ok(resp) = client.get(c_url).send().await {
                         if let Ok(bytes) = resp.bytes().await {
                             if tokio::fs::write(&cover_file, &bytes).await.is_ok() {
                                 Some(cover_file)
@@ -1162,4 +1195,46 @@ pub async fn search_online_playlists(query: String) -> Result<Vec<OnlinePlaylist
     }
 
     Ok(playlists)
+}
+
+/// Obtain direct streaming audio URL using yt-dlp without saving to disk.
+#[tauri::command]
+pub async fn get_stream_audio_url(url_or_id: String) -> Result<String, String> {
+    let bin = get_yt_dlp_binary();
+    let target = if url_or_id.starts_with("http://") || url_or_id.starts_with("https://") {
+        url_or_id
+    } else if url_or_id.starts_with("yt_") {
+        let clean_id = url_or_id.trim_start_matches("yt_");
+        format!("https://www.youtube.com/watch?v={clean_id}")
+    } else {
+        format!("https://www.youtube.com/watch?v={url_or_id}")
+    };
+
+    let mut args: Vec<String> = vec![
+        "-g".into(),
+        "-f".into(),
+        "ba/b".into(),
+        "--no-warnings".into(),
+        "--no-playlist".into(),
+        target,
+    ];
+    append_modern_ytdlp_args(&mut args);
+
+    let output = Command::new(&bin)
+        .args(&args)
+        .output()
+        .await
+        .map_err(|e| format!("Error ejecutando yt-dlp para streaming: {e}"))?;
+
+    if !output.status.success() {
+        let err = String::from_utf8_lossy(&output.stderr);
+        return Err(format!("yt-dlp stream error: {err}"));
+    }
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let url = stdout.lines().next().unwrap_or("").trim().to_string();
+    if url.is_empty() {
+        return Err("No se pudo obtener URL de stream".to_string());
+    }
+    Ok(url)
 }
