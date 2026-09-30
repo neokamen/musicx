@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from "react";
+import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import {
@@ -284,45 +284,11 @@ export const StreamMusicModal: React.FC<StreamMusicModalProps> = ({ isOpen, onCl
     };
   }, []);
 
-  // Cleanup on close
-  const handleModalClose = () => {
-    if (audioRef.current) {
-      audioRef.current.pause();
-    }
-    setIsStreamPlaying(false);
-    onClose();
-    setStreamMusicOpen(false);
-  };
-
-  if (!isVisible) return null;
-
-  const rawTracks = result?.tracks ?? [];
-
-  // Filter in-memory tracks if user types in localFilter
-  const filteredTracks = useMemo(() => {
-    if (!localFilter.trim()) return rawTracks;
-    const lower = localFilter.toLowerCase().trim();
-    return rawTracks.filter(
-      (t) =>
-        t.title.toLowerCase().includes(lower) ||
-        t.artist.toLowerCase().includes(lower) ||
-        t.album.toLowerCase().includes(lower)
-    );
-  }, [rawTracks, localFilter]);
-
-  // Auto-cargar catálogo fresco de música en streaming al abrir si está en el default
   const hasAutoLoadedRef = useRef(false);
-  useEffect(() => {
-    if (isVisible && !hasAutoLoadedRef.current) {
-      hasAutoLoadedRef.current = true;
-      // Fetch fresh Top Hits in the background without clearing the initial tracks
-      executeSearch("Top Hits 2026", "songs", true);
-    }
-  }, [isVisible]);
 
-  const executeSearch = async (
+  const executeSearch = useCallback(async (
     searchTerm: string,
-    category: SearchFilterCategory = searchFilter,
+    category: SearchFilterCategory = "all",
     isBackgroundInitial = false
   ) => {
     const q = (searchTerm.trim() || "Top Hits").trim();
@@ -365,6 +331,33 @@ export const StreamMusicModal: React.FC<StreamMusicModalProps> = ({ isOpen, onCl
     } finally {
       setIsSearching(false);
     }
+  }, []);
+
+  useEffect(() => {
+    if (!isVisible || hasAutoLoadedRef.current) return;
+    hasAutoLoadedRef.current = true;
+    void executeSearch("Top Hits 2026", "songs", true);
+  }, [isVisible, executeSearch]);
+
+  const rawTracks = result?.tracks ?? [];
+  const filteredTracks = useMemo(() => {
+    if (!localFilter.trim()) return rawTracks;
+    const lower = localFilter.toLowerCase().trim();
+    return rawTracks.filter(
+      (t) =>
+        t.title.toLowerCase().includes(lower) ||
+        t.artist.toLowerCase().includes(lower) ||
+        t.album.toLowerCase().includes(lower)
+    );
+  }, [rawTracks, localFilter]);
+
+  const handleModalClose = () => {
+    if (audioRef.current) {
+      audioRef.current.pause();
+    }
+    setIsStreamPlaying(false);
+    onClose();
+    setStreamMusicOpen(false);
   };
 
   const handleSearchSubmit = (e?: React.FormEvent) => {
@@ -567,6 +560,8 @@ export const StreamMusicModal: React.FC<StreamMusicModalProps> = ({ isOpen, onCl
         return "#64748b";
     }
   };
+
+  if (!isVisible) return null;
 
   return (
     <div
