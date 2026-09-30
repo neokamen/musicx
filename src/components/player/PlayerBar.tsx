@@ -163,7 +163,16 @@ export const PlayerBar: React.FC = () => {
             step={0.01}
             value={volume}
             onChange={handleVolume}
-            className="w-20 h-1 bg-audiophile-border rounded-lg appearance-none cursor-pointer accent-audiophile-cyan"
+            className="volume-slider h-1.5 w-20 appearance-none rounded-full cursor-pointer"
+            style={{
+              background: (() => {
+                const volPct = Math.min(100, Math.max(0, (volume / 1.5) * 100));
+                const volColor = volume > 1.0 ? "#ef4444" : "#06b6d4";
+                return volPct > 0
+                  ? `linear-gradient(to right, ${volColor}35 0%, ${volColor}90 ${volPct * 0.7}%, ${volColor} ${volPct}%, rgba(71, 85, 105, 0.65) ${volPct}%, rgba(71, 85, 105, 0.65) 100%)`
+                  : `linear-gradient(to right, rgba(71, 85, 105, 0.65) 0%, rgba(71, 85, 105, 0.65) 100%)`;
+              })(),
+            } as React.CSSProperties}
             title={`Volumen: ${(volume * 100).toFixed(0)}%`}
           />
           <span className="font-mono text-[10px] text-audiophile-muted w-7 text-right">

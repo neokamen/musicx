@@ -32,25 +32,32 @@ export const LoudnessWidget: React.FC = () => {
         </button>
       </header>
       <div className={`grid min-h-0 flex-1 grid-cols-3 gap-2 px-2.5 py-2 ${enabled ? "" : "pointer-events-none opacity-40"}`}>
-        {parameters.map((parameter) => (
-          <label key={parameter.label} className="flex min-w-0 flex-col justify-center gap-1">
-            <span className="truncate text-[8px] uppercase text-audiophile-muted">{parameter.label}</span>
-            <span className="truncate text-[11px] font-bold" style={{ color: appearance.accentColor }}>
-              {parameter.value > 0 ? "+" : ""}{parameter.value} {parameter.unit}
-            </span>
-            <input
-              aria-label={parameter.label}
-              type="range"
-              min={parameter.min}
-              max={parameter.max}
-              step={parameter.step}
-              value={parameter.value}
-              onChange={(event) => parameter.set(Number(event.target.value))}
-              className="w-full cursor-pointer"
-              style={{ accentColor: appearance.accentColor }}
-            />
-          </label>
-        ))}
+        {parameters.map((parameter) => {
+          const pct = Math.max(0, Math.min(100, ((parameter.value - parameter.min) / (parameter.max - parameter.min)) * 100));
+          const accentColor = appearance.accentColor || "#06b6d4";
+
+          return (
+            <label key={parameter.label} className="flex min-w-0 flex-col justify-center gap-1">
+              <span className="truncate text-[8px] uppercase text-audiophile-muted">{parameter.label}</span>
+              <span className="truncate text-[11px] font-bold" style={{ color: accentColor }}>
+                {parameter.value > 0 ? "+" : ""}{parameter.value} {parameter.unit}
+              </span>
+              <input
+                aria-label={parameter.label}
+                type="range"
+                min={parameter.min}
+                max={parameter.max}
+                step={parameter.step}
+                value={parameter.value}
+                onChange={(event) => parameter.set(Number(event.target.value))}
+                className="eq-pocket-horizontal w-full cursor-pointer z-10"
+                style={{
+                  background: `linear-gradient(to right, ${accentColor}25 0%, ${accentColor}85 ${pct * 0.7}%, ${accentColor} ${pct}%, rgba(15, 23, 42, 0.95) ${pct}%, rgba(15, 23, 42, 0.95) 100%)`,
+                }}
+              />
+            </label>
+          );
+        })}
       </div>
       <footer className="flex shrink-0 items-center justify-between gap-2 border-t border-audiophile-border px-2.5 py-1.5 text-[8px] text-slate-500">
         <span className="flex min-w-0 items-center gap-1 truncate"><ShieldCheck size={10} /> EBU R128 · control true-peak</span>

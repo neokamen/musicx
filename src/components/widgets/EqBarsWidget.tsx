@@ -92,6 +92,7 @@ export const EqBarsWidget: React.FC = () => {
               <div className="relative flex-1 flex items-center justify-center w-full py-1">
                 {(() => {
                   const pct = Math.max(0, Math.min(100, ((gain + 12) / 24) * 100));
+                  const alphaIntensity = Math.max(0.25, pct / 100);
 
                   return (
                     <input
@@ -103,15 +104,11 @@ export const EqBarsWidget: React.FC = () => {
                       onChange={(e) => handleGainChange(idx, parseFloat(e.target.value))}
                       className="eq-pocket-vertical-fill z-10 h-full cursor-pointer"
                       style={{
-                        background: isBoost
-                          ? `linear-gradient(to top, rgba(15, 23, 42, 0.95) 0%, rgba(15, 23, 42, 0.95) 50%, ${accent}85 50%, ${accent} ${pct}%, rgba(15, 23, 42, 0.95) ${pct}%, rgba(15, 23, 42, 0.95) 100%)`
-                          : isCut
-                          ? `linear-gradient(to top, rgba(15, 23, 42, 0.95) 0%, rgba(15, 23, 42, 0.95) ${pct}%, rgba(244, 63, 94, 0.9) ${pct}%, rgba(244, 63, 94, 0.75) 50%, rgba(15, 23, 42, 0.95) 50%, rgba(15, 23, 42, 0.95) 100%)`
+                        background: pct > 0
+                          ? `linear-gradient(to top, ${accent}25 0%, ${accent}85 ${pct * 0.7}%, ${accent} ${pct}%, rgba(15, 23, 42, 0.95) ${pct}%, rgba(15, 23, 42, 0.95) 100%)`
                           : `linear-gradient(to top, rgba(15, 23, 42, 0.95) 0%, rgba(15, 23, 42, 0.95) 100%)`,
-                        boxShadow: isBoost
-                          ? `inset 0 1px 3px rgba(0,0,0,0.85), 0 0 10px ${accent}35`
-                          : isCut
-                          ? `inset 0 1px 3px rgba(0,0,0,0.85), 0 0 8px rgba(244,63,94,0.3)`
+                        boxShadow: pct > 0
+                          ? `inset 0 1px 3px rgba(0,0,0,0.85), 0 0 ${Math.round(4 + alphaIntensity * 8)}px ${accent}45`
                           : `inset 0 1px 3px rgba(0,0,0,0.85)`,
                       }}
                       title={`${freq}: ${gain > 0 ? "+" : ""}${gain} dB`}

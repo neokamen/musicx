@@ -481,8 +481,7 @@ export function AudioEQModal({
                 {/* Vertical Native Input Slider with custom CSS styling matching horizontal sliders */}
                 {(() => {
                   const pct = Math.max(0, Math.min(100, ((band.gain + 12) / 24) * 100));
-                  const isBoost = band.gain > 0;
-                  const isCut = band.gain < 0;
+                  const alphaIntensity = Math.max(0.25, pct / 100);
 
                   return (
                     <input
@@ -495,15 +494,11 @@ export function AudioEQModal({
                       className="eq-pocket-vertical-fill z-10 cursor-pointer"
                       style={{
                         height: 130,
-                        background: isBoost
-                          ? `linear-gradient(to top, rgba(15, 23, 42, 0.95) 0%, rgba(15, 23, 42, 0.95) 50%, ${accentColor}85 50%, ${accentColor} ${pct}%, rgba(15, 23, 42, 0.95) ${pct}%, rgba(15, 23, 42, 0.95) 100%)`
-                          : isCut
-                          ? `linear-gradient(to top, rgba(15, 23, 42, 0.95) 0%, rgba(15, 23, 42, 0.95) ${pct}%, rgba(244, 63, 94, 0.9) ${pct}%, rgba(244, 63, 94, 0.75) 50%, rgba(15, 23, 42, 0.95) 50%, rgba(15, 23, 42, 0.95) 100%)`
+                        background: pct > 0
+                          ? `linear-gradient(to top, ${accentColor}25 0%, ${accentColor}85 ${pct * 0.7}%, ${accentColor} ${pct}%, rgba(15, 23, 42, 0.95) ${pct}%, rgba(15, 23, 42, 0.95) 100%)`
                           : `linear-gradient(to top, rgba(15, 23, 42, 0.95) 0%, rgba(15, 23, 42, 0.95) 100%)`,
-                        boxShadow: isBoost
-                          ? `inset 0 1px 3px rgba(0,0,0,0.85), 0 0 10px ${accentColor}35`
-                          : isCut
-                          ? `inset 0 1px 3px rgba(0,0,0,0.85), 0 0 8px rgba(244,63,94,0.3)`
+                        boxShadow: pct > 0
+                          ? `inset 0 1px 3px rgba(0,0,0,0.85), 0 0 ${Math.round(4 + alphaIntensity * 8)}px ${accentColor}45`
                           : `inset 0 1px 3px rgba(0,0,0,0.85)`,
                       }}
                       title={`${BAND_NAMES[i]}: ${band.gain > 0 ? "+" : ""}${band.gain.toFixed(1)} dB`}
@@ -709,58 +704,74 @@ export function AudioEQModal({
 
             {normalizeMode === "ebur128" && (
               <div className="grid grid-cols-3 gap-3">
-                <div className="flex flex-col gap-1">
-                  <div className="flex items-center justify-between text-[11px]">
-                    <span className="text-slate-400">Target LUFS</span>
-                    <span className="font-mono font-bold" style={{ color: accentColor }}>
-                      {targetLufs} LUFS
-                    </span>
-                  </div>
-                  <input
-                    type="range"
-                    min={-23}
-                    max={-9}
-                    step={0.5}
-                    value={targetLufs}
-                    onChange={(e) => setTargetLufs(parseFloat(e.target.value))}
-                    className="w-full"
-                    style={{ accentColor, cursor: "pointer" }}
-                  />
-                </div>
+                {(() => {
+                  const lufsPct = Math.max(0, Math.min(100, ((targetLufs - (-23)) / ((-9) - (-23))) * 100));
+                  const peakPct = Math.max(0, Math.min(100, ((truePeak - (-9)) / (0 - (-9))) * 100));
+                  const lraPct = Math.max(0, Math.min(100, ((lra - 1) / (50 - 1)) * 100));
 
-                <div className="flex flex-col gap-1">
-                  <div className="flex items-center justify-between text-[11px]">
-                    <span className="text-slate-400">True Peak</span>
-                    <span className="font-mono text-slate-300">{truePeak} dBTP</span>
-                  </div>
-                  <input
-                    type="range"
-                    min={-9}
-                    max={0}
-                    step={0.5}
-                    value={truePeak}
-                    onChange={(e) => setTruePeak(parseFloat(e.target.value))}
-                    className="w-full"
-                    style={{ accentColor, cursor: "pointer" }}
-                  />
-                </div>
+                  return (
+                    <>
+                      <div className="flex flex-col gap-1">
+                        <div className="flex items-center justify-between text-[11px]">
+                          <span className="text-slate-400">Target LUFS</span>
+                          <span className="font-mono font-bold" style={{ color: accentColor }}>
+                            {targetLufs} LUFS
+                          </span>
+                        </div>
+                        <input
+                          type="range"
+                          min={-23}
+                          max={-9}
+                          step={0.5}
+                          value={targetLufs}
+                          onChange={(e) => setTargetLufs(parseFloat(e.target.value))}
+                          className="eq-pocket-horizontal w-full cursor-pointer z-10"
+                          style={{
+                            background: `linear-gradient(to right, ${accentColor}25 0%, ${accentColor}85 ${lufsPct * 0.7}%, ${accentColor} ${lufsPct}%, rgba(15, 23, 42, 0.95) ${lufsPct}%, rgba(15, 23, 42, 0.95) 100%)`,
+                          }}
+                        />
+                      </div>
 
-                <div className="flex flex-col gap-1">
-                  <div className="flex items-center justify-between text-[11px]">
-                    <span className="text-slate-400">Rango LRA</span>
-                    <span className="font-mono text-slate-300">{lra} LU</span>
-                  </div>
-                  <input
-                    type="range"
-                    min={1}
-                    max={50}
-                    step={1}
-                    value={lra}
-                    onChange={(e) => setLra(parseInt(e.target.value))}
-                    className="w-full"
-                    style={{ accentColor, cursor: "pointer" }}
-                  />
-                </div>
+                      <div className="flex flex-col gap-1">
+                        <div className="flex items-center justify-between text-[11px]">
+                          <span className="text-slate-400">True Peak</span>
+                          <span className="font-mono text-slate-300">{truePeak} dBTP</span>
+                        </div>
+                        <input
+                          type="range"
+                          min={-9}
+                          max={0}
+                          step={0.5}
+                          value={truePeak}
+                          onChange={(e) => setTruePeak(parseFloat(e.target.value))}
+                          className="eq-pocket-horizontal w-full cursor-pointer z-10"
+                          style={{
+                            background: `linear-gradient(to right, ${accentColor}25 0%, ${accentColor}85 ${peakPct * 0.7}%, ${accentColor} ${peakPct}%, rgba(15, 23, 42, 0.95) ${peakPct}%, rgba(15, 23, 42, 0.95) 100%)`,
+                          }}
+                        />
+                      </div>
+
+                      <div className="flex flex-col gap-1">
+                        <div className="flex items-center justify-between text-[11px]">
+                          <span className="text-slate-400">Rango LRA</span>
+                          <span className="font-mono text-slate-300">{lra} LU</span>
+                        </div>
+                        <input
+                          type="range"
+                          min={1}
+                          max={50}
+                          step={1}
+                          value={lra}
+                          onChange={(e) => setLra(parseInt(e.target.value))}
+                          className="eq-pocket-horizontal w-full cursor-pointer z-10"
+                          style={{
+                            background: `linear-gradient(to right, ${accentColor}25 0%, ${accentColor}85 ${lraPct * 0.7}%, ${accentColor} ${lraPct}%, rgba(15, 23, 42, 0.95) ${lraPct}%, rgba(15, 23, 42, 0.95) 100%)`,
+                          }}
+                        />
+                      </div>
+                    </>
+                  );
+                })()}
               </div>
             )}
           </div>

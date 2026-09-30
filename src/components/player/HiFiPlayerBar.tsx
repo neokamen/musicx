@@ -806,7 +806,13 @@ export const HiFiPlayerBar: React.FC<HiFiPlayerBarProps> = ({ height, isEditing,
             className="volume-slider h-1.5 w-full appearance-none rounded-full cursor-pointer"
             style={{
               "--volume-color": isBoosted ? "#ef4444" : accentColor,
-              background: `linear-gradient(to right, ${isBoosted ? "#ef4444" : accentColor} 0%, ${isBoosted ? "#ef4444" : accentColor} ${Math.min(100, volume / maxVolumeLimit * 100)}%, rgba(71, 85, 105, 0.65) ${Math.min(100, volume / maxVolumeLimit * 100)}%, rgba(71, 85, 105, 0.65) 100%)`,
+              background: (() => {
+                const volPct = Math.min(100, Math.max(0, (volume / maxVolumeLimit) * 100));
+                const volColor = isBoosted ? "#ef4444" : accentColor;
+                return volPct > 0
+                  ? `linear-gradient(to right, ${volColor}35 0%, ${volColor}90 ${volPct * 0.7}%, ${volColor} ${volPct}%, rgba(71, 85, 105, 0.65) ${volPct}%, rgba(71, 85, 105, 0.65) 100%)`
+                  : `linear-gradient(to right, rgba(71, 85, 105, 0.65) 0%, rgba(71, 85, 105, 0.65) 100%)`;
+              })(),
             } as React.CSSProperties}
             aria-label={`Volumen ${volumePercentage}%`}
           />
