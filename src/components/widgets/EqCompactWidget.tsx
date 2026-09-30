@@ -41,29 +41,41 @@ export const EqCompactWidget: React.FC = () => {
   return (
     <div className="flex h-full min-h-0 w-full flex-col overflow-auto bg-audiophile-surface font-mono text-xs select-none">
       {/* ── Header ──────────────────────────────────────────────────────── */}
-      <header className="grid shrink-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-1.5 border-b border-audiophile-border px-2.5 py-1.5 bg-slate-950/40">
-        <span
-          className="truncate text-[10px] font-bold uppercase tracking-wider flex items-center gap-1"
-          style={{ color: accent }}
-        >
-          <span className="size-1.5 rounded-full" style={{ backgroundColor: accent, boxShadow: `0 0 6px ${accent}` }} />
-          EQ PRO
-        </span>
+      <header className="flex shrink-0 items-center justify-between gap-1.5 border-b border-audiophile-border px-2.5 py-1.5 bg-slate-950/40">
+        <div className="flex items-center gap-2 min-w-0">
+          <span
+            className={`truncate text-[10px] font-bold uppercase tracking-wider flex items-center gap-1.5 transition-colors ${
+              audioSettings.isEqEnabled ? "text-white drop-shadow-sm" : "text-slate-500 font-medium"
+            }`}
+            style={{ color: audioSettings.isEqEnabled ? accent : undefined }}
+          >
+            <span
+              className={`size-1.5 rounded-full transition-all ${
+                audioSettings.isEqEnabled ? "" : "bg-slate-600 opacity-60"
+              }`}
+              style={{
+                backgroundColor: audioSettings.isEqEnabled ? accent : undefined,
+                boxShadow: audioSettings.isEqEnabled ? `0 0 6px ${accent}` : undefined,
+              }}
+            />
+            EQ PRO
+          </span>
 
-        <select
-          aria-label="Preset de ecualizador"
-          value={activePreset}
-          onChange={(event) => applyPreset(event.target.value)}
-          className="min-w-0 border border-slate-700/80 bg-slate-900/90 rounded px-1.5 py-0.5 text-[9px] text-slate-200 outline-none cursor-pointer focus:border-cyan-500"
-          style={{ colorScheme: "dark" }}
-        >
-          {activePreset === "Personalizado" && <option value="Personalizado">Personalizado</option>}
-          {SOUNDIX_PRESETS.map((preset) => (
-            <option key={preset.name} value={preset.name}>
-              {preset.name}
-            </option>
-          ))}
-        </select>
+          <select
+            aria-label="Preset de ecualizador"
+            value={activePreset}
+            onChange={(event) => applyPreset(event.target.value)}
+            className="min-w-0 bg-transparent border-0 text-[9px] font-mono text-slate-400 hover:text-slate-200 focus:text-slate-100 outline-none cursor-pointer p-0 truncate transition-colors"
+            style={{ colorScheme: "dark" }}
+          >
+            {activePreset === "Personalizado" && <option value="Personalizado" className="bg-slate-900 text-slate-200">Personalizado</option>}
+            {SOUNDIX_PRESETS.map((preset) => (
+              <option key={preset.name} value={preset.name} className="bg-slate-900 text-slate-200">
+                {preset.name}
+              </option>
+            ))}
+          </select>
+        </div>
 
         <div className="flex shrink-0 items-center gap-1">
           <button

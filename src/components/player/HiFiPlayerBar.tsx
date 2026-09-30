@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import { useMusicStore } from "../../store/index.ts";
 import { TRANSPORT_STYLES } from "../../lib/transportStyles.ts";
+import { SOUNDIX_PRESETS } from "../audio/AudioEQModal.tsx";
 import {
   Play,
   Pause,
@@ -578,20 +579,9 @@ export const HiFiPlayerBar: React.FC<HiFiPlayerBarProps> = ({ height, isEditing,
             {isEqPopupOpen && (
               <div className="absolute bottom-12 right-0 w-96 p-3.5 rounded-xl bg-slate-950 border border-slate-700 shadow-2xl z-50 animate-fadeIn font-mono text-xs">
                 {(() => {
-                  const presetsMap: Record<string, number[]> = {
-                    flat: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-                    rock: [4, 3, 2, 0, 0, 0, 1, 2, 3, 3],
-                    bass: [5, 4, 3, 1, 0, 0, 0, 0, 1, 1],
-                    pop: [-1, 1, 3, 4, 4, 3, 1, -1, -1, -1],
-                    jazz: [3, 2, 1, 2, -1, -1, 0, 1, 2, 3],
-                    vocal: [-2, -1, 0, 3, 4, 4, 3, 1, 0, -1],
-                    electronic: [4, 3.5, 1, 0, -1, 2, 1, 3, 4, 4],
-                    audiophile: [1, 0.5, 0, 0, 0, 0, 0, 0.5, 1, 1.5],
-                  };
-
-                  const activePresetKey = Object.keys(presetsMap).find((key) =>
-                    presetsMap[key].every((val, i) => Math.abs(val - (eqGains[i] ?? 0)) < 0.1)
-                  ) || "custom";
+                  const activePreset = SOUNDIX_PRESETS.find((p) =>
+                    p.gains.every((g, i) => Math.abs(g - (eqGains[i] ?? 0)) < 0.1)
+                  )?.name || "Personalizado";
 
                   return (
                     <>
@@ -604,26 +594,29 @@ export const HiFiPlayerBar: React.FC<HiFiPlayerBarProps> = ({ height, isEditing,
                         </div>
                         <div className="flex items-center gap-2">
                           <select
-                            value={activePresetKey}
+                            value={activePreset}
                             onChange={(e) => {
-                              const selected = presetsMap[e.target.value];
-                              if (selected) {
-                                setAudioSettings({ eqGains: selected, isEqEnabled: true });
+                              const preset = SOUNDIX_PRESETS.find((p) => p.name === e.target.value);
+                              if (preset) {
+                                setAudioSettings({ eqGains: [...preset.gains], isEqEnabled: true });
+                                if (preset.sub !== undefined || preset.bass !== undefined) {
+                                  setAudioSettings({
+                                    eqSubBoost: preset.sub ?? audioSettings.eqSubBoost,
+                                    eqBassBoost: preset.bass ?? audioSettings.eqBassBoost,
+                                  });
+                                }
                               }
                             }}
                             className="bg-slate-900 border border-slate-700 text-slate-200 rounded px-1.5 py-0.5 text-[10px] focus:outline-none cursor-pointer"
                           >
-                            {activePresetKey === "custom" && (
-                              <option value="custom">Personalizado</option>
+                            {activePreset === "Personalizado" && (
+                              <option value="Personalizado">Personalizado</option>
                             )}
-                            <option value="flat">Plano (0 dB)</option>
-                            <option value="rock">Rock</option>
-                            <option value="bass">Bass Boost</option>
-                            <option value="pop">Pop</option>
-                            <option value="jazz">Jazz</option>
-                            <option value="vocal">Voz / Presencia</option>
-                            <option value="electronic">Electrónica</option>
-                            <option value="audiophile">Audiophile Master</option>
+                            {SOUNDIX_PRESETS.map((preset) => (
+                              <option key={preset.name} value={preset.name}>
+                                {preset.name}
+                              </option>
+                            ))}
                           </select>
 
                           <button

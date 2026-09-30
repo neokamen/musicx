@@ -20,7 +20,6 @@ import {
   FolderOpen,
   Database,
   RefreshCw,
-  Save,
   Shuffle,
   SkipBack,
   Play,
@@ -63,7 +62,6 @@ import {
 
 type SettingsTab = 'general' | 'appearance' | 'cava' | 'playback' | 'audio' | 'library' | 'about';
 type VisualizerSettingsPanel = 'cava' | 'spectrum';
-const QUICK_CONFIG_KEY = 'musicx_quick_config_backup_v1';
 const SEEK_BAR_STYLES = [
   { id: 'spectrum', label: 'Espectro de la canción' },
   { id: 'classic', label: 'Clásico' },
@@ -102,7 +100,6 @@ export const SettingsModal: React.FC = () => {
   const [activeVisualizerPanel, setActiveVisualizerPanel] = useState<VisualizerSettingsPanel>('cava');
   const tabsRef = useRef<HTMLDivElement>(null);
   const [savedMessage, setSavedMessage] = useState<string | null>(null);
-  const [hasQuickConfig, setHasQuickConfig] = useState(() => localStorage.getItem(QUICK_CONFIG_KEY) !== null);
 
   const [accent, setAccent] = useState<AccentColor>(getSavedAccent);
   const [bgTheme, setBgTheme] = useState<BackgroundTheme>(getSavedTheme);
@@ -118,8 +115,6 @@ export const SettingsModal: React.FC = () => {
   const [minimalScrollbars, setMinimalScrollbars] = useState<boolean>(getSavedMinimalScrollbars);
   const [marqueeSpeed, setMarqueeSpeedState] = useState<number>(() => appearance.marqueeSpeed || getSavedMarqueeSpeed());
   const [marqueeDelay, setMarqueeDelayState] = useState<number>(() => appearance.marqueeDelay || getSavedMarqueeDelay());
-
-  const fullBackupInputRef = useRef<HTMLInputElement>(null);
 
   if (!isSettingsOpen) return null;
 
@@ -194,47 +189,10 @@ export const SettingsModal: React.FC = () => {
     setAppearance({ bgColor: hex, bgPreset: 'custom' });
   };
 
-  const handleSaveQuickConfig = () => {
-    const data: Record<string, string> = {};
-    for (let index = 0; index < localStorage.length; index++) {
-      const key = localStorage.key(index);
-      const value = key && key !== QUICK_CONFIG_KEY ? localStorage.getItem(key) : null;
-      if (key?.startsWith('musicx_') && value !== null) data[key] = value;
-    }
-    localStorage.setItem(QUICK_CONFIG_KEY, JSON.stringify({ format: 'musicx-quick-config-v1', data }));
-    setHasQuickConfig(true);
-    setSavedMessage('Configuración rápida guardada.');
-    setTimeout(() => setSavedMessage(null), 2500);
-  };
-
   const handleResetSettings = () => {
-    const raw = localStorage.getItem(QUICK_CONFIG_KEY);
-    if (!raw) {
-      if (window.confirm('No hay una configuración rápida guardada. ¿Restablecer los ajustes a valores de fábrica?')) {
-        resetSettings();
-        window.location.reload();
-      }
-      return;
-    }
-    if (!window.confirm('Se restaurarán los ajustes y las disposiciones de widgets guardadas rápidamente. ¿Continuar?')) return;
-    try {
-      const backup = JSON.parse(raw);
-      if (backup?.format !== 'musicx-quick-config-v1' || typeof backup.data !== 'object' || backup.data === null) {
-        throw new Error('Formato de configuración rápida no válido');
-      }
-      for (let index = localStorage.length - 1; index >= 0; index--) {
-        const key = localStorage.key(index);
-        if (key?.startsWith('musicx_') && key !== QUICK_CONFIG_KEY) localStorage.removeItem(key);
-      }
-      for (const [key, value] of Object.entries<unknown>(backup.data)) {
-        if (key.startsWith('musicx_') && key !== QUICK_CONFIG_KEY && typeof value === 'string') {
-          localStorage.setItem(key, value);
-        }
-      }
+    if (window.confirm('¿Restablecer todos los ajustes a los valores de fábrica?')) {
+      resetSettings();
       window.location.reload();
-    } catch {
-      setSavedMessage('No se pudo restaurar la configuración rápida.');
-      setTimeout(() => setSavedMessage(null), 2500);
     }
   };
 
@@ -268,47 +226,74 @@ export const SettingsModal: React.FC = () => {
   };
 
 
-  const exportFullAppBackup = () => {
-    const data: Record<string, string> = {};
-    for (let i = 0; i < localStorage.length; i++) {
-      const key = localStorage.key(i);
-      if (key && key !== QUICK_CONFIG_KEY && (key.startsWith('musicx_') || key.startsWith('audio_converter_'))) {
-        const value = localStorage.getItem(key);
-        if (value !== null) data[key] = value;
+  const exportFullAppBackup = async () => {
+    try {
+      const defaultName = `musicx-full-backup-${new Date().toISOString().slice(0, 10)}.json`;
+      const selected = await save({
+        title: 'Guardar copia de seguridad completa',
+        defaultPath: defaultName,
+        filters: [{ name: 'JSON', extensions: ['json'] }],
+      });
+      if (typeof selected !== 'string') return;
+
+      const data: Record<string, string> = {};
+      const EXCLUDED_KEYS = ['musicx_listening_stats', 'musicx_stats_backup'];
+
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && !EXCLUDED_KEYS.includes(key) && (key.startsWith('musicx_') || key.startsWith('audio_converter_'))) {
+          const value = localStorage.getItem(key);
+          if (value !== null) data[key] = value;
+        }
       }
+
+      const backup = {
+        format: 'musicx-full-backup-v1',
+        exportedAt: new Date().toISOString(),
+        data,
+      };
+
+      await writeTextFile(selected, JSON.stringify(backup, null, 2));
+      setSavedMessage('Copia de seguridad guardada con éxito.');
+      setTimeout(() => setSavedMessage(null), 3000);
+    } catch {
+      setSavedMessage('No se pudo guardar la copia de seguridad.');
+      setTimeout(() => setSavedMessage(null), 3000);
     }
-    const backup = {
-      format: 'musicx-full-backup-v1',
-      exportedAt: new Date().toISOString(),
-      data,
-    };
-    const blobUrl = URL.createObjectURL(new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' }));
-    const link = document.createElement('a');
-    link.href = blobUrl;
-    link.download = `musicx-full-backup-${new Date().toISOString().slice(0, 10)}.json`;
-    link.click();
-    URL.revokeObjectURL(blobUrl);
   };
 
-  const importFullAppBackup = async (file: File) => {
+  const importFullAppBackup = async () => {
     try {
-      const backup = JSON.parse(await file.text());
+      const selected = await open({
+        multiple: false,
+        title: 'Restaurar copia de seguridad completa',
+        filters: [{ name: 'JSON', extensions: ['json'] }],
+      });
+      if (typeof selected !== 'string') return;
+
+      const content = await readTextFile(selected);
+      if (!content) throw new Error('El archivo está vacío');
+
+      const backup = JSON.parse(content);
       if (backup?.format !== 'musicx-full-backup-v1' || typeof backup?.data !== 'object' || backup.data === null) {
         throw new Error('Formato de backup no válido');
       }
+
+      const EXCLUDED_KEYS = ['musicx_listening_stats', 'musicx_stats_backup'];
+
       for (const [key, value] of Object.entries<unknown>(backup.data)) {
-        if (typeof value === 'string') {
+        if (typeof value === 'string' && !EXCLUDED_KEYS.includes(key)) {
           localStorage.setItem(key, value);
         }
       }
-      localStorage.removeItem(QUICK_CONFIG_KEY);
-      setHasQuickConfig(false);
-      if (window.confirm('Backup completo restaurado (ajustes, widgets, estructura, favoritos de radio, estadísticas...). Hay que recargar la app para aplicarlo. ¿Recargar ahora?')) {
+
+      setSavedMessage('Copia de seguridad restaurada con éxito. Recargando app...');
+      setTimeout(() => {
         window.location.reload();
-      }
+      }, 1200);
     } catch {
-      setSavedMessage('No se pudo restaurar el backup completo.');
-      setTimeout(() => setSavedMessage(null), 2500);
+      setSavedMessage('No se pudo restaurar la copia de seguridad.');
+      setTimeout(() => setSavedMessage(null), 3000);
     }
   };
 
@@ -517,30 +502,50 @@ export const SettingsModal: React.FC = () => {
 
               <div className="p-4 rounded-xl bg-slate-900/40 border border-slate-800/80 space-y-3">
                 <div>
-                  <div className="text-xs font-bold text-slate-200">Configuración rápida</div>
-                  <div className="text-[11px] text-slate-400">Guarda ajustes y disposiciones completas y compactas en este equipo.</div>
+                  <div className="text-xs font-bold text-slate-200 uppercase tracking-wider">Copia de Seguridad Completa</div>
+                  <div className="text-[11px] text-slate-400">Guarda o restaura toda la configuración de la app en la ruta que elijas (ajustes, apariencia, widgets, emisoras, etc., excepto el tiempo escuchado).</div>
                 </div>
-                <div className="flex flex-wrap gap-2">
-                  <button type="button" onClick={handleSaveQuickConfig} className="flex items-center gap-2 rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-xs font-semibold transition hover:bg-slate-700">
-                    <Save size={14} /> Guardar configuración
+                <div className="flex flex-wrap gap-3">
+                  <button
+                    type="button"
+                    onClick={exportFullAppBackup}
+                    className="flex items-center gap-2 rounded-xl border border-slate-700 bg-slate-800 px-3.5 py-2 text-xs font-semibold text-slate-200 transition hover:bg-slate-700 hover:border-slate-500 cursor-pointer"
+                  >
+                    <Download size={14} style={{ color: appearance.accentColor || '#06b6d4' }} />
+                    <span>Guardar copia de seguridad...</span>
                   </button>
-                  <button type="button" onClick={handleResetSettings} className="flex items-center gap-2 rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-xs font-semibold transition hover:bg-slate-700">
-                    <RotateCcw size={14} /> {hasQuickConfig ? 'Restablecer ajustes' : 'Restablecer de fábrica'}
+                  <button
+                    type="button"
+                    onClick={importFullAppBackup}
+                    className="flex items-center gap-2 rounded-xl border border-slate-700 bg-slate-800 px-3.5 py-2 text-xs font-semibold text-slate-200 transition hover:bg-slate-700 hover:border-slate-500 cursor-pointer"
+                  >
+                    <Upload size={14} style={{ color: appearance.accentColor || '#06b6d4' }} />
+                    <span>Restaurar copia de seguridad...</span>
                   </button>
                 </div>
               </div>
 
               <div className="p-4 rounded-xl bg-slate-900/40 border border-slate-800/80 space-y-3">
                 <div className="text-xs font-bold uppercase tracking-wider text-slate-300">
-                  Mantenimiento y Residuos
+                  Mantenimiento y Restablecimiento
                 </div>
-                <button
-                  onClick={handleClearCache}
-                  className="w-full py-2 px-3 rounded-xl border border-rose-900/60 bg-rose-950/30 hover:bg-rose-900/40 text-xs font-semibold text-rose-300 flex items-center justify-center gap-2 transition cursor-pointer"
-                >
-                  <Trash2 size={14} />
-                  <span>Borrar Caché y Residuos</span>
-                </button>
+                <div className="flex flex-col gap-2.5">
+                  <button
+                    onClick={handleClearCache}
+                    className="w-full py-2.5 px-3 rounded-xl border border-rose-900/60 bg-rose-950/30 hover:bg-rose-900/40 text-xs font-semibold text-rose-300 flex items-center justify-center gap-2 transition cursor-pointer"
+                  >
+                    <Trash2 size={14} />
+                    <span>Borrar Caché y Residuos</span>
+                  </button>
+
+                  <button
+                    onClick={handleResetSettings}
+                    className="w-full py-2.5 px-3 rounded-xl border border-slate-700 bg-slate-800/80 hover:bg-slate-700 text-xs font-semibold text-slate-300 flex items-center justify-center gap-2 transition cursor-pointer"
+                  >
+                    <RotateCcw size={14} />
+                    <span>Restablecer Ajustes de Fábrica</span>
+                  </button>
+                </div>
               </div>
             </div>
           )}
@@ -1474,12 +1479,6 @@ export const SettingsModal: React.FC = () => {
                 </div>
               </div>
 
-              <div className="p-4 rounded-xl bg-slate-900/40 border border-slate-800/80 flex items-center gap-3 flex-wrap">
-                <button onClick={exportFullAppBackup} className="px-3 py-1.5 rounded-lg border border-slate-700 bg-slate-800 text-xs font-semibold hover:bg-slate-700 flex items-center gap-2"><Download size={13} />Backup completo de la app</button>
-                <button onClick={() => fullBackupInputRef.current?.click()} className="px-3 py-1.5 rounded-lg border border-slate-700 bg-slate-800 text-xs font-semibold hover:bg-slate-700 flex items-center gap-2"><Upload size={13} />Restaurar backup completo</button>
-                <input ref={fullBackupInputRef} type="file" accept="application/json,.json" className="hidden" onChange={(e) => { const file = e.target.files?.[0]; if (file) void importFullAppBackup(file); e.currentTarget.value = ''; }} />
-                <span className="text-[11px] text-slate-500">Incluye ajustes, apariencia, widgets/estructura, favoritos y emisoras de radio, y estadísticas.</span>
-              </div>
 
               <div className="p-4 rounded-xl bg-slate-900/40 border border-slate-800/80 space-y-3">
                 <label className="text-xs font-bold text-slate-300">Modo de backup del tiempo escuchado</label>
