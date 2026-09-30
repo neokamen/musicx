@@ -1,13 +1,11 @@
 pub mod audio;
 pub mod commands;
 pub mod db;
-pub mod downloader;
 pub mod fs_lazy;
 pub mod models;
 #[cfg(target_os = "linux")]
 pub mod mpris;
 pub mod radio_relay;
-pub mod ytdlp;
 
 use audio::AudioEngineHandle;
 use commands::AppState;
@@ -20,6 +18,7 @@ use tauri::{Emitter, Manager};
 pub fn run() {
     let audio_engine = Arc::new(AudioEngineHandle::new());
 
+    // Initialize the Linux MPRIS D-Bus background listener.
     #[cfg(target_os = "linux")]
     mpris::start_mpris_service(Arc::clone(&audio_engine));
 
@@ -29,6 +28,7 @@ pub fn run() {
         .setup({
             let audio_engine = Arc::clone(&audio_engine);
             move |app| {
+                // Initialize SQLite database in user's app data directory or fallback to current dir
                 let app_data_dir = app
                     .path()
                     .app_data_dir()
@@ -46,30 +46,31 @@ pub fn run() {
                     radio_relay: Arc::new(radio_relay::RadioRelayState::default()),
                 });
 
-                // Downloader state (cancel flag + running PIDs)
-                app.manage(downloader::DownloaderState::default());
-
-                // Real-time audio telemetry broadcaster (~33 FPS)
+                // Spawn real-time audio telemetry broadcaster thread (30ms = ~33 FPS)
                 let app_handle = app.handle().clone();
                 let audio_for_telemetry = Arc::clone(&audio_engine);
                 std::thread::Builder::new()
                     .name("musicx-telemetry-broadcaster".to_string())
-                    .spawn(move || loop {
-                        std::thread::sleep(std::time::Duration::from_millis(30));
-                        let tele = audio_for_telemetry.get_telemetry();
-                        let _ = app_handle.emit("audio-telemetry", &tele);
+                    .spawn(move || {
+                        loop {
+                            std::thread::sleep(std::time::Duration::from_millis(30));
+                            let tele = audio_for_telemetry.get_telemetry();
+                            let _ = app_handle.emit("audio-telemetry", &tele);
+                        }
                     })
                     .expect("Failed to spawn telemetry broadcaster thread");
 
-                // Buffer telemetry broadcaster (10 Hz)
+                // Spawn low-level buffer telemetry broadcaster thread (100ms = 10 Hz)
                 let app_handle_buf = app.handle().clone();
                 let audio_for_buffer = Arc::clone(&audio_engine);
                 std::thread::Builder::new()
                     .name("musicx-buffer-telemetry-broadcaster".to_string())
-                    .spawn(move || loop {
-                        std::thread::sleep(std::time::Duration::from_millis(100));
-                        let b_tele = audio_for_buffer.get_buffer_telemetry();
-                        let _ = app_handle_buf.emit("buffer-telemetry", &b_tele);
+                    .spawn(move || {
+                        loop {
+                            std::thread::sleep(std::time::Duration::from_millis(100));
+                            let b_tele = audio_for_buffer.get_buffer_telemetry();
+                            let _ = app_handle_buf.emit("buffer-telemetry", &b_tele);
+                        }
                     })
                     .expect("Failed to spawn buffer telemetry broadcaster thread");
 
@@ -100,10 +101,9 @@ pub fn run() {
             commands::scan_directory,
             commands::read_directory_lazy,
             commands::get_track_cover_art,
-            // ── YT Music / Downloader (ported from Soundix) ──
-            downloader::analyze_source_link,
-            downloader::download_track_batch,
-            downloader::cancel_download_batch,
+            commands::ytm_search,
+            commands::ytm_download,
+            commands::ytm_stream_to_temp,
         ])
         .run(tauri::generate_context!())
         .expect("error while running musicx audio player application");
