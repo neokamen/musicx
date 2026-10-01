@@ -993,36 +993,6 @@ export const SettingsModal: React.FC = () => {
                 </div>
               </div>
 
-              <div className="p-3.5 rounded-xl bg-slate-900/60 border border-slate-800 space-y-3">
-                <div>
-                  <div className="text-xs font-bold text-slate-200">Efecto al pulsar Play</div>
-                  <div className="text-[11px] text-slate-400">Animación del icono cuando cambias entre play y pausa</div>
-                </div>
-                <div className="grid grid-cols-3 gap-2">
-                  {([
-                    { id: "none", label: "Ninguno" },
-                    { id: "pulse", label: "Pulso" },
-                    { id: "pop", label: "Pop" },
-                    { id: "spin", label: "Giro" },
-                    { id: "bounce", label: "Rebote" },
-                    { id: "flip", label: "Volteo" },
-                  ] as const).map((effect) => (
-                    <button
-                      key={effect.id}
-                      type="button"
-                      onClick={() => setAppearance({ playButtonClickEffect: effect.id })}
-                      className={`rounded-lg border px-2 py-1.5 text-[11px] font-semibold ${
-                        (appearance.playButtonClickEffect || "pulse") === effect.id
-                          ? "border-cyan-500 bg-cyan-950/40 text-cyan-300"
-                          : "border-slate-800 bg-slate-950/40 text-slate-400 hover:text-slate-200"
-                      }`}
-                    >
-                      {effect.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
                 <label className="p-3 rounded-xl bg-slate-900/60 border border-slate-800 flex items-center justify-between gap-3 text-xs font-semibold text-slate-200">
                   Pulso BPM en el botón Play
@@ -1409,31 +1379,6 @@ export const SettingsModal: React.FC = () => {
 
           {activeTab === 'playback' && (
             <div className="space-y-6">
-              <label className="p-4 rounded-xl bg-slate-900/40 border border-slate-800/80 flex items-center justify-between text-xs font-bold text-slate-200">
-                Mostrar BPM durante la reproducción
-                <input type="checkbox" checked={playbackSettings.showBpmInPlayer} onChange={(e) => setPlaybackSettings({ showBpmInPlayer: e.target.checked })} className="accent-cyan-400 shrink-0" />
-              </label>
-              <div className="p-4 rounded-xl bg-slate-900/40 border border-slate-800/80 space-y-3">
-                <label className="text-xs font-bold text-slate-300">Plantilla de botones de reproducción</label>
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                  {(Object.entries(TRANSPORT_STYLES) as [TransportStyle, typeof TRANSPORT_STYLES[TransportStyle]][]).map(([id, style]) => (
-                    <button
-                      key={id}
-                      onClick={() => setPlaybackSettings({ transportStyle: id })}
-                      className={`flex min-h-20 flex-col items-center justify-center gap-2 rounded-lg border p-2 transition ${playbackSettings.transportStyle === id ? 'border-cyan-400 bg-cyan-950/30 text-white' : 'border-slate-800 text-slate-400 hover:border-slate-600'}`}
-                    >
-                      <span className={`flex items-center gap-1 p-1 ${style.preview}`}>
-                        <Shuffle size={9} />
-                        <SkipBack size={9} />
-                        <span className={`flex h-5 w-5 items-center justify-center bg-cyan-400 text-slate-950 ${style.primary}`}><Play size={9} fill="currentColor" /></span>
-                        <SkipForward size={9} />
-                        <Repeat size={9} />
-                      </span>
-                      <span className="text-[10px] font-semibold">{style.label}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
               <div className="p-4 rounded-xl bg-slate-900/40 border border-slate-800/80 space-y-3">
                 <label className="text-xs font-bold uppercase tracking-wider text-slate-300">
                   Estilo de Barra de Reproducción
@@ -1484,6 +1429,60 @@ export const SettingsModal: React.FC = () => {
                           </span>
                         )}
                       </span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <label className="p-4 rounded-xl bg-slate-900/40 border border-slate-800/80 flex items-center justify-between text-xs font-bold text-slate-200">
+                Mostrar BPM durante la reproducción
+                <input type="checkbox" checked={playbackSettings.showBpmInPlayer} onChange={(e) => setPlaybackSettings({ showBpmInPlayer: e.target.checked })} className="accent-cyan-400 shrink-0" />
+              </label>
+              <div className="p-3.5 rounded-xl bg-slate-900/60 border border-slate-800 space-y-3">
+                <div>
+                  <div className="text-xs font-bold text-slate-200">Efecto al pulsar Play</div>
+                  <div className="text-[11px] text-slate-400">Animación del icono cuando cambias entre play y pausa</div>
+                </div>
+                <div className="grid grid-cols-3 gap-2">
+                  {([
+                    { id: "none", label: "Ninguno" },
+                    { id: "pulse", label: "Pulso" },
+                    { id: "pop", label: "Pop" },
+                    { id: "spin", label: "Giro" },
+                    { id: "bounce", label: "Rebote" },
+                    { id: "flip", label: "Volteo" },
+                  ] as const).map((effect) => (
+                    <button
+                      key={effect.id}
+                      type="button"
+                      onClick={() => setAppearance({ playButtonClickEffect: effect.id })}
+                      className={`rounded-lg border px-2 py-1.5 text-[11px] font-semibold ${
+                        (appearance.playButtonClickEffect || "pulse") === effect.id
+                          ? "border-cyan-500 bg-cyan-950/40 text-cyan-300"
+                          : "border-slate-800 bg-slate-950/40 text-slate-400 hover:text-slate-200"
+                      }`}
+                    >
+                      {effect.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="p-4 rounded-xl bg-slate-900/40 border border-slate-800/80 space-y-3">
+                <label className="text-xs font-bold text-slate-300">Plantilla de botones de reproducción</label>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                  {(Object.entries(TRANSPORT_STYLES) as [TransportStyle, typeof TRANSPORT_STYLES[TransportStyle]][]).map(([id, style]) => (
+                    <button
+                      key={id}
+                      onClick={() => setPlaybackSettings({ transportStyle: id })}
+                      className={`flex min-h-20 flex-col items-center justify-center gap-2 rounded-lg border p-2 transition ${playbackSettings.transportStyle === id ? 'border-cyan-400 bg-cyan-950/30 text-white' : 'border-slate-800 text-slate-400 hover:border-slate-600'}`}
+                    >
+                      <span className={`flex items-center gap-1 p-1 ${style.preview}`}>
+                        <Shuffle size={9} />
+                        <SkipBack size={9} />
+                        <span className={`flex h-5 w-5 items-center justify-center bg-cyan-400 text-slate-950 ${style.primary}`}><Play size={9} fill="currentColor" /></span>
+                        <SkipForward size={9} />
+                        <Repeat size={9} />
+                      </span>
+                      <span className="text-[10px] font-semibold">{style.label}</span>
                     </button>
                   ))}
                 </div>

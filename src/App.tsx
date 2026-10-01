@@ -35,7 +35,7 @@ function readStoredWindowSize(key: string): { width: number; height: number } | 
       parsed.width >= 240 && parsed.width <= 10000 &&
       parsed.height >= 140 && parsed.height <= 10000
     ) {
-      return { width: Math.round(parsed.width), height: Math.round(parsed.height) };
+      return { width: Number(parsed.width), height: Number(parsed.height) };
     }
   } catch {
     // Ignore invalid or unavailable local storage.
@@ -108,6 +108,7 @@ export default function App() {
   const normalWindowSize = useRef(readStoredWindowSize(NORMAL_WINDOW_SIZE_KEY));
   const isMiniPlayerRef = useRef(isMiniPlayer);
   const isRestoringWindowSize = useRef(true);
+  const resizeSaveTimer = useRef<number | undefined>(undefined);
   const [isLogoOverrideActive, setIsLogoOverrideActive] = useState(false);
   const [viewportHeight, setViewportHeight] = useState(window.innerHeight);
   const [playerBarHeightRatio, setPlayerBarHeightRatio] = useState(() => {
@@ -144,13 +145,8 @@ export default function App() {
       await currentWindow.setMinSize(null);
       await currentWindow.setSize(new LogicalSize(width, height));
       await currentWindow.setMinSize(new LogicalSize(800, 500));
-      const [innerSize, scaleFactor] = await Promise.all([currentWindow.innerSize(), currentWindow.scaleFactor()]);
-      const actualSize = {
-        width: Math.round(innerSize.width / scaleFactor),
-        height: Math.round(innerSize.height / scaleFactor),
-      };
-      normalWindowSize.current = actualSize;
-      storeWindowState(actualSize.width, actualSize.height, false);
+      normalWindowSize.current = { width, height };
+      storeWindowState(width, height, false);
     } catch (error) {
       console.error("No se pudo restaurar el tamaño guardado de la ventana:", error);
     }
@@ -181,12 +177,7 @@ export default function App() {
       await currentWindow.setMinSize(null);
       await currentWindow.setSize(new LogicalSize(targetSize.width, targetSize.height));
       if (!nextMiniMode) await currentWindow.setMinSize(new LogicalSize(800, 500));
-      const [innerSize, scaleFactor] = await Promise.all([currentWindow.innerSize(), currentWindow.scaleFactor()]);
-      storeWindowState(
-        Math.round(innerSize.width / scaleFactor),
-        Math.round(innerSize.height / scaleFactor),
-        nextMiniMode,
-      );
+      storeWindowState(targetSize.width, targetSize.height, nextMiniMode);
     } catch (error) {
       console.error("No se pudo cambiar el tamaño de la ventana:", error);
       isMiniPlayerRef.current = isMiniPlayer;
@@ -268,20 +259,23 @@ export default function App() {
         const currentWindow = getCurrentWindow();
         unlistenResize = await currentWindow.onResized(({ payload: size }) => {
           if (isRestoringWindowSize.current) return;
-          void currentWindow.scaleFactor().then((scaleFactor) => {
-            storeWindowState(
-              Math.round(size.width / scaleFactor),
-              Math.round(size.height / scaleFactor),
-              isMiniPlayerRef.current,
-            );
-          }).catch((error) => console.error("No se pudo guardar el tamaño de la ventana:", error));
+          window.clearTimeout(resizeSaveTimer.current);
+          resizeSaveTimer.current = window.setTimeout(() => {
+            void currentWindow.scaleFactor().then((scaleFactor) => {
+              storeWindowState(
+                size.width / scaleFactor,
+                size.height / scaleFactor,
+                isMiniPlayerRef.current,
+              );
+            }).catch((error) => console.error("No se pudo guardar el tamaño de la ventana:", error));
+          }, 180);
         });
         unlistenClose = await currentWindow.onCloseRequested(async () => {
           try {
             const [innerSize, scaleFactor] = await Promise.all([currentWindow.innerSize(), currentWindow.scaleFactor()]);
             storeWindowState(
-              Math.round(innerSize.width / scaleFactor),
-              Math.round(innerSize.height / scaleFactor),
+              innerSize.width / scaleFactor,
+              innerSize.height / scaleFactor,
               isMiniPlayerRef.current,
             );
           } catch (error) {
@@ -293,24 +287,23 @@ export default function App() {
           await currentWindow.setMinSize(null);
           await currentWindow.setSize(new LogicalSize(savedWindowState.width, savedWindowState.height));
           if (!savedWindowState.isMiniPlayer) await currentWindow.setMinSize(new LogicalSize(800, 500));
-          const [innerSize, scaleFactor] = await Promise.all([currentWindow.innerSize(), currentWindow.scaleFactor()]);
-          const actualSize = {
-            width: Math.round(innerSize.width / scaleFactor),
-            height: Math.round(innerSize.height / scaleFactor),
-          };
-          storeWindowState(actualSize.width, actualSize.height, savedWindowState.isMiniPlayer);
-          if (!savedWindowState.isMiniPlayer) normalWindowSize.current = actualSize;
+          if (!savedWindowState.isMiniPlayer) {
+            normalWindowSize.current = { width: savedWindowState.width, height: savedWindowState.height };
+          }
         }
       } catch (error) {
         console.error("No se pudo restaurar el último tamaño de la ventana:", error);
       } finally {
-        if (!cancelled) isRestoringWindowSize.current = false;
+        window.setTimeout(() => {
+          if (!cancelled) isRestoringWindowSize.current = false;
+        }, 400);
       }
     };
 
     void initializeWindowSize();
     return () => {
       cancelled = true;
+      window.clearTimeout(resizeSaveTimer.current);
       unlistenResize?.();
       unlistenClose?.();
     };

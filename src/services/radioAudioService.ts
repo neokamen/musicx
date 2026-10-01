@@ -69,6 +69,7 @@ class RadioAudioService {
 	private playbackKind: "idle" | "radio" | "media" = "idle";
 	private endedHandler: (() => void) | null = null;
 	private endedConsumed = false;
+	private userPaused = false;
 
 	// Recording pipeline
 	private mediaRecorder: MediaRecorder | null = null;
@@ -84,6 +85,10 @@ class RadioAudioService {
         this.audio.loop = false;
 
 		this.audio.addEventListener("playing", () => {
+			if (this.userPaused) {
+				this.audio.pause();
+				return;
+			}
 			this.startTimer();
 			this.startSpectrumLoop();
 			this.publish({
@@ -109,6 +114,7 @@ class RadioAudioService {
 
 		this.audio.addEventListener("timeupdate", () => {
 			if (this.playbackKind !== "media") return;
+			if (this.userPaused) return;
 			const duration = this.mediaDuration();
 			if (
 				!this.endedConsumed &&
@@ -426,6 +432,7 @@ class RadioAudioService {
 		this.currentBitrateKbps = station.bitrate && station.bitrate > 0 ? station.bitrate : 0;
 		this.lastKnownStation = station;
 		this.playbackKind = "radio";
+		this.userPaused = false;
 		this.applyDspSettings();
 
 		// Fold the previous stream's usage into the session baseline before starting a new one
@@ -467,6 +474,7 @@ class RadioAudioService {
 		if (!url) throw new Error("No hay URL de stream válida.");
 		this.playbackKind = "media";
 		this.endedConsumed = false;
+		this.userPaused = false;
 		this.audio.loop = false;
 		this.applyDspSettings();
 		this.lastKnownStation = null;
@@ -555,6 +563,7 @@ class RadioAudioService {
 	}
 
 	async resume(): Promise<void> {
+		this.userPaused = false;
 		if (this.audioContext && this.audioContext.state === "suspended") {
 			await this.audioContext.resume();
 		}
@@ -562,7 +571,16 @@ class RadioAudioService {
 	}
 
 	pause(): void {
+		this.userPaused = true;
+		this.stopTimer();
+		this.stopSpectrumLoop();
 		this.audio.pause();
+		this.publish({
+			status: "paused",
+			elapsedSeconds: this.playbackKind === "media" ? this.audio.currentTime : this.state.elapsedSeconds,
+			duration: this.mediaDuration(),
+			seekable: this.playbackKind === "media",
+		});
 	}
 
 	stop(): void {

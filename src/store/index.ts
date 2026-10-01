@@ -219,6 +219,13 @@ async function flushFullBackupToFile(path: string): Promise<void> {
     if (value !== null) data[key] = value;
   }
   try {
+    const settingsRaw = data[SETTINGS_STORAGE_KEY];
+    if (settingsRaw) {
+      const parsed = JSON.parse(settingsRaw);
+      parsed.librarySettings = { ...(parsed.librarySettings || {}), fullBackupFilePath: path };
+      data[SETTINGS_STORAGE_KEY] = JSON.stringify(parsed);
+    }
+    data[FULL_BACKUP_PATH_KEY] = path;
     await api.writeTextFile(
       path,
       JSON.stringify(
@@ -231,6 +238,8 @@ async function flushFullBackupToFile(path: string): Promise<void> {
         2
       )
     );
+    localStorage.setItem(SETTINGS_STORAGE_KEY, data[SETTINGS_STORAGE_KEY] || localStorage.getItem(SETTINGS_STORAGE_KEY) || "");
+    localStorage.setItem(FULL_BACKUP_PATH_KEY, path);
   } catch {
     // Ignore backup write failure
   }
@@ -337,23 +346,34 @@ async function loadLiveFullBackupIntoStore(
     const backup = JSON.parse(raw);
     if (backup?.format !== "musicx-full-backup-v1" || !backup.data || typeof backup.data !== "object") return;
     for (const [key, value] of Object.entries(backup.data as Record<string, unknown>)) {
-      if (typeof value === "string" && !FULL_BACKUP_EXCLUDED.includes(key)) {
-        localStorage.setItem(key, value);
-      }
+      if (typeof value !== "string" || FULL_BACKUP_EXCLUDED.includes(key)) continue;
+      if (key === FULL_BACKUP_PATH_KEY && !value.trim()) continue;
+      localStorage.setItem(key, value);
     }
     const settingsRaw = (backup.data as Record<string, string>)[SETTINGS_STORAGE_KEY];
     if (!settingsRaw) return;
     const parsed = JSON.parse(settingsRaw);
-    set({
+    const librarySettings = {
+      ...defaultLibrarySettings,
+      ...(parsed.librarySettings || {}),
+      fullBackupFilePath: path,
+    };
+    const persisted = {
       language: parsed.language || get().language,
       appearance: parsed.appearance ? { ...defaultAppearance, ...parsed.appearance } : get().appearance,
       audioSettings: parsed.audioSettings ? { ...defaultAudioSettings, ...parsed.audioSettings } : get().audioSettings,
       playbackSettings: parsed.playbackSettings ? { ...defaultPlaybackSettings, ...parsed.playbackSettings } : get().playbackSettings,
-      librarySettings: {
-        ...defaultLibrarySettings,
-        ...(parsed.librarySettings || {}),
-        fullBackupFilePath: path,
-      },
+      listeningStats: get().listeningStats,
+      librarySettings,
+    };
+    localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(persisted));
+    localStorage.setItem(FULL_BACKUP_PATH_KEY, path);
+    set({
+      language: persisted.language,
+      appearance: persisted.appearance,
+      audioSettings: persisted.audioSettings,
+      playbackSettings: persisted.playbackSettings,
+      librarySettings,
     });
   } catch {
     // Ignore unreadable live backup
@@ -580,7 +600,6 @@ export const useMusicStore = create<MusicPlayerStore>((set, get) => ({
       const nextStats = {
         ...listeningStats,
         totalTracksPlayed: listeningStats.totalTracksPlayed + 1,
-        totalSessions: listeningStats.totalSessions + 1,
       };
 
       set((state) => {
@@ -1372,6 +1391,24 @@ export const useMusicStore = create<MusicPlayerStore>((set, get) => ({
   initListeners: async () => {
     await get().loadListeningStatsFromSyncFile();
     await loadLiveFullBackupIntoStore(get, set);
+    set((state) => {
+      const alreadyCounted = sessionStorage.getItem("musicx_session_counted") === "1";
+      if (alreadyCounted) return {};
+      sessionStorage.setItem("musicx_session_counted", "1");
+      const nextStats = {
+        ...state.listeningStats,
+        totalSessions: state.listeningStats.totalSessions + 1,
+      };
+      saveStoredSettings({
+        language: state.language,
+        appearance: state.appearance,
+        audioSettings: state.audioSettings,
+        playbackSettings: state.playbackSettings,
+        listeningStats: nextStats,
+        librarySettings: state.librarySettings,
+      });
+      return { listeningStats: nextStats };
+    });
 
     const audio = get().audioSettings;
     radioAudioService.setVolume(get().volume);

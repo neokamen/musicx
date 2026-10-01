@@ -56,8 +56,12 @@ export const QueueWidget: React.FC = () => {
     appearance,
     addToQueue,
     playbackSettings,
+    listeningStats,
+    telemetry,
+    volume,
   } = useMusicStore();
   const [showRadio, setShowRadio] = useState(false);
+  const [queueHudMode, setQueueHudMode] = useState(0);
   const [showStream, setShowStream] = useState(false);
   const [downloadTracks, setDownloadTracks] = useState<NeoTrack[] | null>(null);
   const [isColMenuOpen, setIsColMenuOpen] = useState(false);
@@ -412,25 +416,83 @@ export const QueueWidget: React.FC = () => {
         </div>
       )}
 
-      {currentTrack && (
-        <div
-          className="px-3 py-2 border-t shrink-0 flex items-center justify-between gap-2"
-          style={{ borderColor: `${appearance.accentColor}22` }}
-        >
-          <div className="min-w-0">
-            <div className="text-[9px] uppercase tracking-wider text-audiophile-muted">Ahora</div>
-            <div className="text-[11px] text-audiophile-text truncate font-medium">{currentTrack.title}</div>
-          </div>
-          <button
-            type="button"
-            onClick={() => play(currentTrack)}
-            className="text-[10px] px-2 py-1 rounded-md shrink-0"
-            style={{ background: `${appearance.accentColor}18`, color: appearance.accentColor }}
-          >
-            {isPlaying ? "En Play" : "Reanudar"}
-          </button>
-        </div>
-      )}
+      <div
+        className="px-3 py-2 border-t shrink-0 cursor-pointer select-none"
+        style={{ borderColor: `${appearance.accentColor}22` }}
+        title="Doble clic para cambiar telemetría"
+        onDoubleClick={() => setQueueHudMode((mode) => (mode + 1) % 4)}
+      >
+        {(() => {
+          const remainingSec = queue.slice(Math.max(0, queueIndex + 1)).reduce((sum, track) => sum + (track.duration_seconds || 0), 0);
+          const listened = listeningStats.totalSecondsListened;
+          const listenedLabel = listened >= 3600
+            ? `${Math.floor(listened / 3600)}h ${Math.floor((listened % 3600) / 60)}m`
+            : `${Math.floor(listened / 60)}m ${Math.floor(listened % 60)}s`;
+          const progress = telemetry.duration > 0 ? Math.min(100, (telemetry.current_time / telemetry.duration) * 100) : (isPlaying ? 55 : 8);
+          const panels = [
+            {
+              label: "Sesión",
+              cells: [
+                { k: "Pistas", v: String(listeningStats.totalTracksPlayed) },
+                { k: "Sesiones", v: String(listeningStats.totalSessions) },
+                { k: "Tiempo", v: listenedLabel },
+              ],
+            },
+            {
+              label: "Buffer",
+              cells: [
+                { k: "Estado", v: telemetry.state || (isPlaying ? "Playing" : "Paused") },
+                { k: "Pos", v: formatDuration(telemetry.current_time || 0) },
+                { k: "Dur", v: telemetry.duration ? formatDuration(telemetry.duration) : "—" },
+              ],
+            },
+            {
+              label: "Cola",
+              cells: [
+                { k: "Ítem", v: queue.length ? `${Math.min(queue.length, queueIndex + 1)}/${queue.length}` : "0/0" },
+                { k: "Resto", v: remainingSec ? formatDuration(remainingSec) : "—" },
+                { k: "Vol", v: `${Math.round(volume * 100)}%` },
+              ],
+            },
+            {
+              label: "Señal",
+              cells: [
+                { k: "Formato", v: currentTrack ? queueFormatLabel(currentTrack) : "—" },
+                { k: "Bitrate", v: currentTrack ? queueBitrateLabel(currentTrack) : "—" },
+                { k: "Fuente", v: currentTrack && isStreamTrack(currentTrack) ? "Stream" : currentTrack ? "Local" : "Idle" },
+              ],
+            },
+          ];
+          const panel = panels[queueHudMode];
+          return (
+            <>
+              <div className="flex items-center justify-between mb-1.5">
+                <div className="text-[9px] uppercase tracking-[0.18em] text-audiophile-muted">{panel.label}</div>
+                <div className="flex gap-1">
+                  {panels.map((_, index) => (
+                    <span
+                      key={index}
+                      className="h-1 w-3 rounded-full"
+                      style={{ background: index === queueHudMode ? appearance.accentColor : `${appearance.accentColor}33` }}
+                    />
+                  ))}
+                </div>
+              </div>
+              <div className="grid grid-cols-3 gap-2">
+                {panel.cells.map((cell) => (
+                  <div key={cell.k} className="min-w-0">
+                    <div className="text-[8px] uppercase tracking-wider text-audiophile-muted">{cell.k}</div>
+                    <div className="text-[11px] font-mono tabular-nums truncate" style={{ color: appearance.accentColor }}>{cell.v}</div>
+                  </div>
+                ))}
+              </div>
+              <div className="mt-1.5 h-[3px] rounded-full overflow-hidden" style={{ background: `${appearance.accentColor}22` }}>
+                <div className="h-full rounded-full" style={{ width: `${progress}%`, background: appearance.accentColor }} />
+              </div>
+            </>
+          );
+        })()}
+      </div>
       {isFileDrag && (
         <div className="pointer-events-none absolute inset-0 z-30 flex items-center justify-center rounded-md border-2 border-dashed bg-black/45 text-sm font-semibold" style={{ borderColor: appearance.accentColor, color: appearance.accentColor }}>
           Soltar para añadir a la cola
