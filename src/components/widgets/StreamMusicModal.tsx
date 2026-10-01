@@ -3,9 +3,8 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import {
   Globe, Search, Download, Play, Pause, Loader2, Music,
-  CheckSquare, Square, FolderOpen, ChevronDown, ChevronUp,
-  AlertCircle, CheckCircle, X, SlidersHorizontal,
-  User, Disc, Filter, Check, ListPlus, ListMusic,
+  CheckSquare, Square, FolderOpen,
+  AlertCircle, CheckCircle, X, Check, ListPlus, ListMusic,
 } from "lucide-react";
 import { useMusicStore } from "../../store/index.ts";
 import { isStreamTrack, streamFilepath, streamTrackFromNeo } from "../../lib/streamTracks.ts";
@@ -489,638 +488,140 @@ export const StreamMusicModal: React.FC<StreamMusicModalProps> = ({ isOpen, onCl
 
   if (!isVisible) return null;
 
+  const heroTrack = filteredTracks[0] || rawTracks[0];
+  const shelfTracks = filteredTracks.slice(0, 8);
+  const listTracks = filteredTracks.slice(0, 40);
+  const selectedCount = selectedIds.size;
+  const streamStatusLabel = currentTrack && isStreamTrack(currentTrack)
+    ? `${isPlaying ? "Sonando" : "Pausado"}: ${currentTrack.title}`
+    : "Listo para mezclar streaming con tu biblioteca local";
+
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md animate-fade-in"
-      onClick={handleModalClose}
-    >
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-3 backdrop-blur-xl animate-fade-in" onClick={handleModalClose}>
       <div
-        className="relative flex flex-col w-[92vw] max-w-4xl h-[86vh] rounded-2xl overflow-hidden shadow-2xl border"
+        className="relative flex h-[88vh] w-[94vw] max-w-6xl overflow-hidden rounded-[28px] border shadow-2xl"
         style={{
-          backgroundColor: "var(--app-surface, #090d16)",
+          background: `radial-gradient(circle at 18% 0%, ${accent}24 0, transparent 34%), linear-gradient(145deg, rgba(8,13,24,0.98), rgba(2,6,14,0.98))`,
           borderColor: `${accent}35`,
-          boxShadow: `0 20px 50px rgba(0,0,0,0.8), 0 0 30px ${accent}15`,
+          boxShadow: `0 24px 70px rgba(0,0,0,0.78), 0 0 45px ${accent}18`,
         }}
         onClick={(e) => e.stopPropagation()}
       >
-        {/* ── Top Header ─────────────────────────────────────────────────── */}
-        <div
-          className="flex items-center gap-3 px-5 py-3 border-b shrink-0 bg-slate-900/60"
-          style={{ borderColor: `${accent}25` }}
-        >
-          <div
-            className="flex items-center justify-center size-8 rounded-lg shadow-sm"
-            style={{ backgroundColor: `${accent}20`, color: accent }}
-          >
-            <Globe size={18} />
+        <aside className="hidden w-56 shrink-0 flex-col border-r border-white/10 bg-black/20 p-4 lg:flex">
+          <div className="mb-6 flex items-center gap-3">
+            <div className="flex size-10 items-center justify-center rounded-2xl" style={{ backgroundColor: `${accent}24`, color: accent }}><Globe size={20} /></div>
+            <div><div className="text-sm font-black tracking-tight text-white">Stream Music</div><div className="text-[10px] uppercase tracking-[0.22em] text-slate-500">MusicX Online</div></div>
           </div>
-
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="font-bold text-base text-white tracking-wide">Stream Music</span>
-              <span
-                className="text-[10px] font-mono uppercase px-2 py-0.5 rounded-full border font-semibold"
-                style={{
-                  color: accent,
-                  borderColor: `${accent}40`,
-                  backgroundColor: `${accent}10`,
-                }}
-              >
-                Integrado en MusicX
-              </span>
-            </div>
-            <p className="text-[11px] text-slate-400">
-              Reproduce en el player de MusicX, mezcla con tu cola local y usa EQ Pro, volumen e In Play
-            </p>
-          </div>
-
-          <div className="flex-1" />
-
-          <button
-            onClick={handleModalClose}
-            className="p-1.5 rounded-lg hover:bg-white/10 text-slate-400 hover:text-white transition cursor-pointer"
-            title="Cerrar Stream Music"
-          >
-            <X size={18} />
-          </button>
-        </div>
-
-        {/* ── Search Bar & Filter Chips ────────────────────────────────────── */}
-        <div className="px-5 pt-3.5 pb-2.5 shrink-0 bg-slate-950/40 border-b border-slate-800/60">
-          <form onSubmit={handleSearchSubmit} className="flex flex-col gap-2.5">
-            <div className="flex items-center gap-2">
-              <div className="relative flex-1">
-                <Search
-                  size={15}
-                  className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none"
-                />
-                <input
-                  type="text"
-                  value={query}
-                  onChange={(e) => setQuery(e.target.value)}
-                  placeholder="Buscar canciones, artistas, álbumes o pegar enlace de YouTube / Spotify..."
-                  className="w-full pl-10 pr-9 py-2.5 rounded-xl bg-slate-900 border border-slate-700/80 text-sm text-white placeholder:text-slate-500 focus:outline-none transition shadow-inner font-sans"
-                  style={{ borderColor: query ? `${accent}70` : undefined }}
-                  autoFocus
-                />
-                {query && (
-                  <button
-                    type="button"
-                    onClick={() => setQuery("")}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white"
-                  >
-                    <X size={14} />
-                  </button>
-                )}
-              </div>
-
-              <button
-                type="submit"
-                disabled={isSearching || !query.trim()}
-                className="px-5 py-2.5 rounded-xl text-sm font-semibold text-white flex items-center gap-2 cursor-pointer disabled:opacity-40 transition shrink-0 shadow-md"
-                style={{
-                  backgroundColor: accent,
-                  boxShadow: `0 0 15px ${accent}30`,
-                }}
-              >
-                {isSearching ? (
-                  <>
-                    <Loader2 size={15} className="animate-spin" /> Buscando...
-                  </>
-                ) : (
-                  <>
-                    <Search size={15} /> Buscar
-                  </>
-                )}
+          <div className="space-y-1.5 text-sm">
+            {([{ id: "all", label: "Descubrir" }, { id: "songs", label: "Canciones" }, { id: "artists", label: "Artistas" }, { id: "albums", label: "Álbumes" }] as const).map((cat) => (
+              <button key={cat.id} type="button" onClick={() => handleFilterCategoryChange(cat.id)} className="flex w-full items-center justify-between rounded-2xl px-3 py-2 text-left transition hover:bg-white/8" style={{ backgroundColor: searchFilter === cat.id ? `${accent}20` : "transparent", color: searchFilter === cat.id ? "#fff" : "#94a3b8" }}>
+                <span>{cat.label}</span>{searchFilter === cat.id && <span className="size-1.5 rounded-full" style={{ backgroundColor: accent }} />}
               </button>
-            </div>
-
-            {/* Filter Category Chips (Filosofía cliente de streaming Sonora / YT Music) */}
-            <div className="flex items-center justify-between gap-2 text-xs">
-              <div className="flex items-center gap-1.5 flex-wrap">
-                <span className="text-[11px] text-slate-400 flex items-center gap-1 mr-1">
-                  <Filter size={12} /> Filtrar por:
-                </span>
-
-                {(
-                  [
-                    { id: "all", label: "Todo" },
-                    { id: "songs", label: "Canciones" },
-                    { id: "artists", label: "Artistas" },
-                    { id: "albums", label: "Álbumes" },
-                  ] as const
-                ).map((cat) => (
-                  <button
-                    key={cat.id}
-                    type="button"
-                    onClick={() => handleFilterCategoryChange(cat.id)}
-                    className="px-3 py-1 rounded-lg border text-[11px] font-medium transition cursor-pointer"
-                    style={{
-                      backgroundColor: searchFilter === cat.id ? `${accent}25` : "rgba(30, 41, 59, 0.4)",
-                      borderColor: searchFilter === cat.id ? accent : "rgba(51, 65, 85, 0.6)",
-                      color: searchFilter === cat.id ? "#ffffff" : "#94a3b8",
-                    }}
-                  >
-                    {cat.label}
-                  </button>
-                ))}
-              </div>
-
-              {/* In-memory quick filter when tracks exist */}
-              {rawTracks.length > 0 && (
-                <div className="flex items-center gap-2">
-                  <input
-                    type="text"
-                    value={localFilter}
-                    onChange={(e) => setLocalFilter(e.target.value)}
-                    placeholder="Filtrar lista..."
-                    className="px-2.5 py-1 rounded-lg bg-slate-900 border border-slate-700 text-[11px] text-white placeholder:text-slate-500 focus:outline-none w-36"
-                  />
-                  {localFilter && (
-                    <button
-                      onClick={() => setLocalFilter("")}
-                      className="text-slate-400 hover:text-white text-[10px]"
-                    >
-                      Limpiar
-                    </button>
-                  )}
-                </div>
-              )}
-            </div>
-          </form>
-        </div>
-
-        {/* ── Status Banners ──────────────────────────────────────────────── */}
-        {searchError && (
-          <div className="mx-5 my-2 flex items-center gap-2.5 p-3 rounded-xl bg-rose-950/60 border border-rose-500/40 text-xs text-rose-200 shrink-0">
-            <AlertCircle size={15} className="shrink-0" />
-            <span className="flex-1">{searchError}</span>
-            <button onClick={() => setSearchError(null)} className="text-rose-400 hover:text-white">
-              <X size={13} />
-            </button>
+            ))}
           </div>
-        )}
-
-        {downloadSuccessMsg && (
-          <div className="mx-5 my-2 flex items-center gap-2.5 p-3 rounded-xl bg-emerald-950/60 border border-emerald-500/40 text-xs text-emerald-200 shrink-0 animate-fade-in">
-            <CheckCircle size={15} className="shrink-0 text-emerald-400" />
-            <span className="flex-1">{downloadSuccessMsg}</span>
-            <button onClick={() => setDownloadSuccessMsg(null)} className="text-emerald-400 hover:text-white">
-              <X size={13} />
-            </button>
+          <div className="mt-auto rounded-3xl border border-white/10 bg-white/[0.035] p-3 text-xs text-slate-400">
+            <div className="mb-1 font-semibold text-white">Integrado con MusicX</div>
+            <p>Play, cola mixta, EQ Pro, volumen e In Play usan el reproductor principal.</p>
           </div>
-        )}
+        </aside>
 
-        {queueHint && (
-          <div className="mx-5 my-2 flex items-center gap-2.5 p-3 rounded-xl bg-slate-900/80 border text-xs text-slate-200 shrink-0 animate-fade-in" style={{ borderColor: `${accent}40` }}>
-            <ListMusic size={15} className="shrink-0" style={{ color: accent }} />
-            <span className="flex-1">{queueHint}</span>
-          </div>
-        )}
-
-        {/* ── Main Library / Virtual Track List View ──────────────────────── */}
-        <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
-          {/* Table Header */}
-          <div className="h-8 bg-slate-950/80 border-b border-slate-800 text-[10px] font-mono text-slate-400 uppercase tracking-wider flex items-center px-4 shrink-0">
-            <div className="w-8 flex items-center justify-center">
-              <button
-                type="button"
-                onClick={toggleAll}
-                className="cursor-pointer text-slate-400 hover:text-white"
-                title="Seleccionar todas"
-              >
-                {selectedIds.size > 0 && selectedIds.size === filteredTracks.length ? (
-                  <CheckSquare size={13} style={{ color: accent }} />
-                ) : (
-                  <Square size={13} />
-                )}
+        <section className="flex min-w-0 flex-1 flex-col">
+          <header className="flex shrink-0 items-center gap-3 border-b border-white/10 px-5 py-4">
+            <form onSubmit={handleSearchSubmit} className="relative min-w-0 flex-1">
+              <Search size={16} className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" />
+              <input type="text" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Buscar música, artistas, álbumes o pegar enlace..." className="h-11 w-full rounded-2xl border border-white/10 bg-white/[0.055] pl-11 pr-12 text-sm text-white outline-none placeholder:text-slate-500 focus:border-white/25" autoFocus />
+              {query && <button type="button" onClick={() => setQuery("")} className="absolute right-12 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white"><X size={14} /></button>}
+              <button type="submit" disabled={isSearching || !query.trim()} className="absolute right-1.5 top-1/2 flex size-8 -translate-y-1/2 items-center justify-center rounded-xl text-white transition disabled:opacity-40" style={{ backgroundColor: accent }} title="Buscar">
+                {isSearching ? <Loader2 size={15} className="animate-spin" /> : <Search size={15} />}
               </button>
-            </div>
-            <div className="w-12 text-center">Portada</div>
-            <div className="flex-1 px-3">Título</div>
-            <div className="w-48 px-2">Artista</div>
-            <div className="w-44 px-2">Álbum</div>
-            <div className="w-16 text-right pr-2">Duración</div>
-            <div className="w-32 text-center">MusicX</div>
-          </div>
+            </form>
+            <button type="button" onClick={() => setShowOptions((v) => !v)} className="hidden items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.045] px-3 py-2 text-xs font-semibold text-slate-200 transition hover:bg-white/10 sm:flex" title="Guardar música offline"><Download size={14} style={{ color: accent }} /> Guardar offline</button>
+            <button onClick={handleModalClose} className="rounded-2xl p-2 text-slate-400 transition hover:bg-white/10 hover:text-white" title="Cerrar Stream Music"><X size={18} /></button>
+          </header>
 
-          {/* List Content */}
-          <div className="flex-1 overflow-y-auto min-h-0 divide-y divide-slate-800/40">
-            {/* Animated Skeleton Loader while searching if no tracks yet */}
-            {isSearching && filteredTracks.length === 0 && (
-              <div className="flex flex-col gap-2 p-4">
-                <div className="flex items-center gap-2 mb-2 text-xs font-mono" style={{ color: accent }}>
-                  <Loader2 size={16} className="animate-spin" />
-                  <span className="font-semibold tracking-wide">Cargando catálogo de música en streaming...</span>
-                </div>
-                {[1, 2, 3, 4, 5, 6].map((i) => (
-                  <div
-                    key={i}
-                    className="flex items-center gap-3 py-2.5 px-3 rounded-xl bg-slate-900/40 border border-slate-800/40 animate-pulse"
-                  >
-                    <div className="w-8 h-4 bg-slate-800/80 rounded" />
-                    <div className="size-10 bg-slate-800 rounded-md shrink-0" />
-                    <div className="flex-1 flex flex-col gap-1.5 min-w-0">
-                      <div className="h-3 w-1/3 bg-slate-800 rounded" />
-                      <div className="h-2.5 w-1/4 bg-slate-800/60 rounded" />
-                    </div>
-                    <div className="w-28 h-3 bg-slate-800/50 rounded hidden sm:block" />
-                    <div className="w-12 h-3 bg-slate-800/50 rounded" />
-                    <div className="w-16 h-7 bg-slate-800/60 rounded-lg shrink-0" />
-                  </div>
-                ))}
+          <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
+            {(searchError || downloadSuccessMsg || queueHint) && (
+              <div className="mb-4 space-y-2">
+                {searchError && <div className="flex items-center gap-2 rounded-2xl border border-rose-500/40 bg-rose-950/50 p-3 text-xs text-rose-200"><AlertCircle size={15} /><span className="flex-1">{searchError}</span><button onClick={() => setSearchError(null)}><X size={13} /></button></div>}
+                {downloadSuccessMsg && <div className="flex items-center gap-2 rounded-2xl border border-emerald-500/40 bg-emerald-950/40 p-3 text-xs text-emerald-200"><CheckCircle size={15} /><span className="flex-1">{downloadSuccessMsg}</span><button onClick={() => setDownloadSuccessMsg(null)}><X size={13} /></button></div>}
+                {queueHint && <div className="flex items-center gap-2 rounded-2xl border bg-white/[0.045] p-3 text-xs text-slate-200" style={{ borderColor: `${accent}40` }}><ListMusic size={15} style={{ color: accent }} /><span>{queueHint}</span></div>}
               </div>
             )}
 
-            {/* Subtle banner if refreshing tracks in background */}
-            {isSearching && filteredTracks.length > 0 && (
-              <div
-                className="flex items-center gap-2 px-4 py-1.5 text-[11px] font-mono border-b shrink-0"
-                style={{
-                  backgroundColor: `${accent}12`,
-                  borderColor: `${accent}25`,
-                  color: accent,
-                }}
-              >
-                <Loader2 size={13} className="animate-spin" />
-                <span>Actualizando catálogo en streaming...</span>
-              </div>
-            )}
-
-            {/* Quick Explore Genres & Discovery when empty */}
-            {filteredTracks.length === 0 && !isSearching && (
-              <div className="flex flex-col items-center justify-center h-full gap-4 text-slate-400 py-12 px-6">
-                <div
-                  className="size-12 rounded-2xl flex items-center justify-center shadow-lg"
-                  style={{ backgroundColor: `${accent}15`, color: accent }}
-                >
-                  <Globe size={26} />
-                </div>
-                <div className="text-center">
-                  <p className="text-sm font-bold text-white tracking-wide">Explora y mezcla con tu biblioteca</p>
-                  <p className="text-xs text-slate-400 mt-1 max-w-md">
-                    Busca canciones, reprodúcelas en MusicX o añádelas a la cola junto a tus archivos locales.
-                  </p>
-                </div>
-
-                {/* Genre chips */}
-                <div className="flex flex-wrap items-center justify-center gap-2 max-w-lg mt-2">
-                  {[
-                    { label: "🔥 Top Hits Globales", q: "Top Hits 2026" },
-                    { label: "🎸 Rock Clásico", q: "Classic Rock Hits" },
-                    { label: "🎧 Lo-Fi Chill Beats", q: "Lofi hip hop beats" },
-                    { label: "⚡ Electrónica / Dance", q: "Electronic dance music" },
-                    { label: "🎷 Smooth Jazz & Soul", q: "Smooth Jazz Relax" },
-                    { label: "🎹 Pop Éxitos", q: "Pop Music Hits" },
-                    { label: "🎤 Hip-Hop / Urban", q: "Hip Hop Hits" },
-                    { label: "🎻 Acústica & Relax", q: "Acoustic chill songs" },
-                  ].map((g) => (
-                    <button
-                      key={g.label}
-                      type="button"
-                      onClick={() => {
-                        setQuery(g.q);
-                        executeSearch(g.q, "songs");
-                      }}
-                      className="px-3 py-1.5 rounded-xl border border-slate-800 bg-slate-900/70 hover:bg-slate-800 text-xs text-slate-300 hover:text-white transition cursor-pointer shadow-sm hover:border-slate-700"
-                    >
-                      {g.label}
-                    </button>
-                  ))}
+            <section className="mb-5 grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
+              <div className="relative min-h-[238px] overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] p-5">
+                {heroTrack?.coverUrl && <img src={heroTrack.coverUrl} alt="" className="absolute inset-0 h-full w-full scale-110 object-cover opacity-20 blur-2xl" />}
+                <div className="relative z-10 flex h-full flex-col justify-between gap-5">
+                  <div><div className="mb-2 text-[11px] font-bold uppercase tracking-[0.24em]" style={{ color: accent }}>Sonora style streaming</div><h2 className="max-w-xl text-3xl font-black leading-tight text-white">{heroTrack ? heroTrack.title : "Tu nueva puerta de entrada a música online"}</h2><p className="mt-2 max-w-xl text-sm text-slate-300">{heroTrack ? `${heroTrack.artist} · ${heroTrack.album || "Stream Music"}` : "Busca, escucha y añade a cola sin salir del reproductor principal de MusicX."}</p></div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    {heroTrack && <button type="button" onClick={() => void handlePlayNow(heroTrack)} className="flex items-center gap-2 rounded-full px-5 py-2.5 text-sm font-black text-black shadow-lg transition hover:scale-[1.02]" style={{ backgroundColor: accent }}>{pendingPlayId === heroTrack.id ? <Loader2 size={16} className="animate-spin" /> : <Play size={16} fill="currentColor" />} Reproducir</button>}
+                    {heroTrack && <button type="button" onClick={() => handleAddToQueue(heroTrack)} className="flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-white/15"><ListPlus size={16} /> Añadir a cola</button>}
+                    <span className="rounded-full border border-white/10 bg-black/20 px-3 py-2 text-xs text-slate-300">{streamStatusLabel}</span>
+                  </div>
                 </div>
               </div>
-            )}
-
-            {filteredTracks.map((track) => {
-              const isSelected = selectedIds.has(track.id);
-              const mxPath = streamFilepath(track.id);
-              const isCurrent = currentTrack?.filepath === mxPath && isStreamTrack(currentTrack);
-              const isCurrentPlaying = isCurrent && isPlaying;
-              const isCurrentLoading = pendingPlayId === track.id;
-              const prog = progress[track.id];
-
-              return (
-                <div
-                  key={track.id}
-                  onDoubleClick={() => void handlePlayNow(track)}
-                  className={`flex items-center px-4 py-2 hover:bg-white/[0.03] transition-colors group cursor-default ${
-                    isCurrentPlaying ? "bg-white/[0.05]" : ""
-                  }`}
-                  style={{
-                    borderLeft: isCurrentPlaying ? `3px solid ${accent}` : "3px solid transparent",
-                  }}
-                >
-                  {/* Selection Checkbox */}
-                  <div className="w-8 flex items-center justify-center shrink-0">
-                    <button
-                      type="button"
-                      onClick={() => toggleSelect(track.id)}
-                      className="cursor-pointer"
-                      style={{ color: isSelected ? accent : "#475569" }}
-                    >
-                      {isSelected ? <CheckSquare size={14} /> : <Square size={14} />}
-                    </button>
-                  </div>
-
-                  {/* Artwork / Thumbnail */}
-                  <div className="w-12 flex justify-center shrink-0">
-                    <div className="relative size-10 rounded-md overflow-hidden bg-slate-900 border border-slate-800 shadow-sm shrink-0">
-                      {track.coverUrl ? (
-                        <img
-                          src={track.coverUrl}
-                          alt={track.title}
-                          className="w-full h-full object-cover"
-                          onError={(e) => {
-                            (e.target as HTMLImageElement).style.display = "none";
-                          }}
-                        />
-                      ) : (
-                        <div className="flex items-center justify-center w-full h-full text-slate-600">
-                          <Music size={14} />
-                        </div>
-                      )}
-
-                      {/* Play overlay button on artwork */}
-                      <button
-                        type="button"
-                        onClick={() => void handlePlayNow(track)}
-                        className="absolute inset-0 bg-black/60 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer text-white"
-                        title={isCurrentPlaying ? "Pausar en MusicX" : "Reproducir en MusicX"}
-                      >
-                        {isCurrentLoading ? (
-                          <Loader2 size={16} className="animate-spin text-cyan-400" />
-                        ) : isCurrentPlaying ? (
-                          <Pause size={16} />
-                        ) : (
-                          <Play size={16} fill="currentColor" />
-                        )}
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Track Title */}
-                  <div className="flex-1 px-3 min-w-0">
-                    <div
-                      className="text-xs font-semibold truncate"
-                      style={{ color: isCurrentPlaying ? accent : "#f8fafc" }}
-                      title={track.title}
-                    >
-                      {track.title}
-                    </div>
-                    {track.year && (
-                      <span className="text-[10px] text-slate-500 font-mono">
-                        Año: {track.year}
-                      </span>
-                    )}
-                  </div>
-
-                  {/* Artist with quick filter action */}
-                  <div className="w-48 px-2 min-w-0 flex items-center justify-between group/artist">
-                    <span className="text-xs text-slate-300 truncate" title={track.artist}>
-                      {track.artist || "Desconocido"}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => handleQuickArtistSearch(track.artist)}
-                      className="opacity-0 group-hover/artist:opacity-100 p-1 hover:text-cyan-400 text-slate-500 rounded transition cursor-pointer"
-                      title={`Buscar más de ${track.artist}`}
-                    >
-                      <User size={12} />
-                    </button>
-                  </div>
-
-                  {/* Album with quick filter action */}
-                  <div className="w-44 px-2 min-w-0 flex items-center justify-between group/album">
-                    <span className="text-xs text-slate-400 truncate" title={track.album}>
-                      {track.album || "—"}
-                    </span>
-                    {track.album && track.album !== track.title && (
-                      <button
-                        type="button"
-                        onClick={() => handleQuickAlbumSearch(track.album)}
-                        className="opacity-0 group-hover/album:opacity-100 p-1 hover:text-cyan-400 text-slate-500 rounded transition cursor-pointer"
-                        title={`Buscar álbum ${track.album}`}
-                      >
-                        <Disc size={12} />
-                      </button>
-                    )}
-                  </div>
-
-                  {/* Duration */}
-                  <div className="w-16 text-right pr-2 text-xs font-mono text-slate-400 shrink-0">
-                    {track.durationString || formatSeconds(track.duration)}
-                  </div>
-
-                  {/* Action buttons (Listen Stream & Download) */}
-                  <div className="w-32 flex items-center justify-center gap-1.5 shrink-0">
-                    <button
-                      type="button"
-                      onClick={() => void handlePlayNow(track)}
-                      disabled={isCurrentLoading}
-                      className="p-1.5 rounded-lg border transition cursor-pointer text-white"
-                      style={{
-                        backgroundColor: isCurrentPlaying ? accent : `${accent}15`,
-                        borderColor: isCurrentPlaying ? accent : `${accent}40`,
-                      }}
-                      title={isCurrentPlaying ? "Pausar en MusicX" : "Reproducir ahora (detiene local si suena)"}
-                    >
-                      {isCurrentLoading ? (
-                        <Loader2 size={13} className="animate-spin text-cyan-400" />
-                      ) : isCurrentPlaying ? (
-                        <Pause size={13} />
-                      ) : (
-                        <Play size={13} fill="currentColor" />
-                      )}
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => handleAddToQueue(track)}
-                      className="p-1.5 rounded-lg border border-slate-700 bg-slate-900 text-slate-300 hover:text-white hover:border-slate-500 transition cursor-pointer"
-                      title="Añadir a la cola de MusicX (se mezcla con locales)"
-                    >
-                      <ListPlus size={13} />
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => handleDownloadSingleTrack(track)}
-                      disabled={isDownloading && prog?.phase === "downloading"}
-                      className="p-1.5 rounded-lg border border-slate-700 bg-slate-900 text-slate-300 hover:text-white hover:border-slate-500 transition cursor-pointer disabled:opacity-40"
-                      style={{
-                        borderColor: prog ? `${phaseColor(prog.phase)}60` : undefined,
-                        color: prog ? phaseColor(prog.phase) : undefined,
-                      }}
-                      title="Descargar esta canción con carátula e ID3"
-                    >
-                      {prog && prog.phase !== "done" && prog.phase !== "error" ? (
-                        <Loader2 size={13} className="animate-spin text-cyan-400" />
-                      ) : prog?.phase === "done" ? (
-                        <Check size={13} className="text-emerald-400" />
-                      ) : (
-                        <Download size={13} />
-                      )}
-                    </button>
-                  </div>
+              <div className="rounded-[30px] border border-white/10 bg-white/[0.035] p-4">
+                <div className="mb-3 flex items-center justify-between"><div><div className="text-sm font-bold text-white">Explorar rápido</div><div className="text-xs text-slate-500">Géneros y estados de ánimo</div></div>{isSearching && <Loader2 size={16} className="animate-spin" style={{ color: accent }} />}</div>
+                <div className="grid grid-cols-2 gap-2">
+                  {[{ label: "Top Hits", q: "Top Hits 2026" }, { label: "Rock clásico", q: "Classic Rock Hits" }, { label: "Lo-Fi", q: "Lofi hip hop beats" }, { label: "Electrónica", q: "Electronic dance music" }, { label: "Jazz & Soul", q: "Smooth Jazz Relax" }, { label: "Pop", q: "Pop Music Hits" }].map((g) => <button key={g.label} type="button" onClick={() => { setQuery(g.q); executeSearch(g.q, "songs"); }} className="rounded-2xl border border-white/10 bg-black/20 px-3 py-3 text-left text-xs font-semibold text-slate-200 transition hover:bg-white/10">{g.label}</button>)}
                 </div>
-              );
-            })}
-          </div>
-        </div>
+              </div>
+            </section>
 
-        {/* ── Bottom Download Bar & Options Drawer ─────────────────────────── */}
-        {filteredTracks.length > 0 && (
-          <div
-            className="shrink-0 border-t px-5 py-2.5 bg-slate-900/80"
-            style={{ borderColor: `${accent}20` }}
-          >
-            <div className="flex items-center justify-between">
-              <button
-                type="button"
-                onClick={() => setShowOptions((v) => !v)}
-                className="flex items-center gap-2 text-xs font-medium text-slate-300 hover:text-white cursor-pointer transition"
-              >
-                <SlidersHorizontal size={14} style={{ color: accent }} />
-                <span>Opciones de descarga ({format.toUpperCase()} · {bitrate})</span>
-                {showOptions ? <ChevronDown size={14} /> : <ChevronUp size={14} />}
-              </button>
-
-              <div className="flex items-center gap-2.5">
-                <button
-                  type="button"
-                  onClick={handleAddSelectedToQueue}
-                  disabled={selectedIds.size === 0}
-                  className="px-3 py-1.5 rounded-lg border text-xs font-semibold text-slate-200 flex items-center gap-1.5 cursor-pointer disabled:opacity-40"
-                  style={{ borderColor: `${accent}50`, backgroundColor: `${accent}12` }}
-                  title="Añadir selección a la cola de MusicX"
-                >
-                  <ListPlus size={13} /> A cola ({selectedIds.size})
-                </button>
-                <button
-                  type="button"
-                  onClick={toggleAll}
-                  className="text-xs text-slate-400 hover:text-white px-2.5 py-1 rounded bg-slate-800 border border-slate-700 cursor-pointer"
-                >
-                  {selectedIds.size === filteredTracks.length ? "Deseleccionar" : "Seleccionar todo"}
-                </button>
-
-                <button
-                  type="button"
-                  onClick={handleDownloadSelected}
-                  disabled={isDownloading || selectedIds.size === 0}
-                  className="px-4 py-1.5 rounded-lg text-xs font-bold text-white flex items-center gap-2 cursor-pointer disabled:opacity-40 transition shadow-md"
-                  style={{ backgroundColor: accent }}
-                >
-                  {isDownloading ? (
-                    <>
-                      <Loader2 size={13} className="animate-spin" /> Descargando...
-                    </>
-                  ) : (
-                    <>
-                      <Download size={13} /> Descargar seleccionadas ({selectedIds.size})
-                    </>
-                  )}
-                </button>
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+              <div><h3 className="text-lg font-black text-white">{result?.name || "Stream Music"}</h3><p className="text-xs text-slate-500">{filteredTracks.length} resultados · doble clic para reproducir</p></div>
+              <div className="flex items-center gap-2">
+                {rawTracks.length > 0 && <input type="text" value={localFilter} onChange={(e) => setLocalFilter(e.target.value)} placeholder="Filtrar resultados..." className="w-44 rounded-2xl border border-white/10 bg-white/[0.045] px-3 py-2 text-xs text-white outline-none placeholder:text-slate-500" />}
+                <button type="button" onClick={handleAddSelectedToQueue} disabled={selectedCount === 0} className="rounded-2xl border border-white/10 bg-white/[0.045] px-3 py-2 text-xs font-semibold text-slate-200 disabled:opacity-40"><ListPlus size={13} className="mr-1 inline" /> Cola ({selectedCount})</button>
               </div>
             </div>
 
-            {/* Expandable Options Drawer */}
-            {showOptions && (
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 pt-3 pb-1 text-xs border-t border-slate-800/80 mt-2.5 animate-fade-in">
-                <label className="flex flex-col gap-1">
-                  <span className="text-slate-400 font-mono uppercase text-[10px]">Formato</span>
-                  <select
-                    value={format}
-                    onChange={(e) => setFormat(e.target.value)}
-                    className="bg-slate-950 border border-slate-700 rounded-lg px-2 py-1.5 text-white focus:outline-none"
-                    style={{ colorScheme: "dark" }}
-                  >
-                    {FORMATS.map((f) => (
-                      <option key={f} value={f}>
-                        {f.toUpperCase()}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-
-                <label className="flex flex-col gap-1">
-                  <span className="text-slate-400 font-mono uppercase text-[10px]">Bitrate / Calidad</span>
-                  <select
-                    value={bitrate}
-                    onChange={(e) => setBitrate(e.target.value)}
-                    className="bg-slate-950 border border-slate-700 rounded-lg px-2 py-1.5 text-white focus:outline-none"
-                    style={{ colorScheme: "dark" }}
-                  >
-                    {BITRATES.map((b) => (
-                      <option key={b} value={b}>
-                        {b === "lossless" ? "Sin pérdida (Lossless)" : b}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-
-                <label className="flex flex-col gap-1">
-                  <span className="text-slate-400 font-mono uppercase text-[10px]">Sample Rate</span>
-                  <select
-                    value={sampleRate}
-                    onChange={(e) => setSampleRate(Number(e.target.value))}
-                    className="bg-slate-950 border border-slate-700 rounded-lg px-2 py-1.5 text-white focus:outline-none"
-                    style={{ colorScheme: "dark" }}
-                  >
-                    {SAMPLE_RATES.map((r) => (
-                      <option key={r} value={r}>
-                        {r >= 1000 ? `${r / 1000} kHz` : r}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-
-                <label className="flex flex-col gap-1">
-                  <span className="text-slate-400 font-mono uppercase text-[10px]">Estructura de nombre</span>
-                  <select
-                    value={namingPattern}
-                    onChange={(e) => setNamingPattern(e.target.value)}
-                    className="bg-slate-950 border border-slate-700 rounded-lg px-2 py-1.5 text-white focus:outline-none"
-                    style={{ colorScheme: "dark" }}
-                  >
-                    {NAMING_PATTERNS.map((p) => (
-                      <option key={p.value} value={p.value}>
-                        {p.label}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-
-                {/* Destination Directory & ID3 Toggle */}
-                <div className="col-span-full flex flex-wrap items-center justify-between gap-3 pt-1 border-t border-slate-800/60 mt-1">
-                  <div className="flex items-center gap-2">
-                    <span className="text-slate-400 text-[11px]">Guardar en:</span>
-                    <button
-                      type="button"
-                      onClick={handlePickFolder}
-                      className="flex items-center gap-1.5 text-xs text-slate-300 hover:text-white bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5 cursor-pointer transition"
-                    >
-                      <FolderOpen size={13} style={{ color: accent }} />
-                      <span className="truncate max-w-[280px] font-mono">{outputFolder}</span>
-                    </button>
-                  </div>
-
-                  <label className="flex items-center gap-2 cursor-pointer select-none text-xs text-slate-300">
-                    <button
-                      type="button"
-                      onClick={() => setEmbedId3((v) => !v)}
-                      style={{ color: embedId3 ? accent : "#64748b" }}
-                      className="cursor-pointer"
-                    >
-                      {embedId3 ? <CheckSquare size={16} /> : <Square size={16} />}
-                    </button>
-                    <span>Incrustar carátula y etiquetas ID3 completas</span>
-                  </label>
+            {isSearching && filteredTracks.length === 0 ? (
+              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">{[1, 2, 3, 4, 5, 6, 7, 8].map((i) => <div key={i} className="h-52 animate-pulse rounded-3xl border border-white/10 bg-white/[0.035]" />)}</div>
+            ) : filteredTracks.length === 0 ? (
+              <div className="flex min-h-[260px] flex-col items-center justify-center rounded-[30px] border border-white/10 bg-white/[0.03] text-center text-slate-400"><Music size={34} style={{ color: accent }} /><p className="mt-3 text-sm font-bold text-white">Busca algo para empezar</p><p className="mt-1 max-w-md text-xs">Stream Music está pensado para escuchar primero. La descarga está disponible, pero ya no manda en la pantalla.</p></div>
+            ) : (
+              <>
+                <div className="mb-6 flex gap-3 overflow-x-auto pb-2">
+                  {shelfTracks.map((track) => {
+                    const mxPath = streamFilepath(track.id);
+                    const isCurrent = currentTrack?.filepath === mxPath && isStreamTrack(currentTrack);
+                    const isCurrentPlaying = isCurrent && isPlaying;
+                    const isCurrentLoading = pendingPlayId === track.id;
+                    return <article key={track.id} className="group w-40 shrink-0"><button type="button" onClick={() => void handlePlayNow(track)} className="relative mb-2 block size-40 overflow-hidden rounded-3xl border border-white/10 bg-slate-900 shadow-xl">{track.coverUrl ? <img src={track.coverUrl} alt={track.title} className="h-full w-full object-cover transition duration-300 group-hover:scale-105" /> : <div className="flex h-full w-full items-center justify-center"><Music size={26} /></div>}<span className="absolute inset-0 bg-black/0 transition group-hover:bg-black/35" /><span className="absolute bottom-3 right-3 flex size-10 items-center justify-center rounded-full text-black opacity-0 shadow-lg transition group-hover:opacity-100" style={{ backgroundColor: accent }}>{isCurrentLoading ? <Loader2 size={17} className="animate-spin" /> : isCurrentPlaying ? <Pause size={17} /> : <Play size={17} fill="currentColor" />}</span></button><div className="truncate text-sm font-bold text-white" title={track.title}>{track.title}</div><div className="truncate text-xs text-slate-500" title={track.artist}>{track.artist}</div></article>;
+                  })}
                 </div>
-              </div>
+
+                <div className="overflow-hidden rounded-[26px] border border-white/10 bg-white/[0.025]">
+                  {listTracks.map((track, index) => {
+                    const isSelected = selectedIds.has(track.id);
+                    const mxPath = streamFilepath(track.id);
+                    const isCurrent = currentTrack?.filepath === mxPath && isStreamTrack(currentTrack);
+                    const isCurrentPlaying = isCurrent && isPlaying;
+                    const isCurrentLoading = pendingPlayId === track.id;
+                    const prog = progress[track.id];
+                    return (
+                      <div key={track.id} onDoubleClick={() => void handlePlayNow(track)} className="group grid grid-cols-[34px_48px_minmax(0,1fr)_auto] items-center gap-3 border-b border-white/[0.06] px-3 py-2.5 last:border-b-0 hover:bg-white/[0.045]" style={{ borderLeft: isCurrent ? `3px solid ${accent}` : "3px solid transparent" }}>
+                        <button type="button" onClick={() => toggleSelect(track.id)} className="text-xs text-slate-500 hover:text-white" title="Seleccionar para guardar offline">{isSelected ? <CheckSquare size={14} style={{ color: accent }} /> : <span>{index + 1}</span>}</button>
+                        <button type="button" onClick={() => void handlePlayNow(track)} className="relative size-11 overflow-hidden rounded-xl bg-slate-900">{track.coverUrl ? <img src={track.coverUrl} alt={track.title} className="h-full w-full object-cover" /> : <Music size={16} />}<span className="absolute inset-0 flex items-center justify-center bg-black/55 opacity-0 transition group-hover:opacity-100">{isCurrentLoading ? <Loader2 size={15} className="animate-spin" /> : isCurrentPlaying ? <Pause size={15} /> : <Play size={15} fill="currentColor" />}</span></button>
+                        <div className="min-w-0"><div className="truncate text-sm font-semibold" style={{ color: isCurrent ? accent : "#f8fafc" }}>{track.title}</div><div className="mt-0.5 flex min-w-0 items-center gap-2 text-xs text-slate-500"><button type="button" onClick={() => handleQuickArtistSearch(track.artist)} className="truncate hover:text-white">{track.artist || "Desconocido"}</button><span>·</span><button type="button" onClick={() => handleQuickAlbumSearch(track.album)} className="truncate hover:text-white">{track.album || "Stream"}</button></div></div>
+                        <div className="flex items-center gap-1.5"><span className="hidden w-12 text-right font-mono text-xs text-slate-500 sm:block">{track.durationString || formatSeconds(track.duration)}</span><button type="button" onClick={() => handleAddToQueue(track)} className="rounded-xl border border-white/10 bg-white/[0.045] p-2 text-slate-300 opacity-0 transition hover:text-white group-hover:opacity-100" title="Añadir a cola"><ListPlus size={14} /></button><button type="button" onClick={() => handleDownloadSingleTrack(track)} disabled={isDownloading && prog?.phase === "downloading"} className="rounded-xl border border-white/10 bg-white/[0.035] p-2 text-slate-500 opacity-0 transition hover:text-white disabled:opacity-30 group-hover:opacity-100" title="Guardar offline" style={{ color: prog ? phaseColor(prog.phase) : undefined }}>{prog && prog.phase !== "done" && prog.phase !== "error" ? <Loader2 size={14} className="animate-spin" /> : prog?.phase === "done" ? <Check size={14} /> : <Download size={14} />}</button></div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </>
             )}
           </div>
-        )}
+
+          {showOptions && filteredTracks.length > 0 && (
+            <footer className="shrink-0 border-t border-white/10 bg-black/35 px-5 py-3">
+              <div className="mb-3 flex items-center justify-between gap-3"><div><div className="text-sm font-bold text-white">Guardar offline</div><div className="text-xs text-slate-500">Secundario: reproduce primero, descarga cuando quieras conservar.</div></div><div className="flex items-center gap-2"><button type="button" onClick={toggleAll} className="rounded-xl border border-white/10 px-3 py-1.5 text-xs text-slate-300 hover:text-white">{selectedIds.size === filteredTracks.length ? "Deseleccionar" : "Seleccionar todo"}</button><button type="button" onClick={handleDownloadSelected} disabled={isDownloading || selectedCount === 0} className="rounded-xl px-4 py-1.5 text-xs font-black text-black disabled:opacity-40" style={{ backgroundColor: accent }}>{isDownloading ? "Descargando..." : `Descargar ${selectedCount}`}</button></div></div>
+              <div className="grid grid-cols-2 gap-3 text-xs md:grid-cols-4"><label className="flex flex-col gap-1"><span className="text-slate-500">Formato</span><select value={format} onChange={(e) => setFormat(e.target.value)} className="rounded-xl border border-white/10 bg-slate-950 px-2 py-2 text-white" style={{ colorScheme: "dark" }}>{FORMATS.map((f) => <option key={f} value={f}>{f.toUpperCase()}</option>)}</select></label><label className="flex flex-col gap-1"><span className="text-slate-500">Calidad</span><select value={bitrate} onChange={(e) => setBitrate(e.target.value)} className="rounded-xl border border-white/10 bg-slate-950 px-2 py-2 text-white" style={{ colorScheme: "dark" }}>{BITRATES.map((b) => <option key={b} value={b}>{b === "lossless" ? "Sin pérdida" : b}</option>)}</select></label><label className="flex flex-col gap-1"><span className="text-slate-500">Sample rate</span><select value={sampleRate} onChange={(e) => setSampleRate(Number(e.target.value))} className="rounded-xl border border-white/10 bg-slate-950 px-2 py-2 text-white" style={{ colorScheme: "dark" }}>{SAMPLE_RATES.map((r) => <option key={r} value={r}>{r / 1000} kHz</option>)}</select></label><label className="flex flex-col gap-1"><span className="text-slate-500">Nombre</span><select value={namingPattern} onChange={(e) => setNamingPattern(e.target.value)} className="rounded-xl border border-white/10 bg-slate-950 px-2 py-2 text-white" style={{ colorScheme: "dark" }}>{NAMING_PATTERNS.map((n) => <option key={n.value} value={n.value}>{n.label}</option>)}</select></label></div>
+              <div className="mt-3 flex flex-wrap items-center justify-between gap-3 border-t border-white/10 pt-3 text-xs text-slate-300"><button type="button" onClick={handlePickFolder} className="flex min-w-0 items-center gap-2 rounded-xl border border-white/10 bg-white/[0.035] px-3 py-2 hover:text-white"><FolderOpen size={14} style={{ color: accent }} /> <span className="truncate">{outputFolder}</span></button><button type="button" onClick={() => setEmbedId3((v) => !v)} className="flex items-center gap-2 rounded-xl border border-white/10 px-3 py-2 hover:text-white">{embedId3 ? <CheckSquare size={15} style={{ color: accent }} /> : <Square size={15} />} ID3 y carátula</button></div>
+            </footer>
+          )}
+        </section>
       </div>
     </div>
   );
