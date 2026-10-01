@@ -388,19 +388,29 @@ pub async fn download_standalone_ytdlp() -> Result<String, String> {
 }
 
 async fn download_file(url: &str, target: &Path) -> Result<(), String> {
-    let resp = reqwest::get(url)
+    let mut resp = reqwest::get(url)
         .await
         .map_err(|e| format!("Error conectando a {url}: {e}"))?;
     if !resp.status().is_success() {
         return Err(format!("Descarga fallida ({}) {url}", resp.status()));
     }
-    let bytes = resp
-        .bytes()
+    if let Some(parent) = target.parent() {
+        tokio::fs::create_dir_all(parent)
+            .await
+            .map_err(|e| format!("Error creando directorio: {e}"))?;
+    }
+    let mut file = tokio::fs::File::create(target)
         .await
-        .map_err(|e| format!("Error leyendo descarga: {e}"))?;
-    tokio::fs::write(target, &bytes)
+        .map_err(|e| format!("Error creando {}: {e}", target.display()))?;
+    while let Some(chunk) = resp
+        .chunk()
         .await
-        .map_err(|e| format!("Error guardando {}: {e}", target.display()))?;
+        .map_err(|e| format!("Error leyendo descarga: {e}"))?
+    {
+        tokio::io::AsyncWriteExt::write_all(&mut file, &chunk)
+            .await
+            .map_err(|e| format!("Error escribiendo {}: {e}", target.display()))?;
+    }
     Ok(())
 }
 
@@ -424,11 +434,11 @@ async fn make_executable(path: &Path) -> Result<(), String> {
 fn ffmpeg_archive_url() -> Result<&'static str, String> {
     #[cfg(all(target_os = "windows", target_arch = "x86_64"))]
     {
-        return Ok("https://github.com/yt-dlp/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl.zip");
+        return Ok("https://github.com/yt-dlp/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl-shared.zip");
     }
     #[cfg(all(target_os = "windows", target_arch = "aarch64"))]
     {
-        return Ok("https://github.com/yt-dlp/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-winarm64-gpl.zip");
+        return Ok("https://github.com/yt-dlp/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-winarm64-gpl-shared.zip");
     }
     #[cfg(all(not(target_os = "windows"), target_arch = "x86_64"))]
     {

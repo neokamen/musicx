@@ -6,7 +6,7 @@ Inspirado en foobar2000 y fooyin: paneles redimensionables, widgets intercambiab
 
 Repositorio: [https://github.com/neokamen/musicx-theaudioplayer](https://github.com/neokamen/musicx-theaudioplayer)
 
-Versión actual: **0.3.18**
+Versión actual: **0.3.19**
 
 ---
 
@@ -35,7 +35,7 @@ Para ejecutar un release:
 
 - AppImage: FUSE (`libfuse2` o equivalente) y bibliotecas de escritorio habituales (GTK / WebKit).
 - RPM: Fedora / RHEL o un sistema que instale RPM.
-- Windows: instalador NSIS con yt-dlp, ffmpeg y ffprobe empaquetados. En Linux el paquete lleva yt-dlp; ffmpeg se usa el del sistema o se descarga a `~/.local/bin` al primer uso si falta. Ajustes → General sigue pudiendo actualizarlos.
+- Windows: instalador NSIS con yt-dlp empaquetado. ffmpeg se descarga a `%LOCALAPPDATA%\\musicx\\bin` al primer uso. Ajustes → General puede actualizarlos.
 
 Para desarrollar o compilar:
 

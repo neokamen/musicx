@@ -67,7 +67,7 @@ jobs:
 
   build-windows:
     name: Build Windows packages
-    runs-on: windows-latest
+    runs-on: windows-2022
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -82,11 +82,16 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
         with:
           targets: x86_64-pc-windows-msvc
+          components: llvm-tools-preview
 
       - name: Install frontend dependencies
         run: npm ci
 
+      - name: Fetch yt-dlp sidecar
+        run: node scripts/fetch-runtime-sidecars.mjs
+
       - name: Build NSIS installer
+        shell: pwsh
         run: npm run tauri build -- --bundles nsis --ci
 
       - name: Verify Windows installer
