@@ -1412,6 +1412,36 @@ export const SettingsModal: React.FC = () => {
               <div className="p-4 rounded-xl bg-slate-900/40 border border-slate-800/80 space-y-3">
                 <div className="flex items-center justify-between">
                   <div>
+                    <div className="text-xs font-bold text-slate-200">Toque de carátula en barra de reproducción</div>
+                    <div className="text-[11px] text-slate-400">Colorea todo el bloque inferior (seek, botones y volumen) con la portada actual</div>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={playbackSettings.diffusePlayerBar}
+                    onChange={(e) => setPlaybackSettings({ diffusePlayerBar: e.target.checked })}
+                    className="accent-cyan-400 w-4 h-4 cursor-pointer"
+                  />
+                </div>
+                {playbackSettings.diffusePlayerBar && (
+                  <div className="flex items-center gap-3 pt-2 border-t border-slate-800">
+                    <span className="text-xs text-slate-400">Transparencia:</span>
+                    <input
+                      type="range"
+                      min="5"
+                      max="60"
+                      step="5"
+                      value={playbackSettings.diffusePlayerBarOpacity}
+                      onChange={(e) => setPlaybackSettings({ diffusePlayerBarOpacity: parseInt(e.target.value) })}
+                      className="flex-1 accent-cyan-400 h-1 bg-slate-700 rounded-lg appearance-none cursor-pointer"
+                    />
+                    <span className="text-xs font-mono text-cyan-400">{playbackSettings.diffusePlayerBarOpacity}%</span>
+                  </div>
+                )}
+              </div>
+
+              <div className="p-4 rounded-xl bg-slate-900/40 border border-slate-800/80 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div>
                     <div className="text-xs font-bold text-slate-200">Difuminado de Carátula en Fondo de Lista</div>
                     <div className="text-[11px] text-slate-400">Muestra la portada de la canción actual con desenfoque artístico en la biblioteca</div>
                   </div>

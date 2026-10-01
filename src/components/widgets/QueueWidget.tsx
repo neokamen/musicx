@@ -1,9 +1,10 @@
 import React, { useState } from "react";
+import { invoke } from "@tauri-apps/api/core";
 import { useMusicStore } from "../../store/index.ts";
-import { ListMusic, Play, Trash2, X, Radio as RadioIcon, Globe } from "lucide-react";
+import { ListMusic, Play, Trash2, X, Radio as RadioIcon, Globe, Volume2, Download } from "lucide-react";
 import { RadioHubModal } from "../radio/RadioHubModal.tsx";
 import { StreamMusicModal } from "./StreamMusicModal.tsx";
-import { isStreamTrack } from "../../lib/streamTracks.ts";
+import { isStreamTrack, streamTrackToNeo } from "../../lib/streamTracks.ts";
 import type { Track } from "../../types/index.ts";
 
 function formatDuration(sec: number): string {
@@ -29,7 +30,7 @@ function queueBitrateLabel(track: Track): string {
 export const QueueWidget: React.FC = () => {
   const {
     queue,
-    currentIndex,
+    queueIndex,
     currentTrack,
     isPlaying,
     play,
@@ -37,12 +38,58 @@ export const QueueWidget: React.FC = () => {
     removeFromQueue,
     clearQueue,
     appearance,
+    librarySettings,
   } = useMusicStore();
   const [showRadio, setShowRadio] = useState(false);
   const [showStream, setShowStream] = useState(false);
+  const [downloadingId, setDownloadingId] = useState<string | null>(null);
 
   const totalDuration = queue.reduce((acc, t) => acc + (t.duration_seconds || 0), 0);
-  const remaining = queue.slice(Math.max(currentIndex, 0)).reduce((acc, t) => acc + (t.duration_seconds || 0), 0);
+  const remaining = queue.slice(Math.max(queueIndex, 0)).reduce((acc, t) => acc + (t.duration_seconds || 0), 0);
+
+  const handleDownload = async (track: Track, event: React.MouseEvent) => {
+    event.stopPropagation();
+    if (!isStreamTrack(track) || downloadingId) return;
+    const neo = streamTrackToNeo(track);
+    setDownloadingId(track.filepath);
+    try {
+      await invoke("download_track_batch", {
+        tracks: [
+          {
+            id: neo.id,
+            title: neo.title,
+            artist: neo.artist,
+            album: neo.album,
+            year: "",
+            trackNumber: neo.trackNumber || 1,
+            totalTracks: 1,
+            duration: Math.round(neo.duration || 0),
+            durationString: formatDuration(neo.duration || 0),
+            coverUrl: neo.coverUrl || "",
+            sourceUrl: neo.sourceUrl,
+          },
+        ],
+        options: {
+          format: "mp3",
+          bitrate: "320k",
+          sampleRate: null,
+          saveInFolder: false,
+          folderName: null,
+          namingPattern: "artist_year_album_track_title",
+          embedId3Tags: true,
+          outputFolder: librarySettings.musicFolder || "/home/neokamen/Descargas",
+          youtubeCookies: null,
+          cookiesFromBrowser: null,
+          downloadLyrics: false,
+          trackCovers: neo.coverUrl ? { [neo.id]: neo.coverUrl } : {},
+        },
+      });
+    } catch (error) {
+      console.error("Queue download failed:", error);
+    } finally {
+      setDownloadingId(null);
+    }
+  };
 
   if (showRadio) {
     return <RadioHubModal isVisible onClose={() => setShowRadio(false)} embedded onBackToLibrary={() => setShowRadio(false)} />;
@@ -125,8 +172,11 @@ export const QueueWidget: React.FC = () => {
       ) : (
         <div className="flex-1 overflow-y-auto min-h-0">
           <div
-            className="sticky top-0 z-[1] grid items-center gap-2 px-3 py-1.5 text-[9px] font-bold uppercase tracking-wider text-audiophile-muted bg-audiophile-surface/95 border-b border-audiophile-border/60"
-            style={{ gridTemplateColumns: "18px minmax(0,1fr) 58px 64px 40px 22px" }}
+            className="sticky top-0 z-[1] grid items-center gap-2 px-3 py-1.5 text-[9px] font-bold uppercase tracking-wider text-audiophile-muted bg-audiophile-surface/95"
+            style={{
+              gridTemplateColumns: "22px minmax(0,1fr) 58px 64px 40px 22px 18px",
+              borderBottom: "1px solid color-mix(in srgb, var(--app-accent, #06b6d4) 12%, transparent)",
+            }}
           >
             <span>#</span>
             <span>Pista</span>
@@ -134,9 +184,10 @@ export const QueueWidget: React.FC = () => {
             <span>Bitrate</span>
             <span className="text-right">Dur.</span>
             <span />
+            <span />
           </div>
           {queue.map((track, i) => {
-            const isCurrent = i === currentIndex;
+            const isCurrent = i === queueIndex;
             const playingNow = isCurrent && isPlaying;
             const fmt = queueFormatLabel(track);
             const stream = isStreamTrack(track);
@@ -144,19 +195,60 @@ export const QueueWidget: React.FC = () => {
             return (
               <div
                 key={`${track.filepath}-${i}`}
-                className={`grid items-center gap-2 px-3 py-2 border-b border-audiophile-border/40 cursor-pointer group transition-colors ${
-                  isCurrent ? "bg-audiophile-cyan/10" : "hover:bg-audiophile-surface2/50"
-                }`}
-                style={{ gridTemplateColumns: "18px minmax(0,1fr) 58px 64px 40px 22px" }}
-                onClick={() => playFromQueue(i)}
+                className="grid items-center gap-2 px-3 py-2 cursor-pointer group transition-all duration-200"
+                style={{
+                  gridTemplateColumns: "22px minmax(0,1fr) 58px 64px 40px 22px 18px",
+                  borderBottom: "1px solid color-mix(in srgb, white 6%, transparent)",
+                  background: playingNow
+                    ? `linear-gradient(90deg, ${appearance.accentColor}18, transparent 70%)`
+                    : isCurrent
+                      ? `${appearance.accentColor}0d`
+                      : "transparent",
+                }}
+                onMouseEnter={(event) => {
+                  if (!playingNow) {
+                    event.currentTarget.style.background = `color-mix(in srgb, ${appearance.accentColor} 8%, transparent)`;
+                  }
+                }}
+                onMouseLeave={(event) => {
+                  event.currentTarget.style.background = playingNow
+                    ? `linear-gradient(90deg, ${appearance.accentColor}18, transparent 70%)`
+                    : isCurrent
+                      ? `${appearance.accentColor}0d`
+                      : "transparent";
+                }}
+                onClick={() => void playFromQueue(i)}
+                onDoubleClick={() => void playFromQueue(i)}
               >
-                <div className="flex items-center justify-center text-[10px] text-audiophile-muted">
+                <button
+                  type="button"
+                  className="flex items-center justify-center text-[10px] text-audiophile-muted"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    void playFromQueue(i);
+                  }}
+                  title={playingNow ? "Reproduciendo" : "Reproducir"}
+                >
                   {playingNow ? (
-                    <Play size={11} className="fill-current" style={{ color: appearance.accentColor }} />
+                    <Volume2
+                      size={13}
+                      className="animate-pulse"
+                      style={{
+                        color: appearance.accentColor,
+                        filter: `drop-shadow(0 0 6px ${appearance.accentColor})`,
+                      }}
+                    />
                   ) : (
-                    <span className={isCurrent ? "text-audiophile-text font-semibold" : ""}>{i + 1}</span>
+                    <>
+                      <span className="group-hover:hidden">{i + 1}</span>
+                      <Play
+                        size={12}
+                        className="hidden group-hover:block fill-current"
+                        style={{ color: appearance.accentColor }}
+                      />
+                    </>
                   )}
-                </div>
+                </button>
                 <div className="min-w-0">
                   <div
                     className={`text-[12px] truncate ${isCurrent ? "font-semibold" : "text-audiophile-text"}`}
@@ -172,8 +264,8 @@ export const QueueWidget: React.FC = () => {
                 <span
                   className={`inline-flex items-center justify-center h-5 px-1 rounded text-[8px] font-bold tracking-wide ${
                     stream
-                      ? "bg-sky-500/15 text-sky-300 border border-sky-500/30"
-                      : "bg-white/5 text-audiophile-muted border border-white/10"
+                      ? "bg-sky-500/15 text-sky-300 border border-sky-500/25"
+                      : "bg-white/[0.03] text-audiophile-muted border border-white/[0.06]"
                   }`}
                 >
                   {fmt}
@@ -184,6 +276,16 @@ export const QueueWidget: React.FC = () => {
                 <span className="text-[10px] font-mono text-audiophile-muted text-right tabular-nums">
                   {formatDuration(track.duration_seconds)}
                 </span>
+                <button
+                  type="button"
+                  onClick={(event) => void handleDownload(track, event)}
+                  disabled={!stream || downloadingId === track.filepath}
+                  className="p-0.5 text-audiophile-muted hover:text-audiophile-text disabled:opacity-25"
+                  title={stream ? "Descargar" : "Descarga disponible en pistas Stream"}
+                  style={stream && downloadingId === track.filepath ? { color: appearance.accentColor } : undefined}
+                >
+                  <Download size={12} className={downloadingId === track.filepath ? "animate-pulse" : ""} />
+                </button>
                 <button
                   type="button"
                   onClick={(e) => {

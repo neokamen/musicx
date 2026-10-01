@@ -32,7 +32,7 @@ export const BufferInspectorCompactWidget: React.FC = () => {
 
   // Radio mode: swap to a network-usage summary instead of frozen local-playback numbers
   const isRadioMode = Boolean(isRadioPlaying && activeRadioStation);
-  const isStreamMode = Boolean(isPlaying && isStreamTrack(currentTrack));
+  const isStreamMode = Boolean(isStreamTrack(currentTrack) && !isRadioMode);
   const isNetworkMode = isRadioMode || isStreamMode;
   const [radioBytesPerSecond, setRadioBytesPerSecond] = useState(0);
   const [radioSessionBytes, setRadioSessionBytes] = useState(0);
@@ -122,7 +122,7 @@ export const BufferInspectorCompactWidget: React.FC = () => {
           <div className={`text-sm font-bold font-mono tracking-tight ${isNetworkMode ? "text-white" : "text-audiophile-text"}`}>
             {isNetworkMode ? (
               <>
-                {(radioBytesPerSecond / 1024).toFixed(0)} <span className="text-[9px] font-normal text-audiophile-muted">KB/s</span>
+                {(radioBytesPerSecond / 1024).toFixed(1)} <span className="text-[9px] font-normal text-audiophile-muted">KB/s</span>
               </>
             ) : `${telemetry.buffer_fill_percent.toFixed(1)}%`}
           </div>

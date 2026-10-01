@@ -86,6 +86,8 @@ export interface PlaybackSettingsState {
   playerInfoWidth: number;
   diffuseAlbumArt: boolean;
   diffuseAlbumArtOpacity: number;
+  diffusePlayerBar: boolean;
+  diffusePlayerBarOpacity: number;
 }
 
 export interface ListeningStatsState {
@@ -155,6 +157,7 @@ export interface MusicPlayerStore {
   resetSettings: () => void;
   clearCacheAndResidues: () => void;
   play: (track?: Track) => Promise<void>;
+  playFromQueue: (index: number) => Promise<void>;
   pause: () => Promise<void>;
   resume: () => Promise<void>;
   stop: () => Promise<void>;
@@ -265,6 +268,8 @@ const defaultPlaybackSettings: PlaybackSettingsState = {
   playerInfoWidth: 204,
   diffuseAlbumArt: true,
   diffuseAlbumArtOpacity: 25,
+  diffusePlayerBar: false,
+  diffusePlayerBarOpacity: 25,
 };
 
 const defaultListeningStats: ListeningStatsState = {
@@ -574,6 +579,18 @@ export const useMusicStore = create<MusicPlayerStore>((set, get) => ({
     fetchTrackCoverArt(targetTrack.filepath);
 
     applyQueueAndStats(get().coverArtCache[targetTrack.filepath] || get().currentCoverArt);
+  },
+
+  playFromQueue: async (index: number) => {
+    const { queue, queueIndex, isPlaying, currentTrack, play, resume } = get();
+    const track = queue[index];
+    if (!track) return;
+    if (index === queueIndex || currentTrack?.filepath === track.filepath) {
+      if (isPlaying) return;
+      await resume();
+      return;
+    }
+    await get().play(track);
   },
 
   pause: async () => {

@@ -22,6 +22,20 @@ export function streamFilepath(neoId: string): string {
   return `stream:${neoId}`;
 }
 
+export function streamTrackToNeo(track: Track): StreamSourceTrack {
+  const id = track.filepath.startsWith("stream:") ? track.filepath.slice("stream:".length) : track.filepath;
+  return {
+    id,
+    title: track.title,
+    artist: track.artist,
+    album: track.album,
+    trackNumber: track.track_number || undefined,
+    duration: track.duration_seconds || 0,
+    coverUrl: track.cover_url,
+    sourceUrl: track.stream_source || id,
+  };
+}
+
 export function streamTrackFromNeo(track: StreamSourceTrack): Track {
   return {
     filepath: streamFilepath(track.id),

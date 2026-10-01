@@ -236,8 +236,21 @@ export const HiFiPlayerBar: React.FC<HiFiPlayerBarProps> = ({ height, isEditing,
   return (
     <footer
       style={{ height, "--player-side-width": `${playerInfoWidth}px` } as React.CSSProperties}
-      className="grid grid-cols-[var(--player-side-width)_minmax(0,1fr)_var(--player-side-width)] items-center gap-0 border-t border-slate-800/80 bg-slate-950/95 backdrop-blur-md px-4 z-40 select-none shrink-0 relative"
+      className="grid grid-cols-[var(--player-side-width)_minmax(0,1fr)_var(--player-side-width)] items-center gap-0 border-t border-slate-800/80 bg-slate-950/95 backdrop-blur-md px-4 z-40 select-none shrink-0 relative overflow-hidden"
     >
+      {playbackSettings?.diffusePlayerBar && currentCoverArt && (
+        <>
+          <div
+            className="pointer-events-none absolute inset-0 z-0 bg-cover bg-center scale-125"
+            style={{
+              backgroundImage: `url(${currentCoverArt})`,
+              filter: "blur(36px) saturate(1.35)",
+              opacity: (playbackSettings.diffusePlayerBarOpacity ?? 25) / 100,
+            }}
+          />
+          <div className="pointer-events-none absolute inset-0 z-0 bg-slate-950/55" />
+        </>
+      )}
       {isEditing && <div
         role="separator"
         aria-orientation="horizontal"

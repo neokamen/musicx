@@ -48,7 +48,7 @@ export const BufferInspectorWidget: React.FC<BufferInspectorWidgetProps> = ({
   // Ring Buffer Fill / I/O Read Time boxes (and the two visualizations) get repurposed to show
   // real network throughput/session usage instead of frozen local-playback numbers.
   const isRadioMode = Boolean(isRadioPlaying && activeRadioStation);
-  const isStreamMode = Boolean(isPlaying && isStreamTrack(currentTrack));
+  const isStreamMode = Boolean(isStreamTrack(currentTrack) && !isRadioMode);
   const isNetworkMode = isRadioMode || isStreamMode;
   const networkLabel = isRadioMode ? "RADIO ONLINE" : isStreamMode ? "STREAM YT" : "";
   const networkName = isRadioMode
@@ -325,7 +325,9 @@ export const BufferInspectorWidget: React.FC<BufferInspectorWidgetProps> = ({
                   : "text-audiophile-text"
               }`}
             >
-              {isNetworkMode ? (radioBytesPerSecond / 1024).toFixed(0) : telemetry.buffer_fill_percent.toFixed(1)}
+            {isNetworkMode
+              ? `${(radioBytesPerSecond / 1024).toFixed(1)} KB/s`
+              : `${telemetry.buffer_fill_percent.toFixed(1)}`}
             </span>
             <span className={`text-[10px] font-semibold ${isDsp ? "text-emerald-600" : "text-audiophile-muted"}`}>
               {isNetworkMode ? "KB/s" : "%"}

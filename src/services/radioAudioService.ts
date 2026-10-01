@@ -84,9 +84,7 @@ class RadioAudioService {
 		this.audio.crossOrigin = "anonymous";
 
 		this.audio.addEventListener("playing", () => {
-			if (this.playbackKind === "radio") {
-				this.startTimer();
-			}
+			this.startTimer();
 			this.startSpectrumLoop();
 			this.publish({
 				status: "playing",
@@ -233,11 +231,18 @@ class RadioAudioService {
 	private startTimer(): void {
 		this.stopTimer();
 		this.elapsedInterval = window.setInterval(() => {
-			this.state.elapsedSeconds += 1;
-			if (!this.relayActive && this.currentBitrateKbps > 0) {
+			if (this.playbackKind !== "media") {
+				this.state.elapsedSeconds += 1;
+			}
+			if (this.realBytesPerSecond <= 32 && this.currentBitrateKbps > 0) {
 				this.currentStreamBytes += (this.currentBitrateKbps * 1000) / 8;
 			}
-			this.publish({ status: "playing", elapsedSeconds: this.state.elapsedSeconds });
+			this.publish({
+				status: "playing",
+				elapsedSeconds: this.playbackKind === "media" ? this.audio.currentTime || this.state.elapsedSeconds : this.state.elapsedSeconds,
+				duration: this.mediaDuration(),
+				seekable: this.playbackKind === "media",
+			});
 		}, 1000);
 	}
 
@@ -309,13 +314,14 @@ class RadioAudioService {
 
 	private publish(state: RadioPlaybackState): void {
 		const estimatedRate = (this.currentBitrateKbps * 1000) / 8;
+		const measured = this.relayActive ? this.realBytesPerSecond : 0;
 		this.state = {
 			...state,
 			bitrateKbps: this.currentBitrateKbps,
 			streamTitle: this.currentStreamTitle,
-			bytesPerSecond: this.relayActive ? this.realBytesPerSecond : estimatedRate,
+			bytesPerSecond: measured > 32 ? measured : estimatedRate,
 			sessionBytesTotal: this.sessionBytesBaseline + this.currentStreamBytes,
-			isRealDataUsage: this.relayActive,
+			isRealDataUsage: measured > 32,
 		};
 		this.listeners.forEach((listener) => listener(this.state));
 	}
@@ -444,6 +450,12 @@ class RadioAudioService {
 		this.currentBitrateKbps = options?.bitrate && options.bitrate > 0 ? options.bitrate : 160;
 		this.state.elapsedSeconds = 0;
 		this.state.duration = options?.duration && options.duration > 0 ? options.duration : undefined;
+		this.sessionBytesBaseline += this.currentStreamBytes;
+		this.currentStreamBytes = 0;
+		this.realBytesPerSecond = 0;
+		this.lastRealByteSampleTime = 0;
+		this.lastRealByteSampleValue = 0;
+		this.ensureRelayListeners();
 		if (this.relayActive) {
 			this.relayActive = false;
 			void stopRadioRelay().catch(() => {});
