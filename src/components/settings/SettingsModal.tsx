@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useMusicStore } from '../../store/index.ts';
 import {
   RotateCcw,
@@ -28,7 +28,7 @@ import {
   Radio,
 } from 'lucide-react';
 import { open, save } from '@tauri-apps/plugin-dialog';
-import { readTextFile, writeTextFile } from '../../services/api.ts';
+import { readTextFile, writeTextFile, getRuntimeDepsStatus, installOrUpdateRuntimeDeps, type RuntimeDepsStatus } from '../../services/api.ts';
 import packageInfo from '../../../package.json';
 import { FIRST_RUN_PROFILE } from '../layout/defaultLayout.ts';
 import { SPECTRUM_STYLES } from '../widgets/SpectrumVisualizer.tsx';
@@ -101,6 +101,24 @@ export const SettingsModal: React.FC = () => {
   const [activeVisualizerPanel, setActiveVisualizerPanel] = useState<VisualizerSettingsPanel>('cava');
   const tabsRef = useRef<HTMLDivElement>(null);
   const [savedMessage, setSavedMessage] = useState<string | null>(null);
+  const [runtimeDeps, setRuntimeDeps] = useState<RuntimeDepsStatus | null>(null);
+  const [runtimeDepsBusy, setRuntimeDepsBusy] = useState(false);
+  const [runtimeDepsLog, setRuntimeDepsLog] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!isSettingsOpen || activeTab !== 'general') return;
+    let cancelled = false;
+    getRuntimeDepsStatus()
+      .then((status) => {
+        if (!cancelled) setRuntimeDeps(status);
+      })
+      .catch((error) => {
+        if (!cancelled) setRuntimeDepsLog(String(error));
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [isSettingsOpen, activeTab]);
 
   const [accent, setAccent] = useState<AccentColor>(getSavedAccent);
   const [bgTheme, setBgTheme] = useState<BackgroundTheme>(getSavedTheme);
@@ -118,6 +136,7 @@ export const SettingsModal: React.FC = () => {
   const [marqueeDelay, setMarqueeDelayState] = useState<number>(() => appearance.marqueeDelay || getSavedMarqueeDelay());
 
   if (!isSettingsOpen) return null;
+
 
   const totalTracks = libraryTracks.length;
   const totalLibrarySeconds = libraryTracks.reduce((acc, trk) => acc + (trk.duration_seconds || 0), 0);
@@ -670,6 +689,70 @@ export const SettingsModal: React.FC = () => {
                     <span>Restaurar copia...</span>
                   </button>
                 </div>
+              </div>
+
+              <div className="p-4 rounded-xl bg-slate-900/40 border border-slate-800/80 space-y-3">
+                <div>
+                  <div className="text-xs font-bold text-slate-200 uppercase tracking-wider">Dependencias de Stream y descargas</div>
+                  <div className="text-[11px] text-slate-400 mt-1">
+                    {runtimeDeps
+                      ? `${runtimeDeps.osLabel}${runtimeDeps.distroId ? ` · ${runtimeDeps.packageFamily}/${runtimeDeps.packageManager}` : ""}`
+                      : "Detectando sistema..."}
+                  </div>
+                  {runtimeDeps?.hint && (
+                    <p className="text-[11px] leading-5 text-slate-400 mt-2">{runtimeDeps.hint}</p>
+                  )}
+                </div>
+                <div className="grid gap-2">
+                  {(runtimeDeps
+                    ? [runtimeDeps.ytdlp, runtimeDeps.ffmpeg]
+                    : [
+                        { name: "yt-dlp", installed: false, version: "Comprobando...", path: "", source: "" },
+                        { name: "ffmpeg", installed: false, version: "Comprobando...", path: "", source: "" },
+                      ]
+                  ).map((tool) => (
+                    <div key={tool.name} className="rounded-lg border border-slate-800 bg-slate-950/50 px-3 py-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-xs font-semibold text-slate-200">{tool.name}</span>
+                        <span className={`text-[10px] uppercase tracking-wider ${tool.installed ? "text-emerald-400" : "text-rose-300"}`}>
+                          {tool.installed ? tool.source : "falta"}
+                        </span>
+                      </div>
+                      <div className="mt-1 font-mono text-[11px] text-slate-400 truncate" title={tool.path}>
+                        {tool.version}{tool.path ? ` · ${tool.path}` : ""}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                {runtimeDeps && (
+                  <div className="text-[11px] text-slate-500">
+                    Node.js para yt-dlp: {runtimeDeps.nodeAvailable ? "detectado" : "no detectado (opcional)"}
+                  </div>
+                )}
+                {runtimeDepsLog && (
+                  <pre className="whitespace-pre-wrap rounded-lg border border-slate-800 bg-black/40 p-2 font-mono text-[11px] text-slate-300">{runtimeDepsLog}</pre>
+                )}
+                <button
+                  type="button"
+                  disabled={runtimeDepsBusy}
+                  onClick={async () => {
+                    setRuntimeDepsBusy(true);
+                    setRuntimeDepsLog("Descargando e instalando. ffmpeg puede tardar porque el paquete es grande...");
+                    try {
+                      const result = await installOrUpdateRuntimeDeps();
+                      setRuntimeDepsLog(result);
+                      setRuntimeDeps(await getRuntimeDepsStatus());
+                    } catch (error) {
+                      setRuntimeDepsLog(String(error));
+                    } finally {
+                      setRuntimeDepsBusy(false);
+                    }
+                  }}
+                  className="flex w-full items-center justify-center gap-2 rounded-xl border border-slate-700 bg-slate-800 px-3.5 py-2.5 text-xs font-semibold text-slate-200 transition hover:bg-slate-700 disabled:opacity-50"
+                >
+                  <Download size={14} style={{ color: appearance.accentColor || "#06b6d4" }} />
+                  <span>{runtimeDepsBusy ? "Instalando..." : "Descargar / actualizar yt-dlp y ffmpeg"}</span>
+                </button>
               </div>
 
               <div className="p-4 rounded-xl bg-slate-900/40 border border-slate-800/80 space-y-3">

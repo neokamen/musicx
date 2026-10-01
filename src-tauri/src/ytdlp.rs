@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use tokio::process::Command;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -10,68 +10,303 @@ pub struct YtDlpInfo {
     pub node_available: bool,
 }
 
-pub fn get_yt_dlp_binary() -> PathBuf {
-    let exe_ext = if cfg!(target_os = "windows") { ".exe" } else { "" };
-
-    // 1. Check sidecar / exe directory (neo-yt-dlp or yt-dlp)
-    if let Ok(exe) = std::env::current_exe() {
-        if let Some(dir) = exe.parent() {
-            let neo = dir.join(format!("neo-yt-dlp{exe_ext}"));
-            if neo.exists() {
-                return neo;
-            }
-            let standard = dir.join(format!("yt-dlp{exe_ext}"));
-            if standard.exists() {
-                return standard;
-            }
-        }
-    }
-
-    // 2. Check local user app data / home bin directory
-    #[cfg(target_os = "windows")]
-    {
-        if let Ok(appdata) = std::env::var("APPDATA") {
-            let p = PathBuf::from(&appdata).join("soundix").join("bin").join("yt-dlp.exe");
-            if p.exists() {
-                return p;
-            }
-        }
-        if let Ok(localappdata) = std::env::var("LOCALAPPDATA") {
-            let p = PathBuf::from(&localappdata).join("soundix").join("bin").join("yt-dlp.exe");
-            if p.exists() {
-                return p;
-            }
-        }
-    }
-
-    let home = std::env::var("HOME").unwrap_or_default();
-    let local_bin = PathBuf::from(&home).join(".local").join("bin").join("yt-dlp");
-    if local_bin.exists() {
-        return local_bin;
-    }
-
-    PathBuf::from(format!("yt-dlp{exe_ext}"))
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RuntimeToolStatus {
+    pub name: String,
+    pub installed: bool,
+    pub version: String,
+    pub path: String,
+    pub source: String,
 }
 
-pub fn get_yt_dlp_install_target_path() -> PathBuf {
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RuntimeDepsStatus {
+    pub os: String,
+    pub os_label: String,
+    pub distro_id: String,
+    pub distro_name: String,
+    pub package_family: String,
+    pub package_manager: String,
+    pub hint: String,
+    pub ytdlp: RuntimeToolStatus,
+    pub ffmpeg: RuntimeToolStatus,
+    pub node_available: bool,
+}
+
+fn exe_suffix() -> &'static str {
+    if cfg!(target_os = "windows") {
+        ".exe"
+    } else {
+        ""
+    }
+}
+
+fn musicx_user_bin_dir() -> PathBuf {
     #[cfg(target_os = "windows")]
     {
-        let base = std::env::var("APPDATA")
-            .or_else(|_| std::env::var("LOCALAPPDATA"))
+        let base = std::env::var("LOCALAPPDATA")
+            .or_else(|_| std::env::var("APPDATA"))
             .unwrap_or_else(|_| "C:\\ProgramData".into());
-        PathBuf::from(base).join("soundix").join("bin").join("yt-dlp.exe")
+        PathBuf::from(base).join("musicx").join("bin")
     }
     #[cfg(not(target_os = "windows"))]
     {
         let home = std::env::var("HOME").unwrap_or_default();
-        PathBuf::from(home).join(".local").join("bin").join("yt-dlp")
+        PathBuf::from(home).join(".local").join("bin")
     }
+}
+
+fn candidate_tool_paths(name: &str) -> Vec<PathBuf> {
+    let file = format!("{}{}", name, exe_suffix());
+    let mut paths = Vec::new();
+
+    if let Ok(exe) = std::env::current_exe() {
+        if let Some(dir) = exe.parent() {
+            if name == "yt-dlp" {
+                paths.push(dir.join(format!("neo-yt-dlp{}", exe_suffix())));
+            }
+            paths.push(dir.join(&file));
+        }
+    }
+
+    paths.push(musicx_user_bin_dir().join(&file));
+
+    #[cfg(target_os = "windows")]
+    {
+        for env_key in ["LOCALAPPDATA", "APPDATA"] {
+            if let Ok(base) = std::env::var(env_key) {
+                paths.push(PathBuf::from(base).join("soundix").join("bin").join(&file));
+            }
+        }
+    }
+
+    paths
+}
+
+async fn command_in_path(name: &str) -> Option<PathBuf> {
+    #[cfg(target_os = "windows")]
+    let output = Command::new("where").arg(name).output().await;
+    #[cfg(not(target_os = "windows"))]
+    let output = Command::new("which").arg(name).output().await;
+
+    let Ok(out) = output else { return None };
+    if !out.status.success() {
+        return None;
+    }
+    let line = String::from_utf8_lossy(&out.stdout)
+        .lines()
+        .next()
+        .unwrap_or("")
+        .trim()
+        .to_string();
+    if line.is_empty() {
+        return None;
+    }
+    Some(PathBuf::from(line))
+}
+
+pub fn get_yt_dlp_binary() -> PathBuf {
+    for path in candidate_tool_paths("yt-dlp") {
+        if path.exists() {
+            return path;
+        }
+    }
+    PathBuf::from(format!("yt-dlp{}", exe_suffix()))
+}
+
+pub fn get_ffmpeg_binary() -> PathBuf {
+    for path in candidate_tool_paths("ffmpeg") {
+        if path.exists() {
+            return path;
+        }
+    }
+    PathBuf::from(format!("ffmpeg{}", exe_suffix()))
+}
+
+pub fn get_yt_dlp_install_target_path() -> PathBuf {
+    musicx_user_bin_dir().join(format!("yt-dlp{}", exe_suffix()))
+}
+
+fn ffmpeg_install_target_path() -> PathBuf {
+    musicx_user_bin_dir().join(format!("ffmpeg{}", exe_suffix()))
+}
+
+fn parse_os_release() -> (String, String) {
+    let Ok(raw) = std::fs::read_to_string("/etc/os-release") else {
+        return (String::new(), String::new());
+    };
+    let mut id = String::new();
+    let mut name = String::new();
+    for line in raw.lines() {
+        if let Some(value) = line.strip_prefix("ID=") {
+            id = value.trim_matches('"').to_string();
+        } else if let Some(value) = line.strip_prefix("NAME=") {
+            name = value.trim_matches('"').to_string();
+        }
+    }
+    (id, name)
+}
+
+fn classify_platform() -> (String, String, String, String, String, String) {
+    #[cfg(target_os = "windows")]
+    {
+        return (
+            "windows".into(),
+            "Windows".into(),
+            "windows".into(),
+            "Windows".into(),
+            "windows".into(),
+            "winget".into(),
+        );
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        return (
+            "macos".into(),
+            "macOS".into(),
+            "macos".into(),
+            "macOS".into(),
+            "macos".into(),
+            "brew".into(),
+        );
+    }
+
+    #[cfg(not(any(target_os = "windows", target_os = "macos")))]
+    {
+        let (id, name) = parse_os_release();
+        let id_l = id.to_lowercase();
+        let (family, manager) = match id_l.as_str() {
+            "fedora" | "rhel" | "centos" | "rocky" | "almalinux" | "nobara" | "ultramarine" => {
+                ("rpm", "dnf")
+            }
+            "opensuse-tumbleweed" | "opensuse-leap" | "opensuse" | "sles" => ("rpm", "zypper"),
+            "mageia" | "openmandriva" => ("rpm", "dnf"),
+            "debian" | "ubuntu" | "linuxmint" | "pop" | "elementary" | "zorin" | "kali" | "raspbian" => {
+                ("deb", "apt")
+            }
+            "arch" | "manjaro" | "endeavouros" | "cachyos" | "garuda" => ("pacman", "pacman"),
+            "alpine" => ("apk", "apk"),
+            "gentoo" => ("portage", "emerge"),
+            "nixos" => ("nix", "nix-env"),
+            _ if Path::new("/usr/bin/dnf").exists() || Path::new("/usr/bin/rpm").exists() => ("rpm", "dnf"),
+            _ if Path::new("/usr/bin/apt-get").exists() || Path::new("/usr/bin/dpkg").exists() => {
+                ("deb", "apt")
+            }
+            _ => ("linux", "unknown"),
+        };
+        let label = if name.is_empty() { "Linux".into() } else { name.clone() };
+        (
+            "linux".into(),
+            label,
+            id,
+            if name.is_empty() { id_l } else { name },
+            family.into(),
+            manager.into(),
+        )
+    }
+}
+
+fn platform_hint(os: &str, family: &str, manager: &str, distro_name: &str) -> String {
+    match (os, family) {
+        ("windows", _) => {
+            "Windows no trae yt-dlp ni ffmpeg. MusicX los instala en %LOCALAPPDATA%\\musicx\\bin (sin tocar el PATH del sistema). El zip de ffmpeg es grande; no uses pip ni Python Store, suelen romper yt-dlp.".into()
+        }
+        ("macos", _) => {
+            "En macOS lo más estable es brew install ffmpeg yt-dlp. Si no hay Homebrew, MusicX puede dejar binarios de usuario.".into()
+        }
+        (_, "rpm") => format!(
+            "{distro_name} ({manager}): ffmpeg suele estar en RPM Fusion, no en los repos por defecto. MusicX instala copias de usuario en ~/.local/bin sin root. yt-dlp del dnf suele ir atrasado; se usa el binario oficial."
+        ),
+        (_, "deb") => format!(
+            "{distro_name} ({manager}): ffmpeg está en los repos. yt-dlp de apt suele ser viejo; MusicX instala el binario oficial en ~/.local/bin. Puedes instalar ffmpeg del sistema con: sudo apt install ffmpeg"
+        ),
+        (_, "pacman") => format!(
+            "{distro_name}: sudo pacman -S ffmpeg yt-dlp. Si faltan, MusicX puede dejar binarios en ~/.local/bin."
+        ),
+        _ => "MusicX instalará yt-dlp y ffmpeg en ~/.local/bin si no están en el PATH.".into(),
+    }
+}
+
+async fn tool_version(bin: &Path, args: &[&str]) -> String {
+    match Command::new(bin).args(args).output().await {
+        Ok(out) if out.status.success() => {
+            let text = if out.stdout.is_empty() {
+                String::from_utf8_lossy(&out.stderr)
+            } else {
+                String::from_utf8_lossy(&out.stdout)
+            };
+            text.lines()
+                .next()
+                .unwrap_or("Desconocida")
+                .trim()
+                .chars()
+                .take(80)
+                .collect()
+        }
+        _ => "No disponible".into(),
+    }
+}
+
+fn source_for_path(path: &Path) -> String {
+    let rendered = path.to_string_lossy();
+    if rendered == format!("yt-dlp{}", exe_suffix()) || rendered == format!("ffmpeg{}", exe_suffix()) {
+        return "ausente".into();
+    }
+    if path.starts_with(musicx_user_bin_dir()) {
+        return "usuario".into();
+    }
+    if rendered.contains("soundix") {
+        return "usuario (legacy)".into();
+    }
+    "sistema".into()
+}
+
+async fn resolve_tool(name: &str, version_args: &[&str]) -> RuntimeToolStatus {
+    let mut path = if name == "yt-dlp" {
+        get_yt_dlp_binary()
+    } else {
+        get_ffmpeg_binary()
+    };
+    if !path.exists() {
+        if let Some(found) = command_in_path(name).await {
+            path = found;
+        }
+    }
+    let installed = path.exists()
+        || Command::new(&path)
+            .args(version_args)
+            .output()
+            .await
+            .map(|o| o.status.success())
+            .unwrap_or(false);
+    let version = if installed {
+        tool_version(&path, version_args).await
+    } else {
+        "No instalado".into()
+    };
+    RuntimeToolStatus {
+        name: name.into(),
+        installed,
+        version,
+        path: path.to_string_lossy().to_string(),
+        source: if installed { source_for_path(&path) } else { "ausente".into() },
+    }
+}
+
+async fn node_available() -> bool {
+    Path::new("/usr/bin/node").exists()
+        || command_in_path("node").await.is_some()
 }
 
 pub async fn download_standalone_ytdlp() -> Result<String, String> {
     let target = get_yt_dlp_install_target_path();
     if let Some(parent) = target.parent() {
-        tokio::fs::create_dir_all(parent).await.map_err(|e| format!("Error creando directorio: {e}"))?;
+        tokio::fs::create_dir_all(parent)
+            .await
+            .map_err(|e| format!("Error creando directorio: {e}"))?;
     }
 
     #[cfg(target_os = "windows")]
@@ -79,23 +314,160 @@ pub async fn download_standalone_ytdlp() -> Result<String, String> {
     #[cfg(not(target_os = "windows"))]
     let url = "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp";
 
-    let resp = reqwest::get(url).await.map_err(|e| format!("Error conectando para descargar yt-dlp: {e}"))?;
+    download_file(url, &target).await?;
+    make_executable(&target).await?;
+    Ok(format!("yt-dlp instalado en {}", target.display()))
+}
+
+async fn download_file(url: &str, target: &Path) -> Result<(), String> {
+    let resp = reqwest::get(url)
+        .await
+        .map_err(|e| format!("Error conectando a {url}: {e}"))?;
     if !resp.status().is_success() {
-        return Err(format!("Servidor devolvió código HTTP {}", resp.status()));
+        return Err(format!("Descarga fallida ({}) {url}", resp.status()));
     }
+    let bytes = resp
+        .bytes()
+        .await
+        .map_err(|e| format!("Error leyendo descarga: {e}"))?;
+    tokio::fs::write(target, &bytes)
+        .await
+        .map_err(|e| format!("Error guardando {}: {e}", target.display()))?;
+    Ok(())
+}
 
-    let bytes = resp.bytes().await.map_err(|e| format!("Error descargando archivo: {e}"))?;
-    tokio::fs::write(&target, &bytes).await.map_err(|e| format!("Error guardando yt-dlp: {e}"))?;
-
-    #[cfg(not(target_os = "windows"))]
+async fn make_executable(path: &Path) -> Result<(), String> {
+    #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
-        let mut perms = tokio::fs::metadata(&target).await.map_err(|e| e.to_string())?.permissions();
+        let mut perms = tokio::fs::metadata(path)
+            .await
+            .map_err(|e| e.to_string())?
+            .permissions();
         perms.set_mode(0o755);
-        let _ = tokio::fs::set_permissions(&target, perms).await;
+        tokio::fs::set_permissions(path, perms)
+            .await
+            .map_err(|e| e.to_string())?;
+    }
+    let _ = path;
+    Ok(())
+}
+
+fn ffmpeg_archive_url() -> Result<&'static str, String> {
+    #[cfg(all(target_os = "windows", target_arch = "x86_64"))]
+    {
+        return Ok("https://github.com/yt-dlp/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl.zip");
+    }
+    #[cfg(all(target_os = "windows", target_arch = "aarch64"))]
+    {
+        return Ok("https://github.com/yt-dlp/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-winarm64-gpl.zip");
+    }
+    #[cfg(all(not(target_os = "windows"), target_arch = "x86_64"))]
+    {
+        return Ok("https://github.com/yt-dlp/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-linux64-gpl.tar.xz");
+    }
+    #[cfg(all(not(target_os = "windows"), target_arch = "aarch64"))]
+    {
+        return Ok("https://github.com/yt-dlp/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-linuxarm64-gpl.tar.xz");
+    }
+    #[allow(unreachable_code)]
+    Err("No hay paquete ffmpeg portátil para esta arquitectura.".into())
+}
+
+async fn find_named_file(root: &Path, file_name: &str) -> Option<PathBuf> {
+    let mut stack = vec![root.to_path_buf()];
+    while let Some(dir) = stack.pop() {
+        let Ok(mut entries) = tokio::fs::read_dir(&dir).await else { continue };
+        while let Ok(Some(entry)) = entries.next_entry().await {
+            let path = entry.path();
+            let Ok(kind) = entry.file_type().await else { continue };
+            if kind.is_dir() {
+                stack.push(path);
+            } else if kind.is_file() && entry.file_name() == file_name {
+                return Some(path);
+            }
+        }
+    }
+    None
+}
+
+async fn download_portable_ffmpeg() -> Result<String, String> {
+    let url = ffmpeg_archive_url()?;
+    let bin_dir = musicx_user_bin_dir();
+    tokio::fs::create_dir_all(&bin_dir)
+        .await
+        .map_err(|e| format!("Error creando {}: {e}", bin_dir.display()))?;
+
+    let tmp_dir = bin_dir.join(".tmp-ffmpeg");
+    let _ = tokio::fs::remove_dir_all(&tmp_dir).await;
+    tokio::fs::create_dir_all(&tmp_dir)
+        .await
+        .map_err(|e| format!("Error creando temporal: {e}"))?;
+
+    let archive_name = if url.ends_with(".zip") {
+        "ffmpeg.zip"
+    } else {
+        "ffmpeg.tar.xz"
+    };
+    let archive = tmp_dir.join(archive_name);
+    download_file(url, &archive).await?;
+
+    let extract_dir = tmp_dir.join("extract");
+    tokio::fs::create_dir_all(&extract_dir)
+        .await
+        .map_err(|e| format!("Error creando extracto: {e}"))?;
+
+    #[cfg(target_os = "windows")]
+    {
+        let status = Command::new("powershell")
+            .args([
+                "-NoProfile",
+                "-NonInteractive",
+                "-Command",
+                &format!(
+                    "Expand-Archive -LiteralPath '{}' -DestinationPath '{}' -Force",
+                    archive.display(),
+                    extract_dir.display()
+                ),
+            ])
+            .status()
+            .await
+            .map_err(|e| format!("PowerShell no pudo extraer ffmpeg: {e}"))?;
+        if !status.success() {
+            return Err("Falló Expand-Archive. Comprueba que PowerShell puede extraer el zip de ffmpeg.".into());
+        }
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        let status = Command::new("tar")
+            .args(["-xJf", &archive.to_string_lossy(), "-C", &extract_dir.to_string_lossy()])
+            .status()
+            .await
+            .map_err(|e| format!("tar no pudo extraer ffmpeg: {e}"))?;
+        if !status.success() {
+            return Err("Falló tar -xJf. Instala xz/tar o ffmpeg de tu distro.".into());
+        }
     }
 
-    Ok(format!("yt-dlp instalado exitosamente en {}", target.display()))
+    let ffmpeg_name = format!("ffmpeg{}", exe_suffix());
+    let ffprobe_name = format!("ffprobe{}", exe_suffix());
+    let ffmpeg_src = find_named_file(&extract_dir, &ffmpeg_name)
+        .await
+        .ok_or_else(|| "El archivo extraído no contiene ffmpeg.".to_string())?;
+    let dest = ffmpeg_install_target_path();
+    tokio::fs::copy(&ffmpeg_src, &dest)
+        .await
+        .map_err(|e| format!("No se pudo copiar ffmpeg: {e}"))?;
+    make_executable(&dest).await?;
+
+    if let Some(ffprobe_src) = find_named_file(&extract_dir, &ffprobe_name).await {
+        let probe_dest = bin_dir.join(&ffprobe_name);
+        let _ = tokio::fs::copy(&ffprobe_src, &probe_dest).await;
+        let _ = make_executable(&probe_dest).await;
+    }
+
+    let _ = tokio::fs::remove_dir_all(&tmp_dir).await;
+    Ok(format!("ffmpeg instalado en {}", dest.display()))
 }
 
 pub fn append_modern_ytdlp_args(args: &mut Vec<String>) {
@@ -105,15 +477,12 @@ pub fn append_modern_ytdlp_args(args: &mut Vec<String>) {
     args.push("--extractor-args".into());
     args.push("youtube:player_client=web,default".into());
 
-    let has_node = if std::path::Path::new("/usr/bin/node").exists() {
-        true
-    } else {
-        #[cfg(target_os = "windows")]
-        let check_cmd = "where";
-        #[cfg(not(target_os = "windows"))]
-        let check_cmd = "which";
-        std::process::Command::new(check_cmd).arg("node").output().map(|o| o.status.success()).unwrap_or(false)
-    };
+    let has_node = Path::new("/usr/bin/node").exists()
+        || std::process::Command::new(if cfg!(target_os = "windows") { "where" } else { "which" })
+            .arg("node")
+            .output()
+            .map(|o| o.status.success())
+            .unwrap_or(false);
 
     if has_node {
         args.push("--js-runtimes".into());
@@ -124,65 +493,31 @@ pub fn append_modern_ytdlp_args(args: &mut Vec<String>) {
 }
 
 pub async fn try_auto_update_ytdlp() -> Result<String, String> {
-    // 1. Try pipx upgrade yt-dlp
-    if let Ok(out) = Command::new("pipx").args(["upgrade", "yt-dlp"]).output().await {
-        if out.status.success() {
-            let s = String::from_utf8_lossy(&out.stdout);
-            let first_line = s.lines().next().unwrap_or("Actualizado con pipx.");
-            return Ok(format!("yt-dlp actualizado mediante pipx: {}", first_line.trim()));
-        }
+    #[cfg(target_os = "windows")]
+    {
+        download_standalone_ytdlp().await
     }
-
-    // 2. Try uv tool upgrade yt-dlp
-    let home = std::env::var("HOME").unwrap_or_default();
-    let uv = PathBuf::from(&home).join(".local").join("bin").join("uv");
-    if uv.exists() {
-        if let Ok(out) = Command::new(&uv).args(["tool", "upgrade", "yt-dlp"]).output().await {
-            if out.status.success() {
-                return Ok("yt-dlp actualizado mediante uv tool.".to_string());
+    #[cfg(not(target_os = "windows"))]
+    {
+        let ytdlp_bin = get_yt_dlp_binary();
+        if ytdlp_bin.exists() {
+            if let Ok(out) = Command::new(&ytdlp_bin).arg("-U").output().await {
+                if out.status.success() {
+                    return Ok("yt-dlp actualizado con -U.".to_string());
+                }
             }
         }
+        download_standalone_ytdlp().await
     }
-
-    // 3. Try yt-dlp -U
-    let ytdlp_bin = get_yt_dlp_binary();
-    if let Ok(out) = Command::new(&ytdlp_bin).arg("-U").output().await {
-        if out.status.success() {
-            return Ok("yt-dlp auto-actualizado con éxito (-U).".to_string());
-        }
-    }
-
-    // 4. Try pip install --upgrade --user yt-dlp
-    if let Ok(out) = Command::new("python3").args(["-m", "pip", "install", "--upgrade", "--user", "yt-dlp"]).output().await {
-        if out.status.success() {
-            return Ok("yt-dlp actualizado mediante pip --user.".to_string());
-        }
-    }
-
-    // 5. Fallback / Direct download for Windows and standalone setups
-    if let Ok(msg) = download_standalone_ytdlp().await {
-        return Ok(msg);
-    }
-
-    Err("No se pudo actualizar/instalar yt-dlp automáticamente.".to_string())
 }
 
 #[tauri::command]
 pub async fn get_ytdlp_info() -> Result<YtDlpInfo, String> {
-    let bin = get_yt_dlp_binary();
-    let ver_out = Command::new(&bin).arg("--version").output().await;
-    let version = match ver_out {
-        Ok(out) if out.status.success() => String::from_utf8_lossy(&out.stdout).trim().to_string(),
-        _ => "Desconocida".to_string(),
-    };
-
-    let has_node = std::path::Path::new("/usr/bin/node").exists()
-        || Command::new("which").arg("node").output().await.map(|o| o.status.success()).unwrap_or(false);
-
+    let status = resolve_tool("yt-dlp", &["--version"]).await;
     Ok(YtDlpInfo {
-        version,
-        path: bin.to_string_lossy().to_string(),
-        node_available: has_node,
+        version: status.version,
+        path: status.path,
+        node_available: node_available().await,
     })
 }
 
@@ -191,3 +526,49 @@ pub async fn update_ytdlp() -> Result<String, String> {
     try_auto_update_ytdlp().await
 }
 
+#[tauri::command]
+pub async fn get_runtime_deps_status() -> Result<RuntimeDepsStatus, String> {
+    let (os, os_label, distro_id, distro_name, family, manager) = classify_platform();
+    let hint = platform_hint(&os, &family, &manager, &distro_name);
+    let ytdlp = resolve_tool("yt-dlp", &["--version"]).await;
+    let ffmpeg = resolve_tool("ffmpeg", &["-version"]).await;
+    Ok(RuntimeDepsStatus {
+        os,
+        os_label,
+        distro_id,
+        distro_name,
+        package_family: family,
+        package_manager: manager,
+        hint,
+        ytdlp,
+        ffmpeg,
+        node_available: node_available().await,
+    })
+}
+
+#[tauri::command]
+pub async fn install_or_update_runtime_deps() -> Result<String, String> {
+    let mut notes = Vec::new();
+    match try_auto_update_ytdlp().await {
+        Ok(msg) => notes.push(msg),
+        Err(err) => notes.push(format!("yt-dlp: {err}")),
+    }
+    match download_portable_ffmpeg().await {
+        Ok(msg) => notes.push(msg),
+        Err(err) => notes.push(format!("ffmpeg: {err}")),
+    }
+
+    let ytdlp = resolve_tool("yt-dlp", &["--version"]).await;
+    let ffmpeg = resolve_tool("ffmpeg", &["-version"]).await;
+    if !ytdlp.installed && !ffmpeg.installed {
+        return Err(notes.join(" "));
+    }
+    Ok(format!(
+        "{}\n\nyt-dlp: {} ({})\nffmpeg: {} ({})",
+        notes.join("\n"),
+        ytdlp.version,
+        ytdlp.path,
+        ffmpeg.version,
+        ffmpeg.path
+    ))
+}

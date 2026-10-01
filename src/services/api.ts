@@ -227,6 +227,35 @@ export async function getStreamAudioUrl(urlOrId: string): Promise<string> {
   return invoke<string>("get_stream_audio_url", { urlOrId });
 }
 
+export type RuntimeToolStatus = {
+  name: string;
+  installed: boolean;
+  version: string;
+  path: string;
+  source: string;
+};
+
+export type RuntimeDepsStatus = {
+  os: string;
+  osLabel: string;
+  distroId: string;
+  distroName: string;
+  packageFamily: string;
+  packageManager: string;
+  hint: string;
+  ytdlp: RuntimeToolStatus;
+  ffmpeg: RuntimeToolStatus;
+  nodeAvailable: boolean;
+};
+
+export async function getRuntimeDepsStatus(): Promise<RuntimeDepsStatus> {
+  return invoke<RuntimeDepsStatus>("get_runtime_deps_status");
+}
+
+export async function installOrUpdateRuntimeDeps(): Promise<string> {
+  return invoke<string>("install_or_update_runtime_deps");
+}
+
 // Aliases
 export const pauseAudio = pause;
 export const resumeAudio = resume;

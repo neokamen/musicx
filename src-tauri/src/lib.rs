@@ -105,6 +105,10 @@ pub fn run() {
             downloader::download_track_batch,
             downloader::cancel_download_batch,
             downloader::get_stream_audio_url,
+            ytdlp::get_ytdlp_info,
+            ytdlp::update_ytdlp,
+            ytdlp::get_runtime_deps_status,
+            ytdlp::install_or_update_runtime_deps,
         ])
         .run(tauri::generate_context!())
         .expect("error while running musicx audio player application");

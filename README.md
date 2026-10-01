@@ -6,7 +6,7 @@ Inspirado en foobar2000 y fooyin: paneles redimensionables, widgets intercambiab
 
 Repositorio: [https://github.com/neokamen/musicx-theaudioplayer](https://github.com/neokamen/musicx-theaudioplayer)
 
-Versión actual: **0.3.15**
+Versión actual: **0.3.16**
 
 ---
 

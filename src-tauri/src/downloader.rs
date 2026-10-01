@@ -810,7 +810,7 @@ pub async fn download_track_batch(
                 };
 
                 // Remux with ffmpeg to ensure clean mp4 container + metadata
-                let mut ffmpeg = Command::new("ffmpeg");
+                let mut ffmpeg = Command::new(crate::ytdlp::get_ffmpeg_binary());
                 ffmpeg.arg("-y").arg("-nostdin").arg("-i").arg(&temp_video)
                     .arg("-c").arg("copy");
                 if opt.embed_id3_tags {
@@ -946,7 +946,7 @@ pub async fn download_track_batch(
                 None
             };
 
-            let mut ffmpeg = Command::new("ffmpeg");
+            let mut ffmpeg = Command::new(crate::ytdlp::get_ffmpeg_binary());
             ffmpeg.arg("-y").arg("-nostdin").arg("-i").arg(&temp_wav);
 
             let has_cover = local_cover_path.is_some() && matches!(opt.format.as_str(), "mp3" | "flac" | "m4a");
