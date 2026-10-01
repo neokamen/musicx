@@ -1,112 +1,224 @@
-# musicx - the audio player 🎵🔊
+# musicx — the audio player
 
-> **Reproductor de audio Hi-Fi local y en red para Linux**, diseñado con una arquitectura modular bit-perfect inspirada en *fooyin* y *foobar2000*, construido sobre **Tauri v2**, **Rust** y **React 19**.
+Reproductor de audio Hi-Fi para Linux. Reproduce biblioteca local, radio por internet y Stream Music en la misma interfaz modular. El núcleo de audio está en Rust (Tauri v2); la interfaz es React 19 y TypeScript.
 
-[![Rust](https://img.shields.io/badge/Rust-2021-DEA584?logo=rust&logoColor=white)](https://www.rust-lang.org/)
-[![Tauri v2](https://img.shields.io/badge/Tauri-v2-24C8DB?logo=tauri&logoColor=white)](https://tauri.app/)
-[![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=black)](https://react.dev/)
-[![TypeScript](https://img.shields.io/badge/TypeScript-Strict-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
-[![Tailwind CSS](https://img.shields.io/badge/TailwindCSS-Custom_Hi--Fi-38B2AC?logo=tailwindcss&logoColor=white)](https://tailwindcss.com/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+Inspirado en foobar2000 y fooyin: paneles redimensionables, widgets intercambiables y control fino del pipeline de sonido.
 
----
+Repositorio: [https://github.com/neokamen/musicx-theaudioplayer](https://github.com/neokamen/musicx-theaudioplayer)
 
-## 🌟 Características Principales
-
-### 🎧 Motor de Audio Nativo Hi-Fi (Rust Core)
-* **Decodificación de Alta Fidelidad**: Decodificación de PCM directo mediante `symphonia` con soporte para **FLAC** (hasta 24-bit / 192 kHz), **WAV**, **MP3**, **ALAC**, **AAC** y **OGG/Vorbis**.
-* **Modo Bit-Perfect Exclusivo**: Acceso directo al hardware mediante ALSA (`hw:X,Y`) eludiendo el remuestreo y mezclas por software del sistema operativo.
-* **Soporte PipeWire / ALSA Compartido**: Alternancia fluida entre salida de estudio exclusiva y salida compartida estándar.
-* **Reproducción Sin Pausas (*Gapless Playback*)**: Búfer continuo de audio gestionado en un hilo de audio prioritario dedicado (`musicx-audio-core`).
-* **Telemetría Dinámica en Tiempo Real**: Frecuencia de muestreo real, bits por muestra, bitrate variable dinámico y medición milimétrica de latencia ultra-baja (< 5 ms).
-
-### ⚡ Base de Datos e Indexación Incremental
-* **SQLite con WAL Mode**: Base de datos local optimizada con `PRAGMA journal_mode = WAL;` y sincronización `NORMAL`.
-* **Escaneo Multihilo con `jwalk`**: Indexador que compara marcas de tiempo (`mtime`) en disco para saltar archivos sin modificar, analizando bibliotecas masivas en segundos.
-* **Emisión Reactiva de Progreso**: Eventos Tauri `scan-progress` que reportan el avance exacto en tiempo real al frontend.
-
-### 🗂️ Explorador de Archivos Lazy (Estilo Dolphin)
-* **Optimizado para Red (NFS / SSHFS / SMB)**: Lee únicamente el contenido directo mediante `std::fs::read_dir` sin parsear tags pesados hasta que se solicita, garantizando navegación fluida en unidades remotas.
-* **Breadcrumbs Clicables e Interactivos**: Navegación directa por carpetas (`/ HOME / USUARIO / MUSICA /`) y edición manual de ruta.
-
-### 🎛️ Interfaz Modular y Personalizable (Filosofía Fooyin / Foobar2000)
-* **Sistema de Paneles Redimensionables**: Basado en `react-resizable-panels`, totalmente serializable en JSON y guardado en `localStorage`.
-* **Modo Edición ("Editar Interfaz")**:
-  * Dividir paneles en columnas horizontales o filas verticales.
-  * Eliminar paneles y reorganizar el espacio.
-  * Cambiar widgets en caliente (Explorador de carpetas, Lista de canciones virtualizada, Inspector/Carátula, Telemetría DAC, Cola Gapless).
-* **Lista Virtualizada a 60+ FPS**: Renderizado mediante `@tanstack/react-virtual`, capaz de desplazarse suavemente por catálogos de **más de 50.000 pistas** con ordenación por columnas y menú contextual.
-
-### 🐧 Integración D-Bus / Linux
-* **Soporte MPRIS v2**: Servicio `org.mpris.MediaPlayer2.musicx` que expone controles de teclado multimedia, carátulas y estado del reproductor al entorno de escritorio (GNOME, KDE Plasma, etc.).
+Versión actual: **0.3.15**
 
 ---
 
-## 🛠️ Requisitos Previos (Linux / Fedora / Debian / Arch)
+## Qué hace
 
-### Dependencias de Sistema (Ejemplo Fedora):
+- Reproduce archivos locales con decodificación nativa (Symphonia) y salida ALSA / PipeWire / CPAL.
+- Modo bit-perfect hacia dispositivos `hw:X,Y` cuando el hardware lo permite, sin remuestreo del escritorio.
+- Reproducción gapless con hilo de audio dedicado y telemetría de buffer, latencia y formato real.
+- Biblioteca SQLite (WAL) con escaneo incremental multihilo (`jwalk`) y progreso en vivo.
+- Explorador de carpetas lazy, usable en NFS, SSHFS y SMB.
+- Radio ICY con relé local, metadatos y medición de tráfico.
+- Stream Music: búsqueda y reproducción mezclada con la cola local, descarga con plantilla de carpetas y editor de metadatos.
+- Cola de reproducción con columnas (formato, bitrate, duración), arrastrar archivos, telemetría ciclable y descarga.
+- Ecualizador, normalizador, visualizadores (CAVA, espectro, barras), BPM y estadísticas de escucha.
+- Mini reproductor, temas, acentos, copias de seguridad de configuración y de estadísticas.
+- MPRIS v2 para teclas multimedia y el entorno de escritorio (GNOME, KDE, etc.).
+
+---
+
+## Requisitos
+
+Sistema: Linux (probado en Fedora; el paquete de CI se genera en Ubuntu 22.04).
+
+Para ejecutar un release:
+
+- AppImage: FUSE (`libfuse2` o equivalente) y bibliotecas de escritorio habituales (GTK / WebKit).
+- RPM: Fedora / RHEL o un sistema que instale RPM.
+
+Para desarrollar o compilar:
+
+- Node.js 22 y npm
+- Rust estable (1.75 o posterior) y Cargo
+- Dependencias nativas (nombres Fedora):
+
 ```bash
-sudo dnf install -y alsa-lib-devel openssl-devel dbus-devel glib2-devel gtk3-devel webkit2gtk4.1-devel
+sudo dnf install -y \
+  alsa-lib-devel openssl-devel dbus-devel glib2-devel \
+  gtk3-devel webkit2gtk4.1-devel libappindicator-gtk3-devel \
+  libxdo-devel librsvg2-devel
 ```
 
-### Entorno de Desarrollo:
-* **Node.js** (v18 o superior) y **npm**
-* **Rust** y **Cargo** (1.75+)
+En Debian / Ubuntu 22.04:
+
+```bash
+sudo apt-get install -y \
+  build-essential curl file libasound2-dev libayatana-appindicator3-dev \
+  libfuse2 libssl-dev libwebkit2gtk-4.1-dev libxdo-dev \
+  patchelf rpm librsvg2-dev
+```
 
 ---
 
-## 🚀 Instalación y Puesta en Marcha
+## Instalación
 
-1. **Clonar el repositorio:**
-   ```bash
-   git clone https://github.com/TU_USUARIO/musicx-theaudioplayer.git
-   cd musicx-theaudioplayer
-   ```
+### Desde GitHub Releases
 
-2. **Instalar dependencias del frontend:**
-   ```bash
-   npm install
-   ```
+Cada etiqueta `v*` dispara el workflow **Release**, que publica AppImage y RPM:
 
-3. **Iniciar en modo desarrollo:**
-   ```bash
-   npm run tauri dev
-   ```
+[https://github.com/neokamen/musicx-theaudioplayer/releases](https://github.com/neokamen/musicx-theaudioplayer/releases)
 
-4. **Compilar binario de producción:**
-   ```bash
-   npm run tauri build
-   ```
-   *El binario ejecutable y paquetes para Linux (.rpm / .deb / AppImage) se generarán en `src-tauri/target/release/bundle/`.*
+1. Descarga el `.AppImage` o el `.rpm` de la versión deseada.
+2. AppImage: `chmod +x musicx_*.AppImage` y ejecútalo.
+3. RPM: `sudo dnf install ./musicx-*.rpm` (o `rpm -Uvh`).
+
+### Desde el código
+
+```bash
+git clone https://github.com/neokamen/musicx-theaudioplayer.git
+cd musicx-theaudioplayer
+npm install
+npm run tauri dev
+```
+
+Compilar paquetes locales:
+
+```bash
+npm run tauri build
+```
+
+o, como en CI:
+
+```bash
+npm run tauri build -- --bundles appimage rpm --ci
+```
+
+Los artefactos quedan en `src-tauri/target/release/bundle/`.
 
 ---
 
-## 📂 Estructura del Proyecto
+## Uso rápido
+
+1. En Ajustes, indica la carpeta de música y lanza un escaneo.
+2. Reproduce desde la lista virtualizada, el explorador o soltando archivos sobre la ventana o la cola.
+3. Activa **Editar interfaz** para dividir paneles, cambiar widgets y guardar el layout.
+4. Abre radio o Stream Music desde la cola o como widget embebido.
+5. El tamaño de ventana se restaura al arrancar. Un backup completo puede vincularse a un archivo JSON y se reescribe al cambiar ajustes.
+
+La cola, debajo de la lista, muestra un HUD (sesión, buffer, cola, señal). Doble clic para cambiar de panel.
+
+---
+
+## Motor de audio
+
+- Decodificación PCM con Symphonia: FLAC (hasta 24 bit / 192 kHz), WAV, MP3, ALAC, AAC, OGG/Vorbis y otros formatos habilitados en el crate.
+- Salida CPAL; en Linux, ALSA exclusivo o dispositivo compartido (PipeWire).
+- Buffer configurable (64–1024 frames) con inspector de llenado, xruns, latencia y, en stream/radio, estimación de caudal.
+- DSP opcional: EQ, sub/bass boost, highpass/lowpass, normalizador, modos extra de realce.
+- FFT (`rustfft`) para espectro y visualizador tipo CAVA.
+
+Stream y radio no pasan por el mismo decoder de archivos: usan un relé HTTP local (`ureq`) más un elemento `HTMLAudio` con DSP Web Audio cuando aplica. Pausar marca pausa de usuario para que el stream no se reanude solo.
+
+---
+
+## Biblioteca y archivos
+
+- SQLite embebido (`rusqlite`, WAL, `synchronous=NORMAL`).
+- Escaneo por `mtime` para no releer pistas sin cambios.
+- Eventos Tauri de progreso de índice.
+- Explorador lazy (`std::fs::read_dir`) sin leer tags hasta que hace falta.
+- Ruta editable y migas de pan clicables.
+
+---
+
+## Interfaz
+
+Paneles con `react-resizable-panels`, serializados a JSON en `localStorage`. Presets de layout (tres columnas, estudio CAVA, biblioteca ancha, etc.) y favoritos.
+
+Widgets disponibles (entre otros):
+
+- Explorador de carpetas
+- Lista de pistas virtualizada (`@tanstack/react-virtual`)
+- Carátula, inspector, etiquetas ID3
+- Cola de reproducción
+- Radio y Stream Music
+- Visualizador CAVA y espectro independiente
+- Telemetría DAC (completa y compacta)
+- Inspector de buffer (completo, compacto, estabilidad)
+- EQ, loudness, BPM, estadísticas de escucha y de señal
+- Diagnóstico de audio
+
+Barra inferior Hi-Fi: transporte (varias plantillas), estilos de seek (clásico, espectro, híbrido, aurora, segmentos, cinta), volumen con boost opcional, pulso BPM y efecto al pulsar Play. Mini reproductor con plantillas y tamaño propio.
+
+Temas: color de acento, fondo, cristal, neón, bordes tintados, curvatura, resplandor ambiental.
+
+---
+
+## Radio, Stream Music y descargas
+
+- Radio: directorio de emisoras, sintonía, metadatos ICY, grabación opcional de cortes.
+- Stream Music: cliente integrado; las pistas entran en la misma cola que los archivos locales.
+- Descarga: diálogo con bitrate o FLAC/WAV, estructura de carpetas por tokens (`{artist}`, `{year}`, `{album}`, `{trackNumber}`, `{title}`), búsqueda de carátula y escritura en disco.
+
+---
+
+## Ajustes, copias y estadísticas
+
+- Idioma de la interfaz.
+- Ajustes de biblioteca: carpeta de música, carpeta del explorador, reproducir al soltar archivos.
+- Backup vivo de configuración (`musicx-full-backup-v1`) ligado a una ruta; la ruta se reinyecta al guardar para no perder el vínculo.
+- Sincronización de estadísticas de escucha a un archivo JSON (intervalos o al cerrar).
+- Sesiones: una por arranque. Canciones reproducidas: una por pista iniciada. Tiempo escuchado acumulado durante la reproducción.
+
+---
+
+## Linux / escritorio
+
+Servicio MPRIS `org.mpris.MediaPlayer2.musicx`: play/pausa, siguiente/anterior, metadatos y carátula para el shell y los auriculares.
+
+---
+
+## Estructura del repositorio
 
 ```text
 musicx-theaudioplayer/
-├── src/                          # Frontend (React 19 + TypeScript + Tailwind)
+├── src/                         Frontend (React 19, TypeScript, Tailwind)
 │   ├── components/
-│   │   ├── layout/               # LayoutManager, LayoutNodeRenderer y presets
-│   │   ├── player/               # HiFiPlayerBar (Transporte & Telemetría DAC)
-│   │   └── widgets/              # FolderExplorer, VirtualTrackList, Inspector, DacTelemetry, Queue
-│   ├── services/                 # Servicios IPC tipados de Tauri v2 (invoke & listen)
-│   ├── store/                    # Estado global reactivo con Zustand
-│   └── types/                    # Modelos TypeScript estrictos (Track, Telemetry, FileNode)
-├── src-tauri/                    # Backend (Rust Core)
-│   ├── src/
-│   │   ├── audio.rs              # Motor de audio bit-perfect (Symphonia + CPAL + Gapless)
-│   │   ├── db.rs                 # SQLite WAL y escáner incremental multihilo (jwalk)
-│   │   ├── fs_lazy.rs            # Explorador lazy optimizado para NFS/SSHFS
-│   │   ├── mpris.rs              # Integración D-Bus MPRIS para Linux
-│   │   ├── commands.rs           # Comandos Tauri invocables
-│   │   └── lib.rs                # Inicialización, estado y bucle de telemetría
-│   └── Cargo.toml                # Dependencias nativas en Rust
-└── package.json                  # Scripts y dependencias frontend
+│   │   ├── layout/              LayoutManager, presets y edición de paneles
+│   │   ├── player/              Barra Hi-Fi y mini reproductor
+│   │   ├── settings/            Ajustes
+│   │   ├── audio/               Ecualizador
+│   │   ├── radio/               Hub de radio
+│   │   └── widgets/             Explorador, lista, cola, Stream, CAVA, buffer, etc.
+│   ├── services/                IPC Tauri y radioAudioService
+│   ├── store/                   Zustand (reproducción, ajustes, backups)
+│   ├── lib/                     Tema, formatos, pistas de stream
+│   └── types/
+├── src-tauri/                   Backend Rust
+│   ├── src/                     Audio, SQLite, FS lazy, MPRIS, relé radio, comandos
+│   ├── tauri.conf.json
+│   └── Cargo.toml
+├── .github/workflows/release.yml  AppImage + RPM al publicar un tag v*
+├── package.json
+└── LICENSE
 ```
+
+Estado global: Zustand. IPC: `@tauri-apps/api` v2. Diálogos nativos: `@tauri-apps/plugin-dialog`.
 
 ---
 
-## 📄 Licencia
+## Desarrollo
 
-Distribuido bajo la Licencia **MIT**. Consulta el archivo `LICENSE` para más detalles.
+| Comando | Efecto |
+| --- | --- |
+| `npm run tauri dev` | Ventana nativa + Vite en `http://localhost:1420` |
+| `npm run dev` | Solo frontend (sin backend Tauri) |
+| `npm run build` | `tsc` + Vite (el empaquetado Tauri lo llama antes de rustc) |
+| `npm run tauri build` | Binario y bundles de instalación |
+
+El workflow de Release usa Node 22, Rust stable, `npm ci` y `npm run tauri build -- --bundles appimage rpm --ci`. `tsc` tiene `strict` y `noUnusedLocals`; un error de tipos corta el paquete.
+
+---
+
+## Licencia
+
+MIT. Ver `LICENSE`.
