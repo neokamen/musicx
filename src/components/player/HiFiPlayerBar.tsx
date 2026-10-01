@@ -381,9 +381,9 @@ export const HiFiPlayerBar: React.FC<HiFiPlayerBarProps> = ({ height, isEditing,
             aria-label={isPlaying ? "Pausar" : "Reproducir"}
           >
             {isPlaying ? (
-              <Pause size={18} fill="currentColor" className={isPlayFlipping ? "animate-play-button-flip" : ""} />
+              <Pause size={18} fill="currentColor" className={isPlayFlipping && appearance.playButtonClickEffect !== "none" ? `animate-play-button-${appearance.playButtonClickEffect || "pulse"}` : ""} />
             ) : (
-              <Play size={18} fill="currentColor" className={`ml-0.5 ${isPlayFlipping ? "animate-play-button-flip" : ""}`} />
+              <Play size={18} fill="currentColor" className={`ml-0.5 ${isPlayFlipping && appearance.playButtonClickEffect !== "none" ? `animate-play-button-${appearance.playButtonClickEffect || "pulse"}` : ""}`} />
             )}
           </button>
 

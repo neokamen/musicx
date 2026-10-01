@@ -519,7 +519,7 @@ export const StreamMusicModal: React.FC<StreamMusicModalProps> = ({ isOpen = fal
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <div className="text-sm font-bold text-white">Guardar offline</div>
-                  <div className="text-xs text-slate-500">Abre el editor Soundix para formato, calidad y carpeta.</div>
+                  <div className="text-xs text-slate-500">Formato, calidad, carpeta y estructura.</div>
                 </div>
                 <div className="flex items-center gap-2">
                   <button type="button" onClick={toggleAll} className="rounded-xl border border-white/10 px-3 py-1.5 text-xs text-slate-300 hover:text-white">

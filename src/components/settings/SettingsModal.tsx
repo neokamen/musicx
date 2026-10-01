@@ -993,6 +993,36 @@ export const SettingsModal: React.FC = () => {
                 </div>
               </div>
 
+              <div className="p-3.5 rounded-xl bg-slate-900/60 border border-slate-800 space-y-3">
+                <div>
+                  <div className="text-xs font-bold text-slate-200">Efecto al pulsar Play</div>
+                  <div className="text-[11px] text-slate-400">Animación del icono cuando cambias entre play y pausa</div>
+                </div>
+                <div className="grid grid-cols-3 gap-2">
+                  {([
+                    { id: "none", label: "Ninguno" },
+                    { id: "pulse", label: "Pulso" },
+                    { id: "pop", label: "Pop" },
+                    { id: "spin", label: "Giro" },
+                    { id: "bounce", label: "Rebote" },
+                    { id: "flip", label: "Volteo" },
+                  ] as const).map((effect) => (
+                    <button
+                      key={effect.id}
+                      type="button"
+                      onClick={() => setAppearance({ playButtonClickEffect: effect.id })}
+                      className={`rounded-lg border px-2 py-1.5 text-[11px] font-semibold ${
+                        (appearance.playButtonClickEffect || "pulse") === effect.id
+                          ? "border-cyan-500 bg-cyan-950/40 text-cyan-300"
+                          : "border-slate-800 bg-slate-950/40 text-slate-400 hover:text-slate-200"
+                      }`}
+                    >
+                      {effect.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
                 <label className="p-3 rounded-xl bg-slate-900/60 border border-slate-800 flex items-center justify-between gap-3 text-xs font-semibold text-slate-200">
                   Pulso BPM en el botón Play
@@ -1920,6 +1950,7 @@ export const SettingsModal: React.FC = () => {
                 <div className="flex flex-col items-center gap-2 py-2 text-center">
                   <img src="/musicx-banner.png" alt="MusicX · The Audio Player" className="h-20 max-w-full object-contain" />
                   <span className="text-[11px] font-mono text-cyan-400">Versión {packageInfo.version} · Hi-Fi Direct</span>
+                  <span className="text-[11px] text-slate-400">Creado por AlexMC aka neokamen</span>
                 </div>
 
                 <p className="text-xs text-slate-300 leading-relaxed">

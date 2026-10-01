@@ -465,9 +465,49 @@ body {
   100% { transform: perspective(240px) rotateY(360deg) scale(1); }
 }
 
+@keyframes play-button-pulse {
+  0% { transform: scale(1); }
+  45% { transform: scale(1.28); }
+  100% { transform: scale(1); }
+}
+
+@keyframes play-button-pop {
+  0% { transform: scale(0.55); opacity: 0.4; }
+  60% { transform: scale(1.18); opacity: 1; }
+  100% { transform: scale(1); }
+}
+
+@keyframes play-button-spin {
+  0% { transform: rotate(-8deg) scale(0.85); }
+  100% { transform: rotate(360deg) scale(1); }
+}
+
+@keyframes play-button-bounce {
+  0% { transform: translateY(0) scale(1); }
+  35% { transform: translateY(-7px) scale(1.12); }
+  70% { transform: translateY(3px) scale(0.94); }
+  100% { transform: translateY(0) scale(1); }
+}
+
 .animate-play-button-flip {
   animation: play-button-flip 650ms cubic-bezier(0.2, 0.8, 0.25, 1) both;
   transform-style: preserve-3d;
+}
+
+.animate-play-button-pulse {
+  animation: play-button-pulse 420ms ease-out both;
+}
+
+.animate-play-button-pop {
+  animation: play-button-pop 380ms cubic-bezier(0.22, 1.4, 0.36, 1) both;
+}
+
+.animate-play-button-spin {
+  animation: play-button-spin 500ms cubic-bezier(0.22, 0.8, 0.25, 1) both;
+}
+
+.animate-play-button-bounce {
+  animation: play-button-bounce 480ms cubic-bezier(0.22, 1.2, 0.36, 1) both;
 }
 
 .column-resize-handle::after {

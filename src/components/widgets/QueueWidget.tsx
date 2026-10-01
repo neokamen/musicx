@@ -54,11 +54,14 @@ export const QueueWidget: React.FC = () => {
     removeFromQueue,
     clearQueue,
     appearance,
+    addToQueue,
+    playbackSettings,
   } = useMusicStore();
   const [showRadio, setShowRadio] = useState(false);
   const [showStream, setShowStream] = useState(false);
   const [downloadTracks, setDownloadTracks] = useState<NeoTrack[] | null>(null);
   const [isColMenuOpen, setIsColMenuOpen] = useState(false);
+  const [isFileDrag, setIsFileDrag] = useState(false);
   const [columnWidths, setColumnWidths] = useState<Record<QueueColumn, number>>({
     index: 8,
     title: 42,
@@ -82,6 +85,34 @@ export const QueueWidget: React.FC = () => {
     event.stopPropagation();
     if (!isStreamTrack(track)) return;
     setDownloadTracks([trackToSoundixTrack(track)]);
+  };
+
+  const handleQueueDrop = async (event: React.DragEvent) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setIsFileDrag(false);
+    const files = Array.from(event.dataTransfer.files || []).filter((file) =>
+      /\.(mp3|flac|wav|ogg|m4a|aac|opus|alac)$/i.test(file.name)
+    );
+    if (files.length === 0) return;
+    const newTracks = files.map((file, idx) => ({
+      filepath: (file as { path?: string }).path || file.name,
+      title: file.name.replace(/\.[^/.]+$/, ""),
+      artist: "Archivo Arrastrado",
+      album: "Cola Temporal",
+      track_number: idx + 1,
+      duration_seconds: 0,
+      format: file.name.split(".").pop()?.toUpperCase() || "AUDIO",
+      sample_rate: 44100,
+      bit_depth: 16,
+      bitrate_kbps: 1411,
+      file_size: file.size,
+      mtime: Date.now(),
+    }));
+    addToQueue(newTracks);
+    if (playbackSettings.autoPlayOnDrop && newTracks[0]) {
+      await play(newTracks[0]);
+    }
   };
 
   const resizeColumns = (left: QueueColumn, right: QueueColumn, deltaPixels: number) => {
@@ -114,7 +145,19 @@ export const QueueWidget: React.FC = () => {
   }
 
   return (
-    <div className="relative flex flex-col h-full bg-audiophile-surface">
+    <div
+      className="relative flex flex-col h-full bg-audiophile-surface"
+      onDragOver={(event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        setIsFileDrag(true);
+      }}
+      onDragLeave={(event) => {
+        if (event.currentTarget.contains(event.relatedTarget as Node)) return;
+        setIsFileDrag(false);
+      }}
+      onDrop={(event) => void handleQueueDrop(event)}
+    >
       <div
         className="flex items-center justify-between gap-3 px-3 py-2.5 border-b shrink-0"
         style={{
@@ -386,6 +429,11 @@ export const QueueWidget: React.FC = () => {
           >
             {isPlaying ? "En Play" : "Reanudar"}
           </button>
+        </div>
+      )}
+      {isFileDrag && (
+        <div className="pointer-events-none absolute inset-0 z-30 flex items-center justify-center rounded-md border-2 border-dashed bg-black/45 text-sm font-semibold" style={{ borderColor: appearance.accentColor, color: appearance.accentColor }}>
+          Soltar para añadir a la cola
         </div>
       )}
       {downloadTracks && (

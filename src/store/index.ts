@@ -34,6 +34,7 @@ export interface AppearanceState {
   neonIntensity: number;
   inPlayBpmPulseEnabled: boolean;
   playButtonBpmPulseEnabled: boolean;
+  playButtonClickEffect: "none" | "flip" | "pulse" | "pop" | "spin" | "bounce";
   borderEffect: boolean;
   borderOpacity: number;
   borderRadius: number;
@@ -246,6 +247,7 @@ const defaultAppearance: AppearanceState = {
   neonIntensity: 50,
   inPlayBpmPulseEnabled: true,
   playButtonBpmPulseEnabled: true,
+  playButtonClickEffect: "pulse",
   borderEffect: true,
   borderOpacity: 40,
   borderRadius: 8,
@@ -392,6 +394,9 @@ function loadStoredSettings(): {
             savedAppearance.inPlayBpmPulseEnabled ?? legacyInPlayBpmPulseEnabled ?? defaultAppearance.inPlayBpmPulseEnabled,
           playButtonBpmPulseEnabled:
             savedAppearance.playButtonBpmPulseEnabled ?? legacyPlayButtonBpmPulseEnabled ?? defaultAppearance.playButtonBpmPulseEnabled,
+          playButtonClickEffect:
+            (savedAppearance as { playButtonClickEffect?: AppearanceState["playButtonClickEffect"] }).playButtonClickEffect
+            ?? defaultAppearance.playButtonClickEffect,
           marqueeSpeed:
             savedAppearance.marqueeSpeed ?? getSavedMarqueeSpeed() ?? defaultAppearance.marqueeSpeed,
           marqueeDelay:
