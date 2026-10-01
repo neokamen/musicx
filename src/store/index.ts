@@ -111,6 +111,7 @@ export interface LibrarySettings {
   // How often the sync file gets written: every 10s of playback (current default), every X minutes, or only on app close
   statsSyncFrequency: "interval10s" | "intervalMinutes" | "onClose";
   statsSyncIntervalMinutes: number;
+  fullBackupFilePath: string;
 }
 
 export interface MusicPlayerStore {
@@ -204,6 +205,35 @@ export interface MusicPlayerStore {
 
 const SETTINGS_STORAGE_KEY = "musicx_settings_v5";
 const EXPLORER_PATH_STORAGE_KEY = "musicx_explorer_last_path_v1";
+const FULL_BACKUP_PATH_KEY = "musicx_full_backup_path";
+const FULL_BACKUP_EXCLUDED = ["musicx_listening_stats", "musicx_stats_backup"];
+
+async function flushFullBackupToFile(path: string): Promise<void> {
+  if (!path) return;
+  const data: Record<string, string> = {};
+  for (let i = 0; i < localStorage.length; i++) {
+    const key = localStorage.key(i);
+    if (!key || FULL_BACKUP_EXCLUDED.includes(key)) continue;
+    const value = localStorage.getItem(key);
+    if (value !== null) data[key] = value;
+  }
+  try {
+    await api.writeTextFile(
+      path,
+      JSON.stringify(
+        {
+          format: "musicx-full-backup-v1",
+          exportedAt: new Date().toISOString(),
+          data,
+        },
+        null,
+        2
+      )
+    );
+  } catch {
+    // Ignore backup write failure
+  }
+}
 
 const defaultAppearance: AppearanceState = {
   accentColor: "#06b6d4", // Cyan
@@ -290,7 +320,43 @@ const defaultLibrarySettings: LibrarySettings = {
   statsSyncFilePath: "",
   statsSyncFrequency: "interval10s",
   statsSyncIntervalMinutes: 5,
+  fullBackupFilePath: "",
 };
+
+async function loadLiveFullBackupIntoStore(
+  get: () => MusicPlayerStore,
+  set: (partial: Partial<MusicPlayerStore>) => void
+): Promise<void> {
+  const path = get().librarySettings.fullBackupFilePath || localStorage.getItem(FULL_BACKUP_PATH_KEY) || "";
+  if (!path) return;
+  try {
+    const raw = await api.readTextFile(path);
+    if (!raw) return;
+    const backup = JSON.parse(raw);
+    if (backup?.format !== "musicx-full-backup-v1" || !backup.data || typeof backup.data !== "object") return;
+    for (const [key, value] of Object.entries(backup.data as Record<string, unknown>)) {
+      if (typeof value === "string" && !FULL_BACKUP_EXCLUDED.includes(key)) {
+        localStorage.setItem(key, value);
+      }
+    }
+    const settingsRaw = (backup.data as Record<string, string>)[SETTINGS_STORAGE_KEY];
+    if (!settingsRaw) return;
+    const parsed = JSON.parse(settingsRaw);
+    set({
+      language: parsed.language || get().language,
+      appearance: parsed.appearance ? { ...defaultAppearance, ...parsed.appearance } : get().appearance,
+      audioSettings: parsed.audioSettings ? { ...defaultAudioSettings, ...parsed.audioSettings } : get().audioSettings,
+      playbackSettings: parsed.playbackSettings ? { ...defaultPlaybackSettings, ...parsed.playbackSettings } : get().playbackSettings,
+      librarySettings: {
+        ...defaultLibrarySettings,
+        ...(parsed.librarySettings || {}),
+        fullBackupFilePath: path,
+      },
+    });
+  } catch {
+    // Ignore unreadable live backup
+  }
+}
 
 function loadStoredSettings(): {
   language: Language;
@@ -365,6 +431,12 @@ function saveStoredSettings(
     localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(state));
   } catch {
     // Ignore write failure
+  }
+  if (state.librarySettings.fullBackupFilePath) {
+    localStorage.setItem(FULL_BACKUP_PATH_KEY, state.librarySettings.fullBackupFilePath);
+    void flushFullBackupToFile(state.librarySettings.fullBackupFilePath);
+  } else {
+    localStorage.removeItem(FULL_BACKUP_PATH_KEY);
   }
   if (options.syncFile !== false) {
     syncListeningStatsToFile(state.librarySettings, state.listeningStats);
@@ -733,13 +805,20 @@ export const useMusicStore = create<MusicPlayerStore>((set, get) => ({
   setStreamMusicOpen: (open: boolean) => set({ isStreamMusicOpen: open }),
 
   nextTrack: async () => {
-    const { queue, queueIndex, shuffle, repeat, play } = get();
+    const { queue, queueIndex, currentTrack, shuffle, repeat, play } = get();
     if (queue.length === 0) return;
 
-    let nextIndex = queueIndex + 1;
+    let current = queueIndex;
+    if (current < 0 && currentTrack) {
+      current = queue.findIndex((track) => track.filepath === currentTrack.filepath);
+    }
+    if (current < 0) current = 0;
 
-    if (shuffle) {
-      nextIndex = Math.floor(Math.random() * queue.length);
+    let nextIndex = current + 1;
+    if (shuffle && queue.length > 1) {
+      do {
+        nextIndex = Math.floor(Math.random() * queue.length);
+      } while (nextIndex === current);
     } else if (nextIndex >= queue.length) {
       if (repeat === "all") {
         nextIndex = 0;
@@ -1242,7 +1321,12 @@ export const useMusicStore = create<MusicPlayerStore>((set, get) => ({
       const isNearEnd = duration > 0 && telemetry.current_time >= duration - endTolerance;
       const justStoppedAfterPlay = wasPlaying && telemetry.state === "Stopped";
 
-      if ((isNearEnd || justStoppedAfterPlay) && state.queue.length > 0 && currentTrack) {
+      if (
+        !isStreamTrack(currentTrack) &&
+        (isNearEnd || justStoppedAfterPlay) &&
+        state.queue.length > 0 &&
+        currentTrack
+      ) {
         // Trigger handleTrackEnded asynchronously to prevent state re-entrance
         setTimeout(() => {
           const currentState = get();
@@ -1282,6 +1366,7 @@ export const useMusicStore = create<MusicPlayerStore>((set, get) => ({
 
   initListeners: async () => {
     await get().loadListeningStatsFromSyncFile();
+    await loadLiveFullBackupIntoStore(get, set);
 
     const audio = get().audioSettings;
     radioAudioService.setVolume(get().volume);

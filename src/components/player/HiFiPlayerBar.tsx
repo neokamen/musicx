@@ -236,7 +236,7 @@ export const HiFiPlayerBar: React.FC<HiFiPlayerBarProps> = ({ height, isEditing,
   return (
     <footer
       style={{ height, "--player-side-width": `${playerInfoWidth}px` } as React.CSSProperties}
-      className="grid grid-cols-[var(--player-side-width)_minmax(0,1fr)_var(--player-side-width)] items-center gap-0 border-t border-slate-800/80 bg-slate-950/95 backdrop-blur-md px-4 z-40 select-none shrink-0 relative overflow-hidden"
+      className="grid grid-cols-[var(--player-side-width)_minmax(0,1fr)_var(--player-side-width)] items-center gap-0 border-t border-slate-800/80 bg-slate-950/95 backdrop-blur-md px-4 z-40 select-none shrink-0 relative overflow-hidden isolate"
     >
       {playbackSettings?.diffusePlayerBar && currentCoverArt && (
         <>
@@ -279,7 +279,7 @@ export const HiFiPlayerBar: React.FC<HiFiPlayerBarProps> = ({ height, isEditing,
       </div>}
       {height > 72 && <>
       {/* Left block: Cover, Track Info & Bit-Perfect Badge */}
-      <div className="relative flex h-full w-full min-w-0 items-center gap-3 overflow-hidden">
+      <div className="relative z-10 flex h-full w-full min-w-0 items-center gap-3 overflow-hidden">
         <div
           className="w-14 h-14 rounded-lg bg-slate-900 border border-slate-800 shadow-md flex items-center justify-center shrink-0 overflow-hidden relative"
           style={{
@@ -347,7 +347,7 @@ export const HiFiPlayerBar: React.FC<HiFiPlayerBarProps> = ({ height, isEditing,
       </div>
 
       {/* Center block: Controls & Symmetrical Adaptive Seekbar */}
-      <div className="flex h-full w-full min-w-0 -translate-y-[6px] flex-col items-center justify-center gap-[6px]">
+      <div className="relative z-10 flex h-full w-full min-w-0 -translate-y-[6px] flex-col items-center justify-center gap-[6px]">
         <div className="flex shrink-0 items-center gap-2">
           <button
             onClick={toggleShuffle}
@@ -555,7 +555,7 @@ export const HiFiPlayerBar: React.FC<HiFiPlayerBarProps> = ({ height, isEditing,
       </div>
 
       {/* Right block: Upper Row (EQ +, NORM, STEREO/MONO, Speaker Device) | Lower Row (Volume Slider) */}
-      <div className="flex h-full w-full min-w-0 flex-col items-stretch justify-center gap-1.5">
+      <div className="relative z-10 flex h-full w-full min-w-0 flex-col items-stretch justify-center gap-1.5">
         {/* Upper Row: Controls */}
         <div className="ml-auto flex w-[204px] max-w-full items-center justify-end gap-2">
           <div className="flex items-center gap-2">

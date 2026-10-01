@@ -1,11 +1,27 @@
 import React, { useState } from "react";
 import { useMusicStore } from "../../store/index.ts";
-import { ListMusic, Play, Trash2, X, Radio as RadioIcon, Globe, Volume2, Download } from "lucide-react";
+import { ListMusic, Play, Trash2, X, Radio as RadioIcon, Globe, Volume2, Download, SlidersHorizontal } from "lucide-react";
 import { RadioHubModal } from "../radio/RadioHubModal.tsx";
 import { StreamMusicModal } from "./StreamMusicModal.tsx";
 import { SoundixDownloadDialog, trackToSoundixTrack, type NeoTrack } from "./SoundixDownloadDialog.tsx";
+import { ColumnResizeHandle } from "./ColumnResizeHandle.tsx";
 import { isStreamTrack } from "../../lib/streamTracks.ts";
 import type { Track } from "../../types/index.ts";
+
+const FORMAT_COLORS: Record<string, string> = {
+  MP3: "#f59e0b",
+  FLAC: "#22d3ee",
+  WAV: "#a78bfa",
+  OGG: "#84cc16",
+  OPUS: "#60a5fa",
+  AAC: "#fb7185",
+  M4A: "#f472b6",
+  ALAC: "#e2e8f0",
+  STREAM: "#06b6d4",
+  RADIO: "#ec4899",
+};
+
+type QueueColumn = "index" | "title" | "format" | "bitrate" | "duration" | "download";
 
 function formatDuration(sec: number): string {
   if (!sec || isNaN(sec)) return "0:00";
@@ -42,6 +58,22 @@ export const QueueWidget: React.FC = () => {
   const [showRadio, setShowRadio] = useState(false);
   const [showStream, setShowStream] = useState(false);
   const [downloadTracks, setDownloadTracks] = useState<NeoTrack[] | null>(null);
+  const [isColMenuOpen, setIsColMenuOpen] = useState(false);
+  const [columnWidths, setColumnWidths] = useState<Record<QueueColumn, number>>({
+    index: 8,
+    title: 42,
+    format: 12,
+    bitrate: 16,
+    duration: 12,
+    download: 10,
+  });
+  const [visibleCols, setVisibleCols] = useState({
+    format: true,
+    bitrate: true,
+    duration: true,
+    album: true,
+    download: true,
+  });
 
   const totalDuration = queue.reduce((acc, t) => acc + (t.duration_seconds || 0), 0);
   const remaining = queue.slice(Math.max(queueIndex, 0)).reduce((acc, t) => acc + (t.duration_seconds || 0), 0);
@@ -51,6 +83,27 @@ export const QueueWidget: React.FC = () => {
     if (!isStreamTrack(track)) return;
     setDownloadTracks([trackToSoundixTrack(track)]);
   };
+
+  const resizeColumns = (left: QueueColumn, right: QueueColumn, deltaPixels: number) => {
+    setColumnWidths((widths) => {
+      const delta = deltaPixels * 0.18;
+      const nextLeft = Math.max(6, Math.min(70, widths[left] + delta));
+      const applied = nextLeft - widths[left];
+      return { ...widths, [left]: nextLeft, [right]: Math.max(6, widths[right] - applied) };
+    });
+  };
+
+  const gridTemplate = [
+    `${columnWidths.index}px`,
+    "minmax(0,1fr)",
+    visibleCols.format ? `${columnWidths.format * 4.2}px` : null,
+    visibleCols.bitrate ? `${columnWidths.bitrate * 4.2}px` : null,
+    visibleCols.duration ? `${columnWidths.duration * 3.4}px` : null,
+    visibleCols.download ? "22px" : null,
+    "18px",
+  ]
+    .filter(Boolean)
+    .join(" ");
 
   if (showRadio) {
     return <RadioHubModal isVisible onClose={() => setShowRadio(false)} embedded onBackToLibrary={() => setShowRadio(false)} />;
@@ -109,6 +162,38 @@ export const QueueWidget: React.FC = () => {
           >
             <Globe size={14} />
           </button>
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => setIsColMenuOpen((open) => !open)}
+              className="p-1.5 rounded-md text-audiophile-muted hover:text-audiophile-text hover:bg-white/5"
+              title="Configurar columnas"
+            >
+              <SlidersHorizontal size={14} />
+            </button>
+            {isColMenuOpen && (
+              <div className="absolute right-0 top-8 z-50 w-44 space-y-1.5 rounded-lg border border-slate-700 bg-slate-950 p-2 font-mono text-[10px] shadow-2xl">
+                <div className="border-b border-slate-800 pb-1 font-bold text-slate-400">Columnas de cola</div>
+                {([
+                  ["album", "Álbum"],
+                  ["format", "Tipo"],
+                  ["bitrate", "Bitrate"],
+                  ["duration", "Duración"],
+                  ["download", "Descarga"],
+                ] as const).map(([key, label]) => (
+                  <label key={key} className="flex cursor-pointer items-center justify-between text-slate-200">
+                    <span>{label}</span>
+                    <input
+                      type="checkbox"
+                      checked={visibleCols[key]}
+                      onChange={(event) => setVisibleCols({ ...visibleCols, [key]: event.target.checked })}
+                      className="accent-cyan-400"
+                    />
+                  </label>
+                ))}
+              </div>
+            )}
+          </div>
           {queue.length > 0 && (
             <button
               type="button"
@@ -135,16 +220,32 @@ export const QueueWidget: React.FC = () => {
           <div
             className="sticky top-0 z-[1] grid items-center gap-2 px-3 py-1.5 text-[9px] font-bold uppercase tracking-wider text-audiophile-muted bg-audiophile-surface/95"
             style={{
-              gridTemplateColumns: "22px minmax(0,1fr) 58px 64px 40px 22px 18px",
+              gridTemplateColumns: gridTemplate,
               borderBottom: "1px solid color-mix(in srgb, var(--app-accent, #06b6d4) 12%, transparent)",
             }}
           >
-            <span>#</span>
-            <span>Pista</span>
-            <span>Tipo</span>
-            <span>Bitrate</span>
-            <span className="text-right">Dur.</span>
-            <span />
+            <span className="relative">
+              #
+              <ColumnResizeHandle onResize={(delta) => resizeColumns("index", "title", delta)} />
+            </span>
+            <span className="relative min-w-0">
+              Pista
+              {visibleCols.format && <ColumnResizeHandle onResize={(delta) => resizeColumns("title", "format", delta)} />}
+            </span>
+            {visibleCols.format && (
+              <span className="relative">
+                Tipo
+                {visibleCols.bitrate && <ColumnResizeHandle onResize={(delta) => resizeColumns("format", "bitrate", delta)} />}
+              </span>
+            )}
+            {visibleCols.bitrate && (
+              <span className="relative">
+                Bitrate
+                {visibleCols.duration && <ColumnResizeHandle onResize={(delta) => resizeColumns("bitrate", "duration", delta)} />}
+              </span>
+            )}
+            {visibleCols.duration && <span className="text-right">Dur.</span>}
+            {visibleCols.download && <span />}
             <span />
           </div>
           {queue.map((track, i) => {
@@ -158,7 +259,7 @@ export const QueueWidget: React.FC = () => {
                 key={`${track.filepath}-${i}`}
                 className="grid items-center gap-2 px-3 py-2 cursor-pointer group transition-all duration-200"
                 style={{
-                  gridTemplateColumns: "22px minmax(0,1fr) 58px 64px 40px 22px 18px",
+                  gridTemplateColumns: gridTemplate,
                   borderBottom: "1px solid color-mix(in srgb, white 6%, transparent)",
                   background: playingNow
                     ? `linear-gradient(90deg, ${appearance.accentColor}18, transparent 70%)`
@@ -219,33 +320,38 @@ export const QueueWidget: React.FC = () => {
                   </div>
                   <div className="text-[10px] text-audiophile-muted truncate">
                     {track.artist}
-                    {track.album ? ` · ${track.album}` : ""}
+                    {visibleCols.album && track.album ? ` · ${track.album}` : ""}
                   </div>
                 </div>
-                <span
-                  className={`inline-flex items-center justify-center h-5 px-1 rounded text-[8px] font-bold tracking-wide ${
-                    stream
-                      ? "bg-sky-500/15 text-sky-300 border border-sky-500/25"
-                      : "bg-white/[0.03] text-audiophile-muted border border-white/[0.06]"
-                  }`}
-                >
-                  {fmt}
-                </span>
-                <span className="text-[10px] font-mono text-audiophile-muted tabular-nums truncate">
-                  {queueBitrateLabel(track)}
-                </span>
-                <span className="text-[10px] font-mono text-audiophile-muted text-right tabular-nums">
-                  {formatDuration(track.duration_seconds)}
-                </span>
-                <button
-                  type="button"
-                  onClick={(event) => handleDownload(track, event)}
-                  disabled={!stream}
-                  className="p-0.5 text-audiophile-muted hover:text-audiophile-text disabled:opacity-25"
-                  title={stream ? "Descargar" : "Descarga disponible en pistas Stream"}
-                >
-                  <Download size={12} />
-                </button>
+                {visibleCols.format && (
+                  <span
+                    className="truncate text-[10px] font-bold tracking-wide"
+                    style={{ color: FORMAT_COLORS[fmt] || appearance.accentColor }}
+                  >
+                    {fmt}
+                  </span>
+                )}
+                {visibleCols.bitrate && (
+                  <span className="truncate text-[10px] font-mono text-audiophile-muted tabular-nums">
+                    {queueBitrateLabel(track)}
+                  </span>
+                )}
+                {visibleCols.duration && (
+                  <span className="text-right text-[10px] font-mono text-audiophile-muted tabular-nums">
+                    {formatDuration(track.duration_seconds)}
+                  </span>
+                )}
+                {visibleCols.download && (
+                  <button
+                    type="button"
+                    onClick={(event) => handleDownload(track, event)}
+                    disabled={!stream}
+                    className="p-0.5 text-audiophile-muted hover:text-audiophile-text disabled:opacity-25"
+                    title={stream ? "Descargar" : "Descarga disponible en pistas Stream"}
+                  >
+                    <Download size={12} />
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={(e) => {

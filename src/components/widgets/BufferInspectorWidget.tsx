@@ -263,10 +263,10 @@ export const BufferInspectorWidget: React.FC<BufferInspectorWidgetProps> = ({
       }`}
     >
       {/* Main Grid: Meters & Readouts (3 columns: Latency, Ring Buffer Fill, I/O Time) */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mb-3">
+      <div className="grid grid-cols-3 gap-2 mb-3 min-h-[96px]">
         {/* Latency Digital Meter */}
         <div
-          className={`p-2.5 rounded-sm relative overflow-hidden flex flex-col justify-between border ${
+          className={`p-2.5 rounded-sm relative overflow-hidden flex flex-col justify-between min-w-0 border ${
             isDsp
               ? "bg-[#0f1412] border-emerald-900/50"
               : "bg-audiophile-surface2/60 border-slate-600/35"
@@ -301,7 +301,7 @@ export const BufferInspectorWidget: React.FC<BufferInspectorWidgetProps> = ({
 
         {/* Ring Buffer Fill */}
         <div
-          className={`p-2.5 rounded-sm flex flex-col justify-between border ${
+          className={`p-2.5 rounded-sm flex flex-col justify-between min-w-0 overflow-hidden border ${
             isDsp
               ? "bg-[#0f1412] border-emerald-900/50"
               : "bg-audiophile-surface2/60 border-slate-600/35"
@@ -332,7 +332,7 @@ export const BufferInspectorWidget: React.FC<BufferInspectorWidgetProps> = ({
               {isNetworkMode ? "KB/s" : "%"}
             </span>
           </div>
-          <div className="text-[9px] text-neutral-500 font-mono">
+          <div className="text-[9px] text-neutral-500 font-mono truncate min-w-0" title={isNetworkMode ? networkName : undefined}>
             {isNetworkMode
               ? networkName
               : `${telemetry.buffer_fill_frames.toLocaleString()} / ${telemetry.buffer_capacity_frames.toLocaleString()} f`}
@@ -341,7 +341,7 @@ export const BufferInspectorWidget: React.FC<BufferInspectorWidgetProps> = ({
 
         {/* I/O Packet Read Latency (Network Mount Detection) */}
         <div
-          className={`p-2.5 rounded-sm flex flex-col justify-between border ${
+          className={`p-2.5 rounded-sm flex flex-col justify-between min-w-0 overflow-hidden border ${
             isDsp
               ? "bg-[#0f1412] border-emerald-900/50"
               : "bg-audiophile-surface2/60 border-slate-600/35"

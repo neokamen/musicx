@@ -68,6 +68,7 @@ class RadioAudioService {
 	private activeRecordingTitle: string | null = null;
 	private playbackKind: "idle" | "radio" | "media" = "idle";
 	private endedHandler: (() => void) | null = null;
+	private endedConsumed = false;
 
 	// Recording pipeline
 	private mediaRecorder: MediaRecorder | null = null;
@@ -80,8 +81,7 @@ class RadioAudioService {
 	private maxStoredTracks = 20;
 
 	constructor() {
-		this.audio.preload = "none";
-		this.audio.crossOrigin = "anonymous";
+        this.audio.loop = false;
 
 		this.audio.addEventListener("playing", () => {
 			this.startTimer();
@@ -109,16 +109,38 @@ class RadioAudioService {
 
 		this.audio.addEventListener("timeupdate", () => {
 			if (this.playbackKind !== "media") return;
+			const duration = this.mediaDuration();
+			if (
+				!this.endedConsumed &&
+				duration &&
+				duration > 1 &&
+				this.audio.currentTime >= duration - 0.35
+			) {
+				this.endedConsumed = true;
+				this.audio.pause();
+				this.stopTimer();
+				this.stopSpectrumLoop();
+				this.publish({
+					status: "stopped",
+					elapsedSeconds: duration,
+					duration,
+					seekable: true,
+				});
+				this.endedHandler?.();
+				return;
+			}
 			this.publish({
 				status: this.audio.paused ? "paused" : "playing",
 				elapsedSeconds: this.audio.currentTime || 0,
-				duration: this.mediaDuration(),
+				duration,
 				seekable: true,
 			});
 		});
 
 		this.audio.addEventListener("ended", () => {
 			if (this.playbackKind !== "media") return;
+			if (this.endedConsumed) return;
+			this.endedConsumed = true;
 			this.stopTimer();
 			this.stopSpectrumLoop();
 			this.publish({
@@ -444,6 +466,8 @@ class RadioAudioService {
 	async playMedia(url: string, volume: number, options?: { duration?: number; bitrate?: number }): Promise<void> {
 		if (!url) throw new Error("No hay URL de stream válida.");
 		this.playbackKind = "media";
+		this.endedConsumed = false;
+		this.audio.loop = false;
 		this.applyDspSettings();
 		this.lastKnownStation = null;
 		this.currentStreamTitle = "";

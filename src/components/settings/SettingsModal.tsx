@@ -600,7 +600,57 @@ export const SettingsModal: React.FC = () => {
               <div className="p-4 rounded-xl bg-slate-900/40 border border-slate-800/80 space-y-3">
                 <div>
                   <div className="text-xs font-bold text-slate-200 uppercase tracking-wider">Copia de Seguridad Completa</div>
-                  <div className="text-[11px] text-slate-400">Guarda o restaura toda la configuración de la app en la ruta que elijas (ajustes, apariencia, widgets, emisoras, etc., excepto el tiempo escuchado).</div>
+                  <div className="text-[11px] text-slate-400">Ruta del archivo de configuración: la app lo lee al arrancar y lo actualiza en tiempo real al cambiar ajustes, apariencia y widgets.</div>
+                </div>
+                <div className="flex items-center gap-2 rounded-xl border border-slate-800 bg-slate-950/60 px-3 py-2">
+                  <FolderOpen size={14} className="shrink-0 text-slate-500" />
+                  <span className="min-w-0 flex-1 truncate font-mono text-[11px] text-slate-300" title={librarySettings.fullBackupFilePath || undefined}>
+                    {librarySettings.fullBackupFilePath || "Ningún archivo vinculado"}
+                  </span>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      const selected = await save({
+                        title: 'Archivo de configuración en vivo',
+                        defaultPath: librarySettings.fullBackupFilePath || 'musicx-config.json',
+                        filters: [{ name: 'JSON', extensions: ['json'] }],
+                      });
+                      if (typeof selected === 'string') {
+                        setLibrarySettings({ fullBackupFilePath: selected });
+                      }
+                    }}
+                    className="rounded-xl border border-slate-700 bg-slate-800 px-3 py-2 text-xs font-semibold text-slate-200 hover:bg-slate-700"
+                  >
+                    Elegir archivo...
+                  </button>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      const selected = await open({
+                        multiple: false,
+                        defaultPath: librarySettings.fullBackupFilePath || undefined,
+                        filters: [{ name: 'JSON', extensions: ['json'] }],
+                        title: 'Usar copia de seguridad existente',
+                      });
+                      if (typeof selected === 'string') {
+                        setLibrarySettings({ fullBackupFilePath: selected });
+                      }
+                    }}
+                    className="rounded-xl border border-slate-700 bg-slate-800 px-3 py-2 text-xs font-semibold text-slate-200 hover:bg-slate-700"
+                  >
+                    Vincular existente...
+                  </button>
+                  {librarySettings.fullBackupFilePath && (
+                    <button
+                      type="button"
+                      onClick={() => setLibrarySettings({ fullBackupFilePath: '' })}
+                      className="rounded-xl border border-slate-800 px-3 py-2 text-xs text-slate-400 hover:text-rose-300"
+                    >
+                      Quitar ruta
+                    </button>
+                  )}
                 </div>
                 <div className="flex flex-wrap gap-3">
                   <button
@@ -609,7 +659,7 @@ export const SettingsModal: React.FC = () => {
                     className="flex items-center gap-2 rounded-xl border border-slate-700 bg-slate-800 px-3.5 py-2 text-xs font-semibold text-slate-200 transition hover:bg-slate-700 hover:border-slate-500 cursor-pointer"
                   >
                     <Download size={14} style={{ color: appearance.accentColor || '#06b6d4' }} />
-                    <span>Guardar copia de seguridad...</span>
+                    <span>Guardar copia ahora...</span>
                   </button>
                   <button
                     type="button"
@@ -617,7 +667,7 @@ export const SettingsModal: React.FC = () => {
                     className="flex items-center gap-2 rounded-xl border border-slate-700 bg-slate-800 px-3.5 py-2 text-xs font-semibold text-slate-200 transition hover:bg-slate-700 hover:border-slate-500 cursor-pointer"
                   >
                     <Upload size={14} style={{ color: appearance.accentColor || '#06b6d4' }} />
-                    <span>Restaurar copia de seguridad...</span>
+                    <span>Restaurar copia...</span>
                   </button>
                 </div>
               </div>

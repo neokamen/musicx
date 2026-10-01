@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { CheckSquare, FolderOpen, Loader2, Music, Square, X } from "lucide-react";
+import { CheckSquare, ChevronDown, ChevronRight, FolderOpen, Loader2, Music, Search, Square, X } from "lucide-react";
 import { useMusicStore } from "../../store/index.ts";
 import type { Track } from "../../types/index.ts";
 import { streamTrackToNeo } from "../../lib/streamTracks.ts";
@@ -49,6 +49,29 @@ function isLosslessFormat(format: string): boolean {
 function qualityForFormat(format: string, lastLossyBitrate: string): string {
   return isLosslessFormat(format) ? "lossless" : lastLossyBitrate || "320k";
 }
+
+function buildStructurePreview(
+  pattern: string,
+  draft: { title: string; artist: string; album: string; year: string; trackNumber: string },
+  format: string
+) {
+  const n = String(Number(draft.trackNumber) || 1).padStart(2, "0");
+  const ext = format.toLowerCase();
+  const year = draft.year || "0000";
+  const file = `${n} ${draft.title || "Título"}.${ext}`;
+  if (pattern === "artist_album_track_title") {
+    return { parts: [draft.artist || "Artista", draft.album || "Álbum", file] };
+  }
+  if (pattern === "artist_title") {
+    return { parts: [`${draft.artist || "Artista"} - ${draft.title || "Título"}.${ext}`] };
+  }
+  if (pattern === "title") {
+    return { parts: [`${draft.title || "Título"}.${ext}`] };
+  }
+  return { parts: [draft.artist || "Artista", `${year} – ${draft.album || "Álbum"}`, file] };
+}
+
+type CoverHit = { url: string; title: string; artist: string };
 
 function loadSavedOptions(fallbackFolder: string): SoundixSavedOptions {
   try {
@@ -140,6 +163,11 @@ export const SoundixDownloadDialog: React.FC<SoundixDownloadDialogProps> = ({
   const [embedId3, setEmbedId3] = useState(saved.embedId3);
   const [outputFolder, setOutputFolder] = useState(saved.outputFolder);
   const [isDownloading, setIsDownloading] = useState(false);
+  const [structureOpen, setStructureOpen] = useState(false);
+  const [showCoverSearch, setShowCoverSearch] = useState(false);
+  const [coverQuery, setCoverQuery] = useState("");
+  const [coverHits, setCoverHits] = useState<CoverHit[]>([]);
+  const [coverLoading, setCoverLoading] = useState(false);
   const [draft, setDraft] = useState({
     title: first?.title || "",
     artist: first?.artist || "",
@@ -150,6 +178,8 @@ export const SoundixDownloadDialog: React.FC<SoundixDownloadDialogProps> = ({
   });
 
   const lossless = isLosslessFormat(format);
+  const structure = buildStructurePreview(namingPattern, draft, format);
+  const collapsedPath = structure.parts.join(" / ");
 
   useEffect(() => {
     localStorage.setItem(
@@ -188,6 +218,32 @@ export const SoundixDownloadDialog: React.FC<SoundixDownloadDialogProps> = ({
       if (typeof dir === "string") setOutputFolder(dir);
     } catch {
       // ignore
+    }
+  };
+
+  const searchCovers = async (query?: string) => {
+    const q = (query ?? coverQuery || `${draft.artist} ${draft.album || draft.title}`).trim();
+    if (!q) return;
+    setCoverQuery(q);
+    setCoverLoading(true);
+    try {
+      const response = await fetch(`https://itunes.apple.com/search?term=${encodeURIComponent(q)}&entity=album&limit=16`);
+      const payload = await response.json() as {
+        results?: { artworkUrl100?: string; collectionName?: string; artistName?: string }[];
+      };
+      setCoverHits(
+        (payload.results || [])
+          .map((item) => ({
+            url: (item.artworkUrl100 || "").replace("100x100bb", "600x600bb").replace("100x100", "600x600"),
+            title: item.collectionName || "",
+            artist: item.artistName || "",
+          }))
+          .filter((item) => item.url)
+      );
+    } catch {
+      setCoverHits([]);
+    } finally {
+      setCoverLoading(false);
     }
   };
 
@@ -255,7 +311,7 @@ export const SoundixDownloadDialog: React.FC<SoundixDownloadDialogProps> = ({
       onClick={() => !isDownloading && onClose()}
     >
       <div
-        className="w-full max-w-2xl rounded-[26px] border border-white/10 bg-[var(--app-surface,#0b1220)] p-4 shadow-2xl"
+        className="relative w-full max-w-2xl rounded-[26px] border border-white/10 bg-[var(--app-surface,#0b1220)] p-4 shadow-2xl"
         onClick={(event) => event.stopPropagation()}
       >
         <div className="mb-4 flex items-center justify-between gap-3">
@@ -275,7 +331,15 @@ export const SoundixDownloadDialog: React.FC<SoundixDownloadDialogProps> = ({
 
         <div className="grid gap-4 sm:grid-cols-[132px_1fr]">
           <div className="space-y-2">
-            <div className="aspect-square overflow-hidden rounded-2xl border border-white/10 bg-slate-950">
+            <button
+              type="button"
+              onClick={() => {
+                setShowCoverSearch(true);
+                if (coverHits.length === 0) void searchCovers();
+              }}
+              className="group relative aspect-square overflow-hidden rounded-2xl border border-white/10 bg-slate-950"
+              title="Buscar carátula"
+            >
               {draft.coverUrl ? (
                 <img src={draft.coverUrl} alt="Carátula" className="h-full w-full object-cover" />
               ) : (
@@ -283,7 +347,10 @@ export const SoundixDownloadDialog: React.FC<SoundixDownloadDialogProps> = ({
                   <Music size={28} />
                 </div>
               )}
-            </div>
+              <span className="absolute inset-0 flex items-center justify-center bg-black/55 text-[11px] font-semibold text-white opacity-0 transition group-hover:opacity-100">
+                Buscar carátula
+              </span>
+            </button>
             <input
               value={draft.coverUrl}
               onChange={(event) => setDraft((current) => ({ ...current, coverUrl: event.target.value }))}
@@ -408,6 +475,31 @@ export const SoundixDownloadDialog: React.FC<SoundixDownloadDialogProps> = ({
 
             <button
               type="button"
+              onClick={() => setStructureOpen((open) => !open)}
+              className="flex w-full items-start gap-2 rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-left text-slate-300 hover:bg-white/[0.04]"
+            >
+              {structureOpen ? <ChevronDown size={14} className="mt-0.5 shrink-0" /> : <ChevronRight size={14} className="mt-0.5 shrink-0" />}
+              <div className="min-w-0 flex-1">
+                <div className="text-[10px] uppercase tracking-wider text-slate-500">Estructura Soundix</div>
+                {structureOpen ? (
+                  <div className="mt-1 font-mono text-[11px] leading-5 text-slate-300">
+                    {structure.parts.map((part, index) => (
+                      <div key={`${part}-${index}`} style={{ paddingLeft: `${index * 12}px` }}>
+                        {index < structure.parts.length - 1 ? "📁 " : "🎵 "}
+                        {part}
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="truncate font-mono text-[11px] text-slate-400" title={collapsedPath}>
+                    {collapsedPath}
+                  </div>
+                )}
+              </div>
+            </button>
+
+            <button
+              type="button"
               onClick={() => void handlePickFolder()}
               className="flex w-full min-w-0 items-center gap-2 rounded-xl border border-white/10 bg-black/25 px-3 py-2 text-left text-slate-300 hover:text-white"
             >
@@ -446,6 +538,58 @@ export const SoundixDownloadDialog: React.FC<SoundixDownloadDialogProps> = ({
             )}
           </button>
         </div>
+        {showCoverSearch && (
+          <div className="absolute inset-3 z-20 overflow-hidden rounded-[22px] border border-white/10 bg-[#0b1220] p-4 shadow-2xl">
+            <div className="mb-3 flex items-center justify-between gap-2">
+              <div>
+                <div className="text-sm font-black text-white">Buscador de carátulas</div>
+                <div className="text-[11px] text-slate-500">Elige una portada para incrustar con ID3</div>
+              </div>
+              <button type="button" onClick={() => setShowCoverSearch(false)} className="rounded-xl p-2 text-slate-400 hover:bg-white/10 hover:text-white">
+                <X size={16} />
+              </button>
+            </div>
+            <form
+              className="mb-3 flex gap-2"
+              onSubmit={(event) => {
+                event.preventDefault();
+                void searchCovers(coverQuery);
+              }}
+            >
+              <div className="relative min-w-0 flex-1">
+                <Search size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
+                <input
+                  value={coverQuery}
+                  onChange={(event) => setCoverQuery(event.target.value)}
+                  placeholder={`${draft.artist} ${draft.album || draft.title}`}
+                  className="h-10 w-full rounded-xl border border-white/10 bg-black/30 pl-9 pr-3 text-sm text-white outline-none"
+                />
+              </div>
+              <button type="submit" className="rounded-xl px-3 text-sm font-bold text-black" style={{ backgroundColor: accent }}>
+                {coverLoading ? <Loader2 size={14} className="animate-spin" /> : "Buscar"}
+              </button>
+            </form>
+            <div className="grid max-h-[280px] grid-cols-4 gap-2 overflow-y-auto sm:grid-cols-5">
+              {coverHits.map((hit) => (
+                <button
+                  key={hit.url}
+                  type="button"
+                  onClick={() => {
+                    setDraft((current) => ({ ...current, coverUrl: hit.url }));
+                    setShowCoverSearch(false);
+                  }}
+                  className="group overflow-hidden rounded-xl border border-white/10 bg-black/30 text-left hover:border-white/30"
+                >
+                  <img src={hit.url} alt={hit.title} className="aspect-square w-full object-cover transition group-hover:scale-105" />
+                  <div className="truncate px-1.5 py-1 text-[9px] text-slate-400">{hit.title}</div>
+                </button>
+              ))}
+              {!coverLoading && coverHits.length === 0 && (
+                <div className="col-span-full py-8 text-center text-xs text-slate-500">Sin resultados. Prueba artista + álbum.</div>
+              )}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
