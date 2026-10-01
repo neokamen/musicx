@@ -222,7 +222,7 @@ export const SoundixDownloadDialog: React.FC<SoundixDownloadDialogProps> = ({
   };
 
   const searchCovers = async (query?: string) => {
-    const q = (query ?? coverQuery || `${draft.artist} ${draft.album || draft.title}`).trim();
+    const q = ((query ?? coverQuery) || `${draft.artist} ${draft.album || draft.title}`).trim();
     if (!q) return;
     setCoverQuery(q);
     setCoverLoading(true);
