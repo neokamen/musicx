@@ -1,10 +1,10 @@
 import React, { useState } from "react";
-import { invoke } from "@tauri-apps/api/core";
 import { useMusicStore } from "../../store/index.ts";
 import { ListMusic, Play, Trash2, X, Radio as RadioIcon, Globe, Volume2, Download } from "lucide-react";
 import { RadioHubModal } from "../radio/RadioHubModal.tsx";
 import { StreamMusicModal } from "./StreamMusicModal.tsx";
-import { isStreamTrack, streamTrackToNeo } from "../../lib/streamTracks.ts";
+import { SoundixDownloadDialog, trackToSoundixTrack, type NeoTrack } from "./SoundixDownloadDialog.tsx";
+import { isStreamTrack } from "../../lib/streamTracks.ts";
 import type { Track } from "../../types/index.ts";
 
 function formatDuration(sec: number): string {
@@ -38,57 +38,18 @@ export const QueueWidget: React.FC = () => {
     removeFromQueue,
     clearQueue,
     appearance,
-    librarySettings,
   } = useMusicStore();
   const [showRadio, setShowRadio] = useState(false);
   const [showStream, setShowStream] = useState(false);
-  const [downloadingId, setDownloadingId] = useState<string | null>(null);
+  const [downloadTracks, setDownloadTracks] = useState<NeoTrack[] | null>(null);
 
   const totalDuration = queue.reduce((acc, t) => acc + (t.duration_seconds || 0), 0);
   const remaining = queue.slice(Math.max(queueIndex, 0)).reduce((acc, t) => acc + (t.duration_seconds || 0), 0);
 
-  const handleDownload = async (track: Track, event: React.MouseEvent) => {
+  const handleDownload = (track: Track, event: React.MouseEvent) => {
     event.stopPropagation();
-    if (!isStreamTrack(track) || downloadingId) return;
-    const neo = streamTrackToNeo(track);
-    setDownloadingId(track.filepath);
-    try {
-      await invoke("download_track_batch", {
-        tracks: [
-          {
-            id: neo.id,
-            title: neo.title,
-            artist: neo.artist,
-            album: neo.album,
-            year: "",
-            trackNumber: neo.trackNumber || 1,
-            totalTracks: 1,
-            duration: Math.round(neo.duration || 0),
-            durationString: formatDuration(neo.duration || 0),
-            coverUrl: neo.coverUrl || "",
-            sourceUrl: neo.sourceUrl,
-          },
-        ],
-        options: {
-          format: "mp3",
-          bitrate: "320k",
-          sampleRate: null,
-          saveInFolder: false,
-          folderName: null,
-          namingPattern: "artist_year_album_track_title",
-          embedId3Tags: true,
-          outputFolder: librarySettings.musicFolder || "/home/neokamen/Descargas",
-          youtubeCookies: null,
-          cookiesFromBrowser: null,
-          downloadLyrics: false,
-          trackCovers: neo.coverUrl ? { [neo.id]: neo.coverUrl } : {},
-        },
-      });
-    } catch (error) {
-      console.error("Queue download failed:", error);
-    } finally {
-      setDownloadingId(null);
-    }
+    if (!isStreamTrack(track)) return;
+    setDownloadTracks([trackToSoundixTrack(track)]);
   };
 
   if (showRadio) {
@@ -100,7 +61,7 @@ export const QueueWidget: React.FC = () => {
   }
 
   return (
-    <div className="flex flex-col h-full bg-audiophile-surface">
+    <div className="relative flex flex-col h-full bg-audiophile-surface">
       <div
         className="flex items-center justify-between gap-3 px-3 py-2.5 border-b shrink-0"
         style={{
@@ -278,13 +239,12 @@ export const QueueWidget: React.FC = () => {
                 </span>
                 <button
                   type="button"
-                  onClick={(event) => void handleDownload(track, event)}
-                  disabled={!stream || downloadingId === track.filepath}
+                  onClick={(event) => handleDownload(track, event)}
+                  disabled={!stream}
                   className="p-0.5 text-audiophile-muted hover:text-audiophile-text disabled:opacity-25"
                   title={stream ? "Descargar" : "Descarga disponible en pistas Stream"}
-                  style={stream && downloadingId === track.filepath ? { color: appearance.accentColor } : undefined}
                 >
-                  <Download size={12} className={downloadingId === track.filepath ? "animate-pulse" : ""} />
+                  <Download size={12} />
                 </button>
                 <button
                   type="button"
@@ -321,6 +281,12 @@ export const QueueWidget: React.FC = () => {
             {isPlaying ? "En Play" : "Reanudar"}
           </button>
         </div>
+      )}
+      {downloadTracks && (
+        <SoundixDownloadDialog
+          tracks={downloadTracks}
+          onClose={() => setDownloadTracks(null)}
+        />
       )}
     </div>
   );

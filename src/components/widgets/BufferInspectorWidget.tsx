@@ -50,7 +50,6 @@ export const BufferInspectorWidget: React.FC<BufferInspectorWidgetProps> = ({
   const isRadioMode = Boolean(isRadioPlaying && activeRadioStation);
   const isStreamMode = Boolean(isStreamTrack(currentTrack) && !isRadioMode);
   const isNetworkMode = isRadioMode || isStreamMode;
-  const networkLabel = isRadioMode ? "RADIO ONLINE" : isStreamMode ? "STREAM YT" : "";
   const networkName = isRadioMode
     ? activeRadioStation?.name || "Radio online"
     : isStreamMode
@@ -326,8 +325,8 @@ export const BufferInspectorWidget: React.FC<BufferInspectorWidgetProps> = ({
               }`}
             >
             {isNetworkMode
-              ? `${(radioBytesPerSecond / 1024).toFixed(1)} KB/s`
-              : `${telemetry.buffer_fill_percent.toFixed(1)}`}
+              ? (radioBytesPerSecond / 1024).toFixed(1)
+              : telemetry.buffer_fill_percent.toFixed(1)}
             </span>
             <span className={`text-[10px] font-semibold ${isDsp ? "text-emerald-600" : "text-audiophile-muted"}`}>
               {isNetworkMode ? "KB/s" : "%"}
@@ -392,16 +391,9 @@ export const BufferInspectorWidget: React.FC<BufferInspectorWidgetProps> = ({
           </div>
           <div className="text-[9px] flex items-center gap-1 font-mono">
             {isNetworkMode ? (
-              <span
-                className={`px-1 py-0.2 rounded text-[8px] font-semibold uppercase ${
-                  isStreamMode
-                    ? "bg-sky-950/80 text-sky-300 border border-sky-800/60"
-                    : isDsp
-                      ? "bg-emerald-950/60 text-emerald-400"
-                      : "bg-audiophile-base text-audiophile-muted"
-                }`}
-              >
-                {networkLabel}
+              <span className={`text-[8px] font-semibold uppercase ${isDsp ? "text-emerald-500" : "text-audiophile-muted"}`}>
+                {isRadioMode ? "Radio" : "Stream"}
+                {radioIsRealUsage ? " · medido" : " · estimado"}
               </span>
             ) : (
             <span
