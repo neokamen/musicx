@@ -1,0 +1,9 @@
+{
+  "bundle": {
+    "externalBin": [
+      "binaries/yt-dlp",
+      "binaries/ffmpeg",
+      "binaries/ffprobe"
+    ]
+  }
+}

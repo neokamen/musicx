@@ -1,12 +1,13 @@
 {
   "name": "musicx-theaudioplayer",
   "private": true,
-  "version": "0.3.17",
+  "version": "0.3.18",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
+    "fetch-sidecars": "node scripts/fetch-runtime-sidecars.mjs",
     "tauri": "tauri"
   },
   "dependencies": {

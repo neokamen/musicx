@@ -128,7 +128,7 @@ pub struct TrackProgressPayload {
     pub file_path: Option<String>,
 }
 
-use crate::ytdlp::{append_modern_ytdlp_args, get_yt_dlp_binary, try_auto_update_ytdlp};
+use crate::ytdlp::{append_modern_ytdlp_args, ensure_runtime_deps, spawn_ffmpeg, spawn_ytdlp, try_auto_update_ytdlp};
 
 fn format_duration(seconds: u32) -> String {
     let m = seconds / 60;
@@ -428,8 +428,7 @@ async fn analyze_spotify(url: &str) -> Result<AnalyzeResult, String> {
 }
 
 async fn analyze_youtube_or_search(query: &str, limit: u32) -> Result<AnalyzeResult, String> {
-    let bin = get_yt_dlp_binary();
-
+    let _ = ensure_runtime_deps().await;
     let is_url = query.starts_with("http://") || query.starts_with("https://");
     let target = if is_url {
         query.to_string()
@@ -446,7 +445,7 @@ async fn analyze_youtube_or_search(query: &str, limit: u32) -> Result<AnalyzeRes
     ];
     append_modern_ytdlp_args(&mut args);
 
-    let mut output = Command::new(&bin)
+    let mut output = spawn_ytdlp()
         .args(&args)
         .output()
         .await
@@ -456,7 +455,7 @@ async fn analyze_youtube_or_search(query: &str, limit: u32) -> Result<AnalyzeRes
         let err = String::from_utf8_lossy(&output.stderr);
         if err.contains("403") || err.contains("Forbidden") || err.contains("Signature") || err.contains("outdated") || err.contains("older than") {
             if try_auto_update_ytdlp().await.is_ok() {
-                output = Command::new(&bin)
+                output = spawn_ytdlp()
                     .args(&args)
                     .output()
                     .await
@@ -604,11 +603,12 @@ pub async fn download_track_batch(
         }
     }
 
+    let _ = ensure_runtime_deps().await;
+
     tokio::fs::create_dir_all(&target_dir)
         .await
         .map_err(|e| format!("Error creando carpeta de descarga: {}", e))?;
 
-    let bin = get_yt_dlp_binary();
     let semaphore = Arc::new(Semaphore::new(3)); // 3 concurrent downloads
     let downloaded_paths = Arc::new(Mutex::new(Vec::new()));
     let mut tasks = Vec::new();
@@ -624,7 +624,6 @@ pub async fn download_track_batch(
         let app_handle = app.clone();
         let cancel = state.cancel_flag.clone();
         let pids_lock = state.running_pids.clone();
-        let bin_path = bin.clone();
         let dest_dir = target_dir.clone();
         let opt = options.clone();
         let paths_acc = downloaded_paths.clone();
@@ -709,7 +708,7 @@ pub async fn download_track_batch(
             auth.append_to(&mut yt_args);
             yt_args.push(query_target.clone());
 
-            let mut cmd = Command::new(&bin_path);
+            let mut cmd = spawn_ytdlp();
             cmd.args(&yt_args)
                 .stdout(std::process::Stdio::piped())
                 .stderr(std::process::Stdio::piped());
@@ -810,7 +809,7 @@ pub async fn download_track_batch(
                 };
 
                 // Remux with ffmpeg to ensure clean mp4 container + metadata
-                let mut ffmpeg = Command::new(crate::ytdlp::get_ffmpeg_binary());
+                let mut ffmpeg = spawn_ffmpeg();
                 ffmpeg.arg("-y").arg("-nostdin").arg("-i").arg(&temp_video)
                     .arg("-c").arg("copy");
                 if opt.embed_id3_tags {
@@ -946,7 +945,7 @@ pub async fn download_track_batch(
                 None
             };
 
-            let mut ffmpeg = Command::new(crate::ytdlp::get_ffmpeg_binary());
+            let mut ffmpeg = spawn_ffmpeg();
             ffmpeg.arg("-y").arg("-nostdin").arg("-i").arg(&temp_wav);
 
             let has_cover = local_cover_path.is_some() && matches!(opt.format.as_str(), "mp3" | "flac" | "m4a");
@@ -1104,7 +1103,7 @@ pub async fn search_online_playlists(query: String) -> Result<Vec<OnlinePlaylist
         return Ok(Vec::new());
     }
 
-    let bin = get_yt_dlp_binary();
+    let _ = ensure_runtime_deps().await;
     let encoded_query: String = url::form_urlencoded::byte_serialize(trimmed.as_bytes()).collect();
     let search_url = format!(
         "https://www.youtube.com/results?search_query={}&sp=EgIQAw%253D%253D",
@@ -1122,7 +1121,7 @@ pub async fn search_online_playlists(query: String) -> Result<Vec<OnlinePlaylist
     ];
     append_modern_ytdlp_args(&mut args);
 
-    let mut output = Command::new(&bin)
+    let mut output = spawn_ytdlp()
         .args(&args)
         .output()
         .await
@@ -1132,7 +1131,7 @@ pub async fn search_online_playlists(query: String) -> Result<Vec<OnlinePlaylist
         let err = String::from_utf8_lossy(&output.stderr);
         if err.contains("403") || err.contains("Forbidden") || err.contains("Signature") || err.contains("outdated") || err.contains("older than") {
             if try_auto_update_ytdlp().await.is_ok() {
-                output = Command::new(&bin)
+                output = spawn_ytdlp()
                     .args(&args)
                     .output()
                     .await
@@ -1200,7 +1199,7 @@ pub async fn search_online_playlists(query: String) -> Result<Vec<OnlinePlaylist
 /// Obtain direct streaming audio URL using yt-dlp without saving to disk.
 #[tauri::command]
 pub async fn get_stream_audio_url(url_or_id: String) -> Result<String, String> {
-    let bin = get_yt_dlp_binary();
+    let _ = ensure_runtime_deps().await;
     let target = if url_or_id.starts_with("http://") || url_or_id.starts_with("https://") {
         url_or_id
     } else if url_or_id.starts_with("yt_") {
@@ -1221,7 +1220,7 @@ pub async fn get_stream_audio_url(url_or_id: String) -> Result<String, String> {
     ];
     append_modern_ytdlp_args(&mut args);
 
-    let output = Command::new(&bin)
+    let output = spawn_ytdlp()
         .args(&args)
         .output()
         .await

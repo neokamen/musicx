@@ -62,6 +62,8 @@ fn candidate_tool_paths(name: &str) -> Vec<PathBuf> {
     let file = format!("{}{}", name, exe_suffix());
     let mut paths = Vec::new();
 
+    paths.push(musicx_user_bin_dir().join(&file));
+
     if let Ok(exe) = std::env::current_exe() {
         if let Some(dir) = exe.parent() {
             if name == "yt-dlp" {
@@ -70,8 +72,6 @@ fn candidate_tool_paths(name: &str) -> Vec<PathBuf> {
             paths.push(dir.join(&file));
         }
     }
-
-    paths.push(musicx_user_bin_dir().join(&file));
 
     #[cfg(target_os = "windows")]
     {
@@ -123,6 +123,67 @@ pub fn get_ffmpeg_binary() -> PathBuf {
         }
     }
     PathBuf::from(format!("ffmpeg{}", exe_suffix()))
+}
+
+pub fn deps_bin_dirs() -> Vec<PathBuf> {
+    let mut dirs = vec![musicx_user_bin_dir()];
+    if let Ok(exe) = std::env::current_exe() {
+        if let Some(dir) = exe.parent() {
+            dirs.push(dir.to_path_buf());
+        }
+    }
+    dirs
+}
+
+pub fn apply_deps_path(cmd: &mut Command) {
+    let mut parts: Vec<String> = deps_bin_dirs()
+        .into_iter()
+        .map(|path| path.to_string_lossy().into_owned())
+        .collect();
+    if let Ok(existing) = std::env::var("PATH").or_else(|_| std::env::var("Path")) {
+        parts.push(existing);
+    }
+    let joined = parts.join(if cfg!(target_os = "windows") { ";" } else { ":" });
+    cmd.env("PATH", &joined);
+    cmd.env("Path", &joined);
+}
+
+pub fn spawn_ytdlp() -> Command {
+    let mut cmd = Command::new(get_yt_dlp_binary());
+    apply_deps_path(&mut cmd);
+    cmd
+}
+
+pub fn spawn_ffmpeg() -> Command {
+    let mut cmd = Command::new(get_ffmpeg_binary());
+    apply_deps_path(&mut cmd);
+    cmd
+}
+
+pub async fn ensure_runtime_deps() -> Result<(), String> {
+    static LOCK: std::sync::OnceLock<tokio::sync::Mutex<()>> = std::sync::OnceLock::new();
+    let lock = LOCK.get_or_init(|| tokio::sync::Mutex::new(()));
+    let _guard = lock.lock().await;
+
+    let ytdlp = resolve_tool("yt-dlp", &["--version"]).await;
+    if !ytdlp.installed {
+        try_auto_update_ytdlp().await?;
+    }
+
+    let ffmpeg = resolve_tool("ffmpeg", &["-version"]).await;
+    if !ffmpeg.installed {
+        if let Err(error) = download_portable_ffmpeg().await {
+            #[cfg(target_os = "windows")]
+            {
+                return Err(error);
+            }
+            #[cfg(not(target_os = "windows"))]
+            {
+                let _ = error;
+            }
+        }
+    }
+    Ok(())
 }
 
 pub fn get_yt_dlp_install_target_path() -> PathBuf {
@@ -212,13 +273,13 @@ fn classify_platform() -> (String, String, String, String, String, String) {
 fn platform_hint(os: &str, family: &str, manager: &str, distro_name: &str) -> String {
     match (os, family) {
         ("windows", _) => {
-            "Windows no trae yt-dlp ni ffmpeg. MusicX los instala en %LOCALAPPDATA%\\musicx\\bin (sin tocar el PATH del sistema). El zip de ffmpeg es grande; no uses pip ni Python Store, suelen romper yt-dlp.".into()
+            "Windows: el instalador lleva yt-dlp, ffmpeg y ffprobe. Si faltan, se descargan a %LOCALAPPDATA%\\musicx\\bin. No uses pip ni Python Store.".into()
         }
         ("macos", _) => {
             "En macOS lo más estable es brew install ffmpeg yt-dlp. Si no hay Homebrew, MusicX puede dejar binarios de usuario.".into()
         }
         (_, "rpm") => format!(
-            "{distro_name} ({manager}): ffmpeg suele estar en RPM Fusion, no en los repos por defecto. MusicX instala copias de usuario en ~/.local/bin sin root. yt-dlp del dnf suele ir atrasado; se usa el binario oficial."
+            "{distro_name} ({manager}): el paquete de MusicX incluye yt-dlp. ffmpeg se usa del sistema o se baja a ~/.local/bin al primer uso. RPM Fusion no es obligatorio."
         ),
         (_, "deb") => format!(
             "{distro_name} ({manager}): ffmpeg está en los repos. yt-dlp de apt suele ser viejo; MusicX instala el binario oficial en ~/.local/bin. Puedes instalar ffmpeg del sistema con: sudo apt install ffmpeg"
@@ -257,6 +318,13 @@ fn source_for_path(path: &Path) -> String {
     }
     if path.starts_with(musicx_user_bin_dir()) {
         return "usuario".into();
+    }
+    if let Ok(exe) = std::env::current_exe() {
+        if let Some(dir) = exe.parent() {
+            if path.starts_with(dir) {
+                return "empaquetado".into();
+            }
+        }
     }
     if rendered.contains("soundix") {
         return "usuario (legacy)".into();
@@ -493,22 +561,7 @@ pub fn append_modern_ytdlp_args(args: &mut Vec<String>) {
 }
 
 pub async fn try_auto_update_ytdlp() -> Result<String, String> {
-    #[cfg(target_os = "windows")]
-    {
-        download_standalone_ytdlp().await
-    }
-    #[cfg(not(target_os = "windows"))]
-    {
-        let ytdlp_bin = get_yt_dlp_binary();
-        if ytdlp_bin.exists() {
-            if let Ok(out) = Command::new(&ytdlp_bin).arg("-U").output().await {
-                if out.status.success() {
-                    return Ok("yt-dlp actualizado con -U.".to_string());
-                }
-            }
-        }
-        download_standalone_ytdlp().await
-    }
+    download_standalone_ytdlp().await
 }
 
 #[tauri::command]

@@ -49,6 +49,10 @@ pub fn run() {
                 // Downloader state (cancel flag + running PIDs)
                 app.manage(downloader::DownloaderState::default());
 
+                tauri::async_runtime::spawn(async {
+                    let _ = crate::ytdlp::ensure_runtime_deps().await;
+                });
+
                 // Real-time audio telemetry broadcaster (~33 FPS)
                 let app_handle = app.handle().clone();
                 let audio_for_telemetry = Arc::clone(&audio_engine);
