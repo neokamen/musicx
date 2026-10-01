@@ -11,6 +11,7 @@ export type WidgetType =
   | "bpm"
   | "id3_tags"
   | "radio"
+  | "stream_music"
   | "buffer_inspector"
   | "buffer_inspector_compact"
   | "buffer_inspector_basic"
@@ -97,6 +98,11 @@ export const AVAILABLE_WIDGETS: WidgetMeta[] = [
     type: "radio",
     label: "Radio Online (Neowave)",
     description: "Emisoras mundiales en streaming y catálogo Radio-Browser",
+  },
+  {
+    type: "stream_music",
+    label: "Stream Music",
+    description: "Cliente de streaming integrado con cola, EQ y descarga opcional",
   },
   {
     type: "buffer_inspector",

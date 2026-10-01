@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import type { Track } from "../../types/index.ts";
 import { RadioHubModal } from "../radio/RadioHubModal.tsx";
+import { StreamMusicModal } from "./StreamMusicModal.tsx";
 
 import { ColumnResizeHandle } from "./ColumnResizeHandle.tsx";
 
@@ -170,7 +171,6 @@ export const VirtualTrackList: React.FC = () => {
     addToQueue,
     fetchLibraryTracks,
     scanStatus,
-    setStreamMusicOpen,
   } = useMusicStore();
 
   const [search, setSearch] = useState("");
@@ -188,6 +188,7 @@ export const VirtualTrackList: React.FC = () => {
   });
   const [isColMenuOpen, setIsColMenuOpen] = useState(false);
   const [showRadio, setShowRadio] = useState(false);
+  const [showStreamMusic, setShowStreamMusic] = useState(false);
   const [contextMenu, setContextMenu] = useState<{
     x: number;
     y: number;
@@ -270,6 +271,10 @@ export const VirtualTrackList: React.FC = () => {
 
   if (showRadio) {
     return <RadioHubModal isOpen onClose={() => setShowRadio(false)} embedded onBackToLibrary={() => setShowRadio(false)} />;
+  }
+
+  if (showStreamMusic) {
+    return <StreamMusicModal embedded onBackToLibrary={() => setShowStreamMusic(false)} />;
   }
 
   return (
@@ -374,9 +379,9 @@ export const VirtualTrackList: React.FC = () => {
 
           <button
             type="button"
-            onClick={() => setStreamMusicOpen(true)}
+            onClick={() => setShowStreamMusic(true)}
             className="grid size-7 place-items-center rounded border border-slate-700 bg-slate-900 text-slate-300 transition hover:border-cyan-500/60 hover:text-cyan-300"
-            title="Abrir Stream Music (Búsqueda online y descargas)"
+            title="Mostrar Stream Music dentro de este panel"
             aria-label="Abrir Stream Music"
           >
             <Globe size={13} />

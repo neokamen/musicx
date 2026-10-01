@@ -160,11 +160,13 @@ export const DEFAULT_STREAM_TRACKS: NeoTrack[] = [
 type SearchFilterCategory = "all" | "songs" | "artists" | "albums";
 
 interface StreamMusicModalProps {
-  isOpen: boolean;
-  onClose: () => void;
+  isOpen?: boolean;
+  onClose?: () => void;
+  embedded?: boolean;
+  onBackToLibrary?: () => void;
 }
 
-export const StreamMusicModal: React.FC<StreamMusicModalProps> = ({ isOpen, onClose }) => {
+export const StreamMusicModal: React.FC<StreamMusicModalProps> = ({ isOpen = false, onClose = () => {}, embedded = false, onBackToLibrary }) => {
   const {
     appearance,
     isStreamMusicOpen,
@@ -178,7 +180,7 @@ export const StreamMusicModal: React.FC<StreamMusicModalProps> = ({ isOpen, onCl
   const accent = appearance.accentColor || "#06b6d4";
 
   // Visual modal open state (synced with props and store)
-  const isVisible = isOpen || isStreamMusicOpen;
+  const isVisible = embedded || isOpen || isStreamMusicOpen;
 
   // Search state — initialized with curated default stream catalog
   const [query, setQuery] = useState("");
@@ -206,6 +208,8 @@ export const StreamMusicModal: React.FC<StreamMusicModalProps> = ({ isOpen, onCl
   const [embedId3, setEmbedId3] = useState(true);
   const [outputFolder, setOutputFolder] = useState("/home/neokamen/Descargas");
   const [showOptions, setShowOptions] = useState(false);
+  const [downloadDialogTracks, setDownloadDialogTracks] = useState<NeoTrack[] | null>(null);
+  const [downloadDraft, setDownloadDraft] = useState({ title: "", artist: "", album: "", coverUrl: "" });
 
   // Download tracking
   const [progress, setProgress] = useState<Record<string, TrackProgress>>({});
@@ -265,7 +269,7 @@ export const StreamMusicModal: React.FC<StreamMusicModalProps> = ({ isOpen, onCl
       });
       if (res && res.tracks && res.tracks.length > 0) {
         setResult(res);
-        setSelectedIds(new Set(res.tracks.map((t) => t.id)));
+        setSelectedIds(new Set());
       }
     } catch (err: any) {
       console.warn("Stream search error:", err);
@@ -297,7 +301,7 @@ export const StreamMusicModal: React.FC<StreamMusicModalProps> = ({ isOpen, onCl
 
   const handleModalClose = () => {
     onClose();
-    setStreamMusicOpen(false);
+    if (!embedded) setStreamMusicOpen(false);
   };
 
   const handleSearchSubmit = (e?: React.FormEvent) => {
@@ -376,52 +380,37 @@ export const StreamMusicModal: React.FC<StreamMusicModalProps> = ({ isOpen, onCl
     }
   };
 
-  // Single track direct download
-  const handleDownloadSingleTrack = async (track: NeoTrack) => {
-    setIsDownloading(true);
-    setDownloadSuccessMsg(null);
-    setProgress((prev) => ({
-      ...prev,
-      [track.id]: { trackId: track.id, phase: "queued", percent: 0, message: "En cola..." },
-    }));
-
-    try {
-      await invoke("download_track_batch", {
-        tracks: [track],
-        options: {
-          format,
-          bitrate,
-          sampleRate: sampleRate !== 44100 ? sampleRate : null,
-          saveInFolder: false,
-          folderName: null,
-          namingPattern,
-          embedId3Tags: embedId3,
-          outputFolder,
-          youtubeCookies: null,
-          cookiesFromBrowser: null,
-          downloadLyrics: false,
-          trackCovers: track.coverUrl ? { [track.id]: track.coverUrl } : {},
-        },
-      });
-      setDownloadSuccessMsg(`✓ "${track.title}" descargada con éxito en ${outputFolder}`);
-    } catch (err: any) {
-      setSearchError(`Error en descarga: ${String(err)}`);
-    } finally {
-      setIsDownloading(false);
-    }
+  const openDownloadDialog = (tracks: NeoTrack[]) => {
+    if (tracks.length === 0) return;
+    const first = tracks[0];
+    setDownloadDraft({
+      title: first.title,
+      artist: first.artist,
+      album: first.album,
+      coverUrl: first.coverUrl || "",
+    });
+    setDownloadDialogTracks(tracks);
+    setShowOptions(false);
   };
 
-  // Batch download of all selected tracks
-  const handleDownloadSelected = async () => {
-    const toDownload = filteredTracks.filter((t) => selectedIds.has(t.id));
-    if (toDownload.length === 0) return;
+  // Single track direct download opens the compact Soundix-style editor first.
+  const handleDownloadSingleTrack = (track: NeoTrack) => {
+    openDownloadDialog([track]);
+  };
 
+  const performDownload = async (tracks: NeoTrack[]) => {
+    if (tracks.length === 0) return;
     setIsDownloading(true);
     setDownloadSuccessMsg(null);
+
+    const finalTracks = tracks.map((track, index) => index === 0
+      ? { ...track, title: downloadDraft.title || track.title, artist: downloadDraft.artist || track.artist, album: downloadDraft.album || track.album, coverUrl: downloadDraft.coverUrl || track.coverUrl }
+      : track
+    );
 
     const initProg: Record<string, TrackProgress> = {};
     const trackCovers: Record<string, string> = {};
-    toDownload.forEach((t) => {
+    finalTracks.forEach((t) => {
       initProg[t.id] = { trackId: t.id, phase: "queued", percent: 0, message: "En cola..." };
       if (t.coverUrl) trackCovers[t.id] = t.coverUrl;
     });
@@ -429,7 +418,7 @@ export const StreamMusicModal: React.FC<StreamMusicModalProps> = ({ isOpen, onCl
 
     try {
       await invoke("download_track_batch", {
-        tracks: toDownload,
+        tracks: finalTracks,
         options: {
           format,
           bitrate,
@@ -445,12 +434,19 @@ export const StreamMusicModal: React.FC<StreamMusicModalProps> = ({ isOpen, onCl
           trackCovers,
         },
       });
-      setDownloadSuccessMsg(`✓ ${toDownload.length} canciones descargadas con éxito en ${outputFolder}`);
+      setDownloadSuccessMsg(`✓ ${finalTracks.length === 1 ? `"${finalTracks[0].title}"` : `${finalTracks.length} pistas`} guardadas en ${outputFolder}`);
+      setDownloadDialogTracks(null);
     } catch (err: any) {
-      setSearchError(`Error en descarga en lote: ${String(err)}`);
+      setSearchError(`Error en descarga: ${String(err)}`);
     } finally {
       setIsDownloading(false);
     }
+  };
+
+  // Batch download of selected tracks opens the compact offline editor.
+  const handleDownloadSelected = async () => {
+    const toDownload = filteredTracks.filter((t) => selectedIds.has(t.id));
+    openDownloadDialog(toDownload);
   };
 
   const toggleSelect = (id: string) => {
@@ -497,11 +493,11 @@ export const StreamMusicModal: React.FC<StreamMusicModalProps> = ({ isOpen, onCl
     : "Listo para mezclar streaming con tu biblioteca local";
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-3 backdrop-blur-xl animate-fade-in" onClick={handleModalClose}>
+    <div className={embedded ? "h-full min-h-0 w-full bg-transparent" : "fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-3 backdrop-blur-xl animate-fade-in"} onClick={embedded ? undefined : handleModalClose}>
       <div
-        className="relative flex h-[88vh] w-[94vw] max-w-6xl overflow-hidden rounded-[28px] border shadow-2xl"
+        className={embedded ? "relative flex h-full w-full overflow-hidden rounded-none border-0 shadow-none" : "relative flex h-[88vh] w-[94vw] max-w-6xl overflow-hidden rounded-[28px] border shadow-2xl"}
         style={{
-          background: `radial-gradient(circle at 18% 0%, ${accent}24 0, transparent 34%), linear-gradient(145deg, rgba(8,13,24,0.98), rgba(2,6,14,0.98))`,
+          background: `radial-gradient(circle at 18% 0%, ${accent}24 0, transparent 34%), linear-gradient(145deg, var(--app-bg, rgba(8,13,24,0.98)), var(--app-surface, rgba(2,6,14,0.98)))`,
           borderColor: `${accent}35`,
           boxShadow: `0 24px 70px rgba(0,0,0,0.78), 0 0 45px ${accent}18`,
         }}
@@ -536,7 +532,7 @@ export const StreamMusicModal: React.FC<StreamMusicModalProps> = ({ isOpen, onCl
               </button>
             </form>
             <button type="button" onClick={() => setShowOptions((v) => !v)} className="hidden items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.045] px-3 py-2 text-xs font-semibold text-slate-200 transition hover:bg-white/10 sm:flex" title="Guardar música offline"><Download size={14} style={{ color: accent }} /> Guardar offline</button>
-            <button onClick={handleModalClose} className="rounded-2xl p-2 text-slate-400 transition hover:bg-white/10 hover:text-white" title="Cerrar Stream Music"><X size={18} /></button>
+            {embedded && onBackToLibrary ? <button onClick={onBackToLibrary} className="rounded-2xl border border-white/10 px-3 py-2 text-xs text-slate-300 transition hover:bg-white/10 hover:text-white">Biblioteca</button> : <button onClick={handleModalClose} className="rounded-2xl p-2 text-slate-400 transition hover:bg-white/10 hover:text-white" title="Cerrar Stream Music"><X size={18} /></button>}
           </header>
 
           <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
@@ -620,6 +616,51 @@ export const StreamMusicModal: React.FC<StreamMusicModalProps> = ({ isOpen, onCl
               <div className="grid grid-cols-2 gap-3 text-xs md:grid-cols-4"><label className="flex flex-col gap-1"><span className="text-slate-500">Formato</span><select value={format} onChange={(e) => setFormat(e.target.value)} className="rounded-xl border border-white/10 bg-slate-950 px-2 py-2 text-white" style={{ colorScheme: "dark" }}>{FORMATS.map((f) => <option key={f} value={f}>{f.toUpperCase()}</option>)}</select></label><label className="flex flex-col gap-1"><span className="text-slate-500">Calidad</span><select value={bitrate} onChange={(e) => setBitrate(e.target.value)} className="rounded-xl border border-white/10 bg-slate-950 px-2 py-2 text-white" style={{ colorScheme: "dark" }}>{BITRATES.map((b) => <option key={b} value={b}>{b === "lossless" ? "Sin pérdida" : b}</option>)}</select></label><label className="flex flex-col gap-1"><span className="text-slate-500">Sample rate</span><select value={sampleRate} onChange={(e) => setSampleRate(Number(e.target.value))} className="rounded-xl border border-white/10 bg-slate-950 px-2 py-2 text-white" style={{ colorScheme: "dark" }}>{SAMPLE_RATES.map((r) => <option key={r} value={r}>{r / 1000} kHz</option>)}</select></label><label className="flex flex-col gap-1"><span className="text-slate-500">Nombre</span><select value={namingPattern} onChange={(e) => setNamingPattern(e.target.value)} className="rounded-xl border border-white/10 bg-slate-950 px-2 py-2 text-white" style={{ colorScheme: "dark" }}>{NAMING_PATTERNS.map((n) => <option key={n.value} value={n.value}>{n.label}</option>)}</select></label></div>
               <div className="mt-3 flex flex-wrap items-center justify-between gap-3 border-t border-white/10 pt-3 text-xs text-slate-300"><button type="button" onClick={handlePickFolder} className="flex min-w-0 items-center gap-2 rounded-xl border border-white/10 bg-white/[0.035] px-3 py-2 hover:text-white"><FolderOpen size={14} style={{ color: accent }} /> <span className="truncate">{outputFolder}</span></button><button type="button" onClick={() => setEmbedId3((v) => !v)} className="flex items-center gap-2 rounded-xl border border-white/10 px-3 py-2 hover:text-white">{embedId3 ? <CheckSquare size={15} style={{ color: accent }} /> : <Square size={15} />} ID3 y carátula</button></div>
             </footer>
+          )}
+
+
+          {downloadDialogTracks && (
+            <div className="absolute inset-0 z-40 flex items-center justify-center bg-black/65 p-4 backdrop-blur-md" onClick={() => !isDownloading && setDownloadDialogTracks(null)}>
+              <div className="w-full max-w-xl rounded-[26px] border border-white/10 bg-[var(--app-surface,#0b1220)] p-4 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+                <div className="mb-4 flex items-center justify-between gap-3">
+                  <div>
+                    <div className="text-sm font-black text-white">Guardar offline · Soundix compacto</div>
+                    <div className="text-xs text-slate-500">Ruta, carátula e ID3 antes de descargar</div>
+                  </div>
+                  <button type="button" onClick={() => setDownloadDialogTracks(null)} disabled={isDownloading} className="rounded-xl p-2 text-slate-400 hover:bg-white/10 hover:text-white disabled:opacity-40"><X size={16} /></button>
+                </div>
+
+                <div className="grid gap-4 sm:grid-cols-[128px_1fr]">
+                  <div className="space-y-2">
+                    <div className="aspect-square overflow-hidden rounded-2xl border border-white/10 bg-slate-950">
+                      {downloadDraft.coverUrl ? <img src={downloadDraft.coverUrl} alt="Carátula" className="h-full w-full object-cover" /> : <div className="flex h-full w-full items-center justify-center text-slate-600"><Music size={28} /></div>}
+                    </div>
+                    <input value={downloadDraft.coverUrl} onChange={(e) => setDownloadDraft((d) => ({ ...d, coverUrl: e.target.value }))} placeholder="URL carátula" className="w-full rounded-xl border border-white/10 bg-black/25 px-2 py-1.5 text-[11px] text-white outline-none" />
+                  </div>
+
+                  <div className="space-y-2 text-xs">
+                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                      <label className="space-y-1"><span className="text-slate-500">Título</span><input value={downloadDraft.title} onChange={(e) => setDownloadDraft((d) => ({ ...d, title: e.target.value }))} className="w-full rounded-xl border border-white/10 bg-black/25 px-3 py-2 text-white outline-none" /></label>
+                      <label className="space-y-1"><span className="text-slate-500">Artista</span><input value={downloadDraft.artist} onChange={(e) => setDownloadDraft((d) => ({ ...d, artist: e.target.value }))} className="w-full rounded-xl border border-white/10 bg-black/25 px-3 py-2 text-white outline-none" /></label>
+                    </div>
+                    <label className="block space-y-1"><span className="text-slate-500">Álbum</span><input value={downloadDraft.album} onChange={(e) => setDownloadDraft((d) => ({ ...d, album: e.target.value }))} className="w-full rounded-xl border border-white/10 bg-black/25 px-3 py-2 text-white outline-none" /></label>
+                    <div className="grid grid-cols-2 gap-2">
+                      <label className="space-y-1"><span className="text-slate-500">Formato</span><select value={format} onChange={(e) => setFormat(e.target.value)} className="w-full rounded-xl border border-white/10 bg-black/40 px-2 py-2 text-white" style={{ colorScheme: "dark" }}>{FORMATS.map((f) => <option key={f} value={f}>{f.toUpperCase()}</option>)}</select></label>
+                      <label className="space-y-1"><span className="text-slate-500">Calidad</span><select value={bitrate} onChange={(e) => setBitrate(e.target.value)} className="w-full rounded-xl border border-white/10 bg-black/40 px-2 py-2 text-white" style={{ colorScheme: "dark" }}>{BITRATES.map((b) => <option key={b} value={b}>{b === "lossless" ? "Sin pérdida" : b}</option>)}</select></label>
+                    </div>
+                    <button type="button" onClick={handlePickFolder} className="flex w-full min-w-0 items-center gap-2 rounded-xl border border-white/10 bg-black/25 px-3 py-2 text-left text-slate-300 hover:text-white"><FolderOpen size={14} style={{ color: accent }} /><span className="truncate">{outputFolder}</span></button>
+                    <button type="button" onClick={() => setEmbedId3((v) => !v)} className="flex items-center gap-2 rounded-xl border border-white/10 px-3 py-2 text-slate-300 hover:text-white">{embedId3 ? <CheckSquare size={15} style={{ color: accent }} /> : <Square size={15} />} Incrustar ID3 y carátula</button>
+                  </div>
+                </div>
+
+                <div className="mt-4 flex items-center justify-between gap-3 border-t border-white/10 pt-3">
+                  <div className="text-xs text-slate-500">{downloadDialogTracks.length} pista(s) seleccionada(s)</div>
+                  <button type="button" onClick={() => void performDownload(downloadDialogTracks)} disabled={isDownloading} className="rounded-xl px-5 py-2 text-sm font-black text-black disabled:opacity-50" style={{ backgroundColor: accent }}>
+                    {isDownloading ? "Descargando..." : "Descargar"}
+                  </button>
+                </div>
+              </div>
+            </div>
           )}
         </section>
       </div>

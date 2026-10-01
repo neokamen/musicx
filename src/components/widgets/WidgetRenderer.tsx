@@ -24,6 +24,7 @@ import { SignalMonitorWidget } from "./SignalMonitorWidget.tsx";
 import { EqSpectrumWidget } from "./EqSpectrumWidget.tsx";
 import { LoudnessWidget } from "./LoudnessWidget.tsx";
 import { AudioTelemetryFullWidget } from "./AudioTelemetryFullWidget.tsx";
+import { StreamMusicModal } from "./StreamMusicModal.tsx";
 
 interface WidgetRendererProps {
   widget: WidgetType;
@@ -59,6 +60,8 @@ export const WidgetRenderer: React.FC<WidgetRendererProps> = ({ widget, nodeKey,
       return <Id3TagWidget />;
     case "radio":
       return <RadioWidget />;
+    case "stream_music":
+      return <StreamMusicModal embedded />;
     case "buffer_inspector":
       return <BufferInspectorWidget />;
     case "buffer_inspector_compact":

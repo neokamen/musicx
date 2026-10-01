@@ -398,6 +398,7 @@ class RadioAudioService {
 		this.currentBitrateKbps = station.bitrate && station.bitrate > 0 ? station.bitrate : 0;
 		this.lastKnownStation = station;
 		this.playbackKind = "radio";
+		this.applyDspSettings();
 
 		// Fold the previous stream's usage into the session baseline before starting a new one
 		this.sessionBytesBaseline += this.currentStreamBytes;
@@ -437,6 +438,7 @@ class RadioAudioService {
 	async playMedia(url: string, volume: number, options?: { duration?: number; bitrate?: number }): Promise<void> {
 		if (!url) throw new Error("No hay URL de stream válida.");
 		this.playbackKind = "media";
+		this.applyDspSettings();
 		this.lastKnownStation = null;
 		this.currentStreamTitle = "";
 		this.currentBitrateKbps = options?.bitrate && options.bitrate > 0 ? options.bitrate : 160;
@@ -565,20 +567,24 @@ class RadioAudioService {
 
 	private applyDspSettings(): void {
 		const { isEqEnabled, eqGains } = this.dspSettings;
+		const isMediaStream = this.playbackKind === "media";
+		const eqScale = isMediaStream ? 0.42 : 1;
+		const enhancementScale = isMediaStream ? 0.35 : 1;
 		this.eqFilters.forEach((filter, index) => {
-			filter.gain.value = isEqEnabled ? Math.max(-12, Math.min(12, eqGains[index] || 0)) : 0;
+			const gain = Math.max(-12, Math.min(12, eqGains[index] || 0));
+			filter.gain.value = isEqEnabled ? gain * eqScale : 0;
 		});
-		if (this.subBoostFilter) this.subBoostFilter.gain.value = isEqEnabled ? this.dspSettings.subBoost : 0;
-		if (this.bassBoostFilter) this.bassBoostFilter.gain.value = isEqEnabled ? this.dspSettings.bassBoost : 0;
+		if (this.subBoostFilter) this.subBoostFilter.gain.value = isEqEnabled ? Math.max(-4, Math.min(4, this.dspSettings.subBoost * enhancementScale)) : 0;
+		if (this.bassBoostFilter) this.bassBoostFilter.gain.value = isEqEnabled ? Math.max(-4, Math.min(4, this.dspSettings.bassBoost * enhancementScale)) : 0;
 		if (this.highpassFilter) this.highpassFilter.frequency.value = isEqEnabled && this.dspSettings.highpass > 0
 			? this.dspSettings.highpass
 			: 10;
 		if (this.lowpassFilter) this.lowpassFilter.frequency.value = isEqEnabled && this.dspSettings.lowpass > 0
 			? this.dspSettings.lowpass
 			: 22000;
-		if (this.xdssFilter) this.xdssFilter.gain.value = this.dspSettings.isXdssEnabled ? 4 : 0;
-		if (this.xtsFilter) this.xtsFilter.gain.value = this.dspSettings.isXtsProEnabled ? 2.5 : 0;
-		if (this.normalizer) this.normalizer.ratio.value = this.dspSettings.isNormalizerEnabled ? 3 : 1;
+		if (this.xdssFilter) this.xdssFilter.gain.value = this.dspSettings.isXdssEnabled ? 4 * enhancementScale : 0;
+		if (this.xtsFilter) this.xtsFilter.gain.value = this.dspSettings.isXtsProEnabled ? 2.5 * enhancementScale : 0;
+		if (this.normalizer) this.normalizer.ratio.value = this.dspSettings.isNormalizerEnabled ? (isMediaStream ? 1.6 : 3) : 1;
 	}
 
 	subscribeRecording(listener: RecordingListener): () => void {
