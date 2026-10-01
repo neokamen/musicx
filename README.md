@@ -1,12 +1,12 @@
 # musicx — the audio player
 
-Reproductor de audio Hi-Fi para Linux. Reproduce biblioteca local, radio por internet y Stream Music en la misma interfaz modular. El núcleo de audio está en Rust (Tauri v2); la interfaz es React 19 y TypeScript.
+Reproductor de audio Hi-Fi para Linux y Windows. Reproduce biblioteca local, radio por internet y Stream Music en la misma interfaz modular. El núcleo de audio está en Rust (Tauri v2); la interfaz es React 19 y TypeScript.
 
 Inspirado en foobar2000 y fooyin: paneles redimensionables, widgets intercambiables y control fino del pipeline de sonido.
 
 Repositorio: [https://github.com/neokamen/musicx-theaudioplayer](https://github.com/neokamen/musicx-theaudioplayer)
 
-Versión actual: **0.3.16**
+Versión actual: **0.3.17**
 
 ---
 
@@ -20,20 +20,22 @@ Versión actual: **0.3.16**
 - Radio ICY con relé local, metadatos y medición de tráfico.
 - Stream Music: búsqueda y reproducción mezclada con la cola local, descarga con plantilla de carpetas y editor de metadatos.
 - Cola de reproducción con columnas (formato, bitrate, duración), arrastrar archivos, telemetría ciclable y descarga.
-- Ecualizador, normalizador, visualizadores (CAVA, espectro, barras), BPM y estadísticas de escucha.
+- Ecualizador, normalizador, BPM y estadísticas de escucha.
+- Visualizadores CAVA y espectro: FFT interno (`rustfft` + canvas). No instala ni requiere el programa `cava` de Linux.
 - Mini reproductor, temas, acentos, copias de seguridad de configuración y de estadísticas.
-- MPRIS v2 para teclas multimedia y el entorno de escritorio (GNOME, KDE, etc.).
+- MPRIS v2 en Linux para teclas multimedia y el entorno de escritorio (GNOME, KDE, etc.). En Windows la salida de audio es WASAPI a través de CPAL.
 
 ---
 
 ## Requisitos
 
-Sistema: Linux (probado en Fedora; el paquete de CI se genera en Ubuntu 22.04).
+Sistema: Linux (Fedora / Ubuntu) y Windows 10/11 (x64, WebView2).
 
 Para ejecutar un release:
 
 - AppImage: FUSE (`libfuse2` o equivalente) y bibliotecas de escritorio habituales (GTK / WebKit).
 - RPM: Fedora / RHEL o un sistema que instale RPM.
+- Windows: instalador NSIS; Microsoft Edge WebView2 Runtime (el instalador puede desplegarlo). yt-dlp y ffmpeg no van empaquetados: se instalan desde Ajustes → General.
 
 Para desarrollar o compilar:
 
@@ -63,13 +65,14 @@ sudo apt-get install -y \
 
 ### Desde GitHub Releases
 
-Cada etiqueta `v*` dispara el workflow **Release**, que publica AppImage y RPM:
+Cada etiqueta `v*` dispara el workflow **Release**, que publica AppImage, RPM e instalador NSIS de Windows:
 
 [https://github.com/neokamen/musicx-theaudioplayer/releases](https://github.com/neokamen/musicx-theaudioplayer/releases)
 
-1. Descarga el `.AppImage` o el `.rpm` de la versión deseada.
+1. Linux: descarga el `.AppImage` o el `.rpm`.
 2. AppImage: `chmod +x musicx_*.AppImage` y ejecútalo.
 3. RPM: `sudo dnf install ./musicx-*.rpm` (o `rpm -Uvh`).
+4. Windows: ejecuta el instalador `.exe` (NSIS).
 
 ### Desde el código
 
@@ -197,7 +200,7 @@ musicx-theaudioplayer/
 │   ├── src/                     Audio, SQLite, FS lazy, MPRIS, relé radio, comandos
 │   ├── tauri.conf.json
 │   └── Cargo.toml
-├── .github/workflows/release.yml  AppImage + RPM al publicar un tag v*
+├── .github/workflows/release.yml  AppImage, RPM y NSIS Windows al publicar un tag v*
 ├── package.json
 └── LICENSE
 ```
@@ -215,7 +218,7 @@ Estado global: Zustand. IPC: `@tauri-apps/api` v2. Diálogos nativos: `@tauri-ap
 | `npm run build` | `tsc` + Vite (el empaquetado Tauri lo llama antes de rustc) |
 | `npm run tauri build` | Binario y bundles de instalación |
 
-El workflow de Release usa Node 22, Rust stable, `npm ci` y `npm run tauri build -- --bundles appimage rpm --ci`. `tsc` tiene `strict` y `noUnusedLocals`; un error de tipos corta el paquete.
+El workflow de Release usa Node 22 y Rust stable. En Ubuntu genera AppImage y RPM; en `windows-latest` genera el instalador NSIS. `tsc` tiene `strict` y `noUnusedLocals`; un error de tipos corta el paquete. MPRIS/GTK solo se enlazan en Linux. CAVA no es una dependencia nativa.
 
 ---
 

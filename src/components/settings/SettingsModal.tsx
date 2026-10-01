@@ -1195,7 +1195,7 @@ export const SettingsModal: React.FC = () => {
                 </h3>
                 <p className="text-xs text-slate-400">
                   {activeVisualizerPanel === 'cava'
-                    ? 'Ajustes del motor, estilo, respuesta y paleta de CAVA.'
+                    ? 'Visualizador interno (FFT en Rust y canvas). No usa el binario cava de Linux ni PulseAudio, así que funciona igual en Windows.'
                     : 'Ajustes independientes para los estilos y la fluidez del espectro.'}
                 </p>
               </div>
