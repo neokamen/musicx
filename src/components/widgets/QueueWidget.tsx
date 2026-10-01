@@ -141,11 +141,11 @@ export const QueueWidget: React.FC = () => {
     .join(" ");
 
   if (showRadio) {
-    return <RadioHubModal isVisible onClose={() => setShowRadio(false)} embedded onBackToLibrary={() => setShowRadio(false)} />;
+    return <RadioHubModal isOpen onClose={() => setShowRadio(false)} embedded onBackToLibrary={() => setShowRadio(false)} />;
   }
 
   if (showStream) {
-    return <StreamMusicModal isVisible onClose={() => setShowStream(false)} embedded onBackToLibrary={() => setShowStream(false)} />;
+    return <StreamMusicModal isOpen onClose={() => setShowStream(false)} embedded onBackToLibrary={() => setShowStream(false)} />;
   }
 
   return (

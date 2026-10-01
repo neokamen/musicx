@@ -678,7 +678,7 @@ export const useMusicStore = create<MusicPlayerStore>((set, get) => ({
   },
 
   playFromQueue: async (index: number) => {
-    const { queue, queueIndex, isPlaying, currentTrack, play, resume } = get();
+    const { queue, queueIndex, isPlaying, currentTrack, resume } = get();
     const track = queue[index];
     if (!track) return;
     if (index === queueIndex || currentTrack?.filepath === track.filepath) {

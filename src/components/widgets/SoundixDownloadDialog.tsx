@@ -62,7 +62,7 @@ function buildStructurePreview(
   template: string,
   draft: { title: string; artist: string; album: string; year: string; trackNumber: string },
   format: string
-) {
+): { parts: string[]; rendered: string } {
   const n = String(Number(draft.trackNumber) || 1).padStart(2, "0");
   let rendered = (template || "{artist}/{year} - {album}/{trackNumber} - {title}")
     .replaceAll("{artist}", draft.artist || "Artista")

@@ -32,7 +32,7 @@ export const BufferInspectorCompactWidget: React.FC = () => {
 
   // Radio mode: swap to a network-usage summary instead of frozen local-playback numbers
   const isRadioMode = Boolean(isRadioPlaying && activeRadioStation);
-  const isStreamMode = Boolean(isStreamTrack(currentTrack) && !isRadioMode);
+  const isStreamMode = Boolean(isStreamTrack(currentTrack) && isPlaying && !isRadioMode);
   const isNetworkMode = isRadioMode || isStreamMode;
   const [radioBytesPerSecond, setRadioBytesPerSecond] = useState(0);
   const [radioSessionBytes, setRadioSessionBytes] = useState(0);

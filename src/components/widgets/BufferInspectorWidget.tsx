@@ -48,7 +48,7 @@ export const BufferInspectorWidget: React.FC<BufferInspectorWidgetProps> = ({
   // Ring Buffer Fill / I/O Read Time boxes (and the two visualizations) get repurposed to show
   // real network throughput/session usage instead of frozen local-playback numbers.
   const isRadioMode = Boolean(isRadioPlaying && activeRadioStation);
-  const isStreamMode = Boolean(isStreamTrack(currentTrack) && !isRadioMode);
+  const isStreamMode = Boolean(isStreamTrack(currentTrack) && isPlaying && !isRadioMode);
   const isNetworkMode = isRadioMode || isStreamMode;
   const networkName = isRadioMode
     ? activeRadioStation?.name || "Radio online"
