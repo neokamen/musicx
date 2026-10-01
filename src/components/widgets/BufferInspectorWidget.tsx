@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState, useCallback } from "react";
 import type { BufferTelemetry } from "../../types/index.ts";
 import { onBufferTelemetry, setAudioBufferSize, getBufferTelemetry } from "../../services/api.ts";
 import { useMusicStore } from "../../store/index.ts";
+import { isStreamTrack } from "../../lib/streamTracks.ts";
 import { radioAudioService } from "../../services/radioAudioService.ts";
 import { formatDataSizeParts } from "../../lib/formatBytes.ts";
 import {
@@ -20,7 +21,7 @@ export const BufferInspectorWidget: React.FC<BufferInspectorWidgetProps> = ({
   showStability = true,
   compactStability = false,
 }) => {
-  const { appearance, activeRadioStation, isRadioPlaying } = useMusicStore();
+  const { appearance, activeRadioStation, isRadioPlaying, isPlaying, currentTrack } = useMusicStore();
   const [telemetry, setTelemetry] = useState<BufferTelemetry>({
     buffer_capacity_frames: 88200,
     buffer_fill_frames: 0,
@@ -47,6 +48,14 @@ export const BufferInspectorWidget: React.FC<BufferInspectorWidgetProps> = ({
   // Ring Buffer Fill / I/O Read Time boxes (and the two visualizations) get repurposed to show
   // real network throughput/session usage instead of frozen local-playback numbers.
   const isRadioMode = Boolean(isRadioPlaying && activeRadioStation);
+  const isStreamMode = Boolean(isPlaying && isStreamTrack(currentTrack));
+  const isNetworkMode = isRadioMode || isStreamMode;
+  const networkLabel = isRadioMode ? "RADIO ONLINE" : isStreamMode ? "STREAM YT" : "";
+  const networkName = isRadioMode
+    ? activeRadioStation?.name || "Radio online"
+    : isStreamMode
+      ? currentTrack?.title || "Stream Music"
+      : "";
   const [radioBytesPerSecond, setRadioBytesPerSecond] = useState(0);
   const [radioSessionBytes, setRadioSessionBytes] = useState(0);
   const [radioIsRealUsage, setRadioIsRealUsage] = useState(false);
@@ -65,7 +74,7 @@ export const BufferInspectorWidget: React.FC<BufferInspectorWidgetProps> = ({
 
     const width = canvas.width;
     const height = canvas.height;
-    const history = isRadioMode ? radioThroughputHistoryRef.current : latencyHistoryRef.current;
+    const history = isNetworkMode ? radioThroughputHistoryRef.current : latencyHistoryRef.current;
 
     ctx.clearRect(0, 0, width, height);
 
@@ -146,7 +155,7 @@ export const BufferInspectorWidget: React.FC<BufferInspectorWidgetProps> = ({
     ctx.shadowColor = lineColor;
     ctx.stroke();
     ctx.shadowBlur = 0;
-  }, [themeMode, appearance.accentColor, isRadioMode]);
+  }, [themeMode, appearance.accentColor, isNetworkMode]);
 
   // Track real radio network throughput/session usage, feeding the same history buffer used
   // by the latency graph so Ring Buffer Capacity / Latency Stability stay useful during radio
@@ -160,10 +169,10 @@ export const BufferInspectorWidget: React.FC<BufferInspectorWidgetProps> = ({
       const hist = radioThroughputHistoryRef.current;
       hist.shift();
       hist.push(bps / 1024);
-      if (isRadioMode) drawGraph();
+      if (isNetworkMode) drawGraph();
     });
     return () => unsub();
-  }, [isRadioMode, drawGraph]);
+  }, [isNetworkMode, drawGraph]);
 
   // Subscribe to backend 100ms buffer-telemetry event
   useEffect(() => {
@@ -230,11 +239,14 @@ export const BufferInspectorWidget: React.FC<BufferInspectorWidgetProps> = ({
   const SEGMENTS_COUNT = 100;
   // While listening to radio, normalize live throughput against the station's expected bitrate
   // (falling back to a 320kbps reference) so the segmented meter still reflects real activity
-  const radioExpectedBps = activeRadioStation?.bitrate && activeRadioStation.bitrate > 0
-    ? (activeRadioStation.bitrate * 1000) / 8
-    : 40 * 1024;
+  const radioExpectedBps =
+    isStreamMode && currentTrack?.bitrate_kbps
+      ? (currentTrack.bitrate_kbps * 1000) / 8
+      : activeRadioStation?.bitrate && activeRadioStation.bitrate > 0
+        ? (activeRadioStation.bitrate * 1000) / 8
+        : 40 * 1024;
   const radioFillPercent = radioExpectedBps > 0 ? Math.min(100, (radioBytesPerSecond / radioExpectedBps) * 100) : 0;
-  const displayFillPercent = isRadioMode ? radioFillPercent : telemetry.buffer_fill_percent;
+  const displayFillPercent = isNetworkMode ? radioFillPercent : telemetry.buffer_fill_percent;
   const sessionDataParts = formatDataSizeParts(radioSessionBytes);
   const activeSegments = Math.min(
     SEGMENTS_COUNT,
@@ -301,27 +313,27 @@ export const BufferInspectorWidget: React.FC<BufferInspectorWidgetProps> = ({
               isDsp ? "text-emerald-600" : "text-audiophile-muted"
             }`}
           >
-            {isRadioMode ? (radioIsRealUsage ? "Descarga en vivo" : "Descarga (estimado)") : "Ring Buffer Fill"}
+            {isNetworkMode ? (radioIsRealUsage ? "Descarga en vivo" : "Descarga (estimado)") : "Ring Buffer Fill"}
           </div>
           <div className="flex items-baseline gap-1 my-1">
             <span
               className={`text-2xl font-bold tracking-tighter font-mono ${
-                isRadioMode
+                isNetworkMode
                   ? "text-white"
                   : isDsp
                   ? "text-emerald-300 drop-shadow-[0_0_8px_rgba(34,197,94,0.3)]"
                   : "text-audiophile-text"
               }`}
             >
-              {isRadioMode ? (radioBytesPerSecond / 1024).toFixed(0) : telemetry.buffer_fill_percent.toFixed(1)}
+              {isNetworkMode ? (radioBytesPerSecond / 1024).toFixed(0) : telemetry.buffer_fill_percent.toFixed(1)}
             </span>
             <span className={`text-[10px] font-semibold ${isDsp ? "text-emerald-600" : "text-audiophile-muted"}`}>
-              {isRadioMode ? "KB/s" : "%"}
+              {isNetworkMode ? "KB/s" : "%"}
             </span>
           </div>
           <div className="text-[9px] text-neutral-500 font-mono">
-            {isRadioMode
-              ? activeRadioStation?.name || "Radio online"
+            {isNetworkMode
+              ? networkName
               : `${telemetry.buffer_fill_frames.toLocaleString()} / ${telemetry.buffer_capacity_frames.toLocaleString()} f`}
           </div>
         </div>
@@ -339,10 +351,10 @@ export const BufferInspectorWidget: React.FC<BufferInspectorWidgetProps> = ({
               isDsp ? "text-emerald-600" : "text-audiophile-muted"
             }`}
           >
-            {isRadioMode ? "Acumulado sesión" : "I/O Read Time"}
+            {isNetworkMode ? "Acumulado sesión" : "I/O Read Time"}
           </div>
           <div className="flex items-baseline gap-1 my-1">
-            {isRadioMode ? (
+            {isNetworkMode ? (
               <>
                 <span
                   className={`text-2xl font-bold tracking-tighter font-mono ${
@@ -377,13 +389,17 @@ export const BufferInspectorWidget: React.FC<BufferInspectorWidgetProps> = ({
             )}
           </div>
           <div className="text-[9px] flex items-center gap-1 font-mono">
-            {isRadioMode ? (
+            {isNetworkMode ? (
               <span
                 className={`px-1 py-0.2 rounded text-[8px] font-semibold uppercase ${
-                  isDsp ? "bg-emerald-950/60 text-emerald-400" : "bg-audiophile-base text-audiophile-muted"
+                  isStreamMode
+                    ? "bg-sky-950/80 text-sky-300 border border-sky-800/60"
+                    : isDsp
+                      ? "bg-emerald-950/60 text-emerald-400"
+                      : "bg-audiophile-base text-audiophile-muted"
                 }`}
               >
-                RADIO ONLINE
+                {networkLabel}
               </span>
             ) : (
             <span
@@ -418,7 +434,7 @@ export const BufferInspectorWidget: React.FC<BufferInspectorWidgetProps> = ({
               className={`w-1.5 h-1.5 rounded-full ${isDsp ? "bg-emerald-500" : ""}`}
               style={{ backgroundColor: !isDsp ? appearance.accentColor : undefined }}
             />
-            {isRadioMode ? "DESCARGA EN VIVO" : "RING BUFFER CAPACITY"}
+            {isNetworkMode ? (isStreamMode ? "STREAM EN VIVO" : "DESCARGA EN VIVO") : "RING BUFFER CAPACITY"}
           </span>
           <span
             className={`font-mono font-bold ${isDsp ? "text-emerald-400" : ""}`}
@@ -491,7 +507,11 @@ export const BufferInspectorWidget: React.FC<BufferInspectorWidgetProps> = ({
           }`}
         >
           <span className="font-semibold uppercase tracking-wider">
-            {isRadioMode ? "DESCARGA EN VIVO (ÚLTIMOS 30s)" : "LATENCY STABILITY (LAST 30s @ 10Hz)"}
+            {isNetworkMode
+              ? isStreamMode
+                ? "STREAM THROUGHPUT (ÚLTIMOS 30s)"
+                : "DESCARGA EN VIVO (ÚLTIMOS 30s)"
+              : "LATENCY STABILITY (LAST 30s @ 10Hz)"}
           </span>
           <span className="text-[9px] text-neutral-500">
             Current:{" "}
@@ -499,7 +519,7 @@ export const BufferInspectorWidget: React.FC<BufferInspectorWidgetProps> = ({
               className={`font-bold ${isDsp ? "text-emerald-300" : "text-audiophile-text"}`}
               style={{ color: !isDsp ? appearance.accentColor : undefined }}
             >
-              {isRadioMode ? `${(radioBytesPerSecond / 1024).toFixed(0)} KB/s` : `${telemetry.latency_ms.toFixed(2)} ms`}
+              {isNetworkMode ? `${(radioBytesPerSecond / 1024).toFixed(0)} KB/s` : `${telemetry.latency_ms.toFixed(2)} ms`}
             </span>
           </span>
         </div>

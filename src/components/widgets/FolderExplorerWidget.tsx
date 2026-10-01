@@ -17,11 +17,9 @@ import {
   SlidersHorizontal,
   FolderPlus,
   House,
-  Globe,
 } from "lucide-react";
 import type { FileNode, Track } from "../../types/index.ts";
 import { ColumnResizeHandle } from "./ColumnResizeHandle.tsx";
-import { StreamMusicModal } from "./StreamMusicModal.tsx";
 
 type ExplorerColumn = "name" | "type" | "size" | "duration" | "bitrate" | "action";
 type ExplorerColumnWidths = Record<ExplorerColumn, number>;
@@ -207,7 +205,6 @@ export const FolderExplorerWidget: React.FC = () => {
     action: true,
   });
   const [isColMenuOpen, setIsColMenuOpen] = useState(false);
-  const [showStreamMusic, setShowStreamMusic] = useState(false);
 
   const handleNavigate = (path: string) => {
     setInputPath(path);
@@ -340,10 +337,6 @@ export const FolderExplorerWidget: React.FC = () => {
     );
   };
 
-  if (showStreamMusic) {
-    return <StreamMusicModal embedded onBackToLibrary={() => setShowStreamMusic(false)} />;
-  }
-
   return (
     <div ref={tableRef} className="flex flex-col h-full w-full bg-audiophile-surface select-none font-sans overflow-hidden text-xs">
       <div className="p-2 border-b border-audiophile-border bg-audiophile-surface2 flex flex-col gap-2 shrink-0">
@@ -387,15 +380,6 @@ export const FolderExplorerWidget: React.FC = () => {
           >
             <RefreshCw size={13} className={explorer.isLoading ? "animate-spin" : ""} />
           </button>
-          <button
-            onClick={() => setShowStreamMusic(true)}
-            className="p-1 rounded hover:bg-audiophile-border text-audiophile-text transition-colors cursor-pointer"
-            title="Mostrar Stream Music dentro de este panel"
-            aria-label="Abrir Stream Music"
-          >
-            <Globe size={14} />
-          </button>
-
           <div className="flex-1 flex items-center bg-slate-950 border border-slate-800 rounded px-2 py-0.5 ml-1">
             <HardDrive size={12} className="text-cyan-400 mr-1.5 shrink-0" />
             <input

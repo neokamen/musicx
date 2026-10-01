@@ -33,7 +33,7 @@ export interface WidgetMeta {
   description: string;
 }
 
-export const AVAILABLE_WIDGETS: WidgetMeta[] = [
+export const AVAILABLE_WIDGETS: WidgetMeta[] = ([
   {
     type: "folder_explorer",
     label: "Explorador de Carpetas",
@@ -169,7 +169,7 @@ export const AVAILABLE_WIDGETS: WidgetMeta[] = [
     label: "Telemetría de audio (completa)",
     description: "Espectro, señal, dispositivo, buffer, latencia, XRuns y fuente",
   },
-];
+] satisfies WidgetMeta[]).sort((a, b) => a.label.localeCompare(b.label, "es", { sensitivity: "base" }));
 
 export type LayoutNode =
   | {

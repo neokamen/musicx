@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import type { BufferTelemetry } from "../../types/index.ts";
 import { onBufferTelemetry, setAudioBufferSize, getBufferTelemetry } from "../../services/api.ts";
 import { useMusicStore } from "../../store/index.ts";
+import { isStreamTrack } from "../../lib/streamTracks.ts";
 import { radioAudioService } from "../../services/radioAudioService.ts";
 import { formatDataSizeParts } from "../../lib/formatBytes.ts";
 import { Sliders } from "lucide-react";
@@ -9,7 +10,7 @@ import { Sliders } from "lucide-react";
 const BUFFER_SIZES = [64, 128, 256, 512, 1024];
 
 export const BufferInspectorCompactWidget: React.FC = () => {
-  const { appearance, activeRadioStation, isRadioPlaying } = useMusicStore();
+  const { appearance, activeRadioStation, isRadioPlaying, isPlaying, currentTrack } = useMusicStore();
   const [telemetry, setTelemetry] = useState<BufferTelemetry>({
     buffer_capacity_frames: 88200,
     buffer_fill_frames: 0,
@@ -31,6 +32,8 @@ export const BufferInspectorCompactWidget: React.FC = () => {
 
   // Radio mode: swap to a network-usage summary instead of frozen local-playback numbers
   const isRadioMode = Boolean(isRadioPlaying && activeRadioStation);
+  const isStreamMode = Boolean(isPlaying && isStreamTrack(currentTrack));
+  const isNetworkMode = isRadioMode || isStreamMode;
   const [radioBytesPerSecond, setRadioBytesPerSecond] = useState(0);
   const [radioSessionBytes, setRadioSessionBytes] = useState(0);
   const [radioIsRealUsage, setRadioIsRealUsage] = useState(false);
@@ -85,11 +88,14 @@ export const BufferInspectorCompactWidget: React.FC = () => {
 
   const SEGMENTS_COUNT = 100;
   // While listening to radio, normalize live throughput against the station's expected bitrate
-  const radioExpectedBps = activeRadioStation?.bitrate && activeRadioStation.bitrate > 0
-    ? (activeRadioStation.bitrate * 1000) / 8
-    : 40 * 1024;
+  const radioExpectedBps =
+    isStreamMode && currentTrack?.bitrate_kbps
+      ? (currentTrack.bitrate_kbps * 1000) / 8
+      : activeRadioStation?.bitrate && activeRadioStation.bitrate > 0
+        ? (activeRadioStation.bitrate * 1000) / 8
+        : 40 * 1024;
   const radioFillPercent = radioExpectedBps > 0 ? Math.min(100, (radioBytesPerSecond / radioExpectedBps) * 100) : 0;
-  const displayFillPercent = isRadioMode ? radioFillPercent : telemetry.buffer_fill_percent;
+  const displayFillPercent = isNetworkMode ? radioFillPercent : telemetry.buffer_fill_percent;
   const sessionDataParts = formatDataSizeParts(radioSessionBytes);
   const activeSegments = Math.min(
     SEGMENTS_COUNT,
@@ -111,10 +117,10 @@ export const BufferInspectorCompactWidget: React.FC = () => {
         {/* Fill */}
         <div className="bg-audiophile-surface2/50 border border-slate-600/35 p-1.5 rounded">
           <div className="text-[9px] text-audiophile-muted uppercase">
-            {isRadioMode ? (radioIsRealUsage ? "En vivo" : "Estimado") : "Lleno"}
+            {isNetworkMode ? (radioIsRealUsage ? "En vivo" : "Estimado") : "Lleno"}
           </div>
-          <div className={`text-sm font-bold font-mono tracking-tight ${isRadioMode ? "text-white" : "text-audiophile-text"}`}>
-            {isRadioMode ? (
+          <div className={`text-sm font-bold font-mono tracking-tight ${isNetworkMode ? "text-white" : "text-audiophile-text"}`}>
+            {isNetworkMode ? (
               <>
                 {(radioBytesPerSecond / 1024).toFixed(0)} <span className="text-[9px] font-normal text-audiophile-muted">KB/s</span>
               </>
@@ -125,10 +131,10 @@ export const BufferInspectorCompactWidget: React.FC = () => {
         {/* I/O */}
         <div className="bg-audiophile-surface2/50 border border-slate-600/35 p-1.5 rounded">
           <div className="text-[9px] text-audiophile-muted uppercase">
-            {isRadioMode ? "Sesión" : "I/O Read"}
+            {isNetworkMode ? "Sesión" : "I/O Read"}
           </div>
           <div className="text-sm font-bold font-mono tracking-tight text-audiophile-text">
-            {isRadioMode ? (
+            {isNetworkMode ? (
               <>
                 {sessionDataParts.value} <span className="text-[9px] font-normal text-audiophile-muted">{sessionDataParts.unit}</span>
               </>
@@ -140,10 +146,12 @@ export const BufferInspectorCompactWidget: React.FC = () => {
       {/* Mini Segmented Bar (100 Segments) */}
       <div className="space-y-1">
         <div className="flex justify-between text-[9px] font-mono text-audiophile-muted">
-          <span>{isRadioMode ? "Descarga en vivo" : "Ring Buffer"}</span>
+          <span>{isNetworkMode ? (isStreamMode ? "Stream en vivo" : "Descarga en vivo") : "Ring Buffer"}</span>
           <span>
-            {isRadioMode
-              ? activeRadioStation?.name || "Radio online"
+            {isNetworkMode
+              ? isStreamMode
+                ? currentTrack?.title || "Stream Music"
+                : activeRadioStation?.name || "Radio online"
               : `${telemetry.buffer_fill_frames.toLocaleString()} / ${telemetry.buffer_capacity_frames.toLocaleString()} f`}
           </span>
         </div>

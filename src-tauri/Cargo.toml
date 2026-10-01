@@ -1,6 +1,6 @@
 [package]
 name = "musicx"
-version = "0.3.5"
+version = "0.3.7"
 description = "musicx - the audio player (Hi-Fi local & network player)"
 authors = ["musicx team"]
 edition = "2021"
