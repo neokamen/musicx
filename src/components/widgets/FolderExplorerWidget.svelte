@@ -357,7 +357,7 @@
         style="flex: 0 0 {columnWidths.bitrate}%;"
         title="1 clic: ordenar / Doble clic: ocultar columna"
       >
-        <span>Bitrate</span>
+        <span>bit</span>
         {@render renderSortIcon("bitrate")}
         {#if visibleColumns.action}
           <ColumnResizeHandle onResize={(delta) => resizeColumns("bitrate", "action", delta)} />
@@ -392,7 +392,7 @@
             }}
             class="accent-cyan-400"
           />
-          <span class="capitalize">{col}</span>
+          <span class="capitalize">{col === "bitrate" ? "bit" : col}</span>
         </label>
       {/each}
       <button

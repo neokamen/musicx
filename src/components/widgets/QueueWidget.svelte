@@ -9,6 +9,7 @@
   import { isStreamTrack } from "../../lib/streamTracks.ts";
   import type { Track } from "../../types/index.ts";
   import { t } from "../../i18n/translations.ts";
+  import QueueHudVisualizer from "./QueueHudVisualizer.svelte";
 
   const FORMAT_COLORS: Record<string, string> = {
     MP3: "#f59e0b",
@@ -38,11 +39,24 @@
     return fmt || "AUDIO";
   }
 
-  function queueBitrateLabel(track: Track): string {
-    if (isStreamTrack(track)) {
-      return track.bitrate_kbps > 0 ? `${track.bitrate_kbps} kbps` : "Live";
+  function queueQualityLabel(track: Track): string {
+    const isStream = isStreamTrack(track);
+    if (isStream) {
+      if (track.bitrate_kbps > 0) {
+        const sr = track.sample_rate > 0 ? Math.round(track.sample_rate / 1000) : 48;
+        return `${track.bitrate_kbps}k / ${sr}z`;
+      }
+      return "Live";
     }
-    return track.bitrate_kbps > 0 ? `${track.bitrate_kbps} kbps` : "—";
+
+    const br = track.bitrate_kbps > 0 ? `${track.bitrate_kbps}k` : "";
+    const sr = track.sample_rate > 0 ? Math.round(track.sample_rate / 1000) : 0;
+    const hz = sr > 0 ? `${sr}z` : "";
+
+    if (br && hz) return `${br} / ${hz}`;
+    if (br) return br;
+    if (hz) return hz;
+    return "—";
   }
 
   let queue = $derived($useMusicStore.queue);
@@ -65,10 +79,10 @@
 
   let columnWidths = $state<Record<QueueColumn, number>>({
     index: 8,
-    title: 42,
+    title: 40,
     format: 12,
-    bitrate: 16,
-    duration: 12,
+    bitrate: 19,
+    duration: 11,
     download: 10,
   });
 
@@ -154,12 +168,17 @@
     const labelState = lang === "ca" ? "Estat" : lang === "en" ? "State" : "Estado";
     const labelQueue = lang === "ca" ? "Cua" : lang === "en" ? "Queue" : "Cola";
     const labelLeft = lang === "ca" ? "Restant" : lang === "en" ? "Left" : "Resto";
-    const labelSignal = lang === "ca" ? "Senyal" : lang === "en" ? "Signal" : "Señal";
+    const labelSignal = lang === "ca" ? "Senyal Hi-Fi" : lang === "en" ? "Hi-Fi Signal" : "Señal Hi-Fi";
+    const labelQuality = lang === "ca" ? "Qualitat" : lang === "en" ? "Quality" : "Calidad";
     const labelSource = lang === "ca" ? "Font" : lang === "en" ? "Source" : "Fuente";
+    const labelSpectrum = lang === "ca" ? "Espectre Hi-Fi" : lang === "en" ? "Hi-Fi Spectrum" : "Espectro Hi-Fi";
+    const labelWave = lang === "ca" ? "Ona Contínua Fluida" : lang === "en" ? "Fluid Continuous Wave" : "Onda Continua Fluida";
 
     return [
       {
+        id: "session",
         label: labelSession,
+        type: "cells" as const,
         cells: [
           { k: labelTracks, v: String(listeningStats.totalTracksPlayed) },
           { k: labelSessions, v: String(listeningStats.totalSessions) },
@@ -167,7 +186,9 @@
         ],
       },
       {
-        label: "Buffer",
+        id: "buffer",
+        label: "Buffer & DSP",
+        type: "cells" as const,
         cells: [
           { k: labelState, v: telemetry.state || (isPlaying ? "Playing" : "Paused") },
           { k: "Pos", v: formatDuration(telemetry.current_time || 0) },
@@ -175,7 +196,9 @@
         ],
       },
       {
+        id: "queue",
         label: labelQueue,
+        type: "cells" as const,
         cells: [
           { k: "#", v: queue.length ? `${Math.min(queue.length, queueIndex + 1)}/${queue.length}` : "0/0" },
           { k: labelLeft, v: remainingSec ? formatDuration(remainingSec) : "—" },
@@ -183,12 +206,26 @@
         ],
       },
       {
+        id: "signal",
         label: labelSignal,
+        type: "cells" as const,
         cells: [
           { k: t("type", lang), v: currentTrack ? queueFormatLabel(currentTrack) : "—" },
-          { k: "Bitrate", v: currentTrack ? queueBitrateLabel(currentTrack) : "—" },
+          { k: labelQuality, v: currentTrack ? queueQualityLabel(currentTrack) : "—" },
           { k: labelSource, v: currentTrack && isStreamTrack(currentTrack) ? "Stream" : currentTrack ? "Local" : "Idle" },
         ],
+      },
+      {
+        id: "spectrum",
+        label: labelSpectrum,
+        type: "spectrum" as const,
+        cells: [],
+      },
+      {
+        id: "wave",
+        label: labelWave,
+        type: "wave" as const,
+        cells: [],
       },
     ];
   });
@@ -275,7 +312,7 @@
               {#each [
                 ["album", lang === "ca" ? "Àlbum" : lang === "en" ? "Album" : "Álbum"],
                 ["format", t("type", lang)],
-                ["bitrate", "Bitrate"],
+                ["bitrate", lang === "ca" ? "Qualitat" : lang === "en" ? "Quality" : "Calidad"],
                 ["duration", t("duration", lang)],
                 ["download", lang === "ca" ? "Descàrrega" : lang === "en" ? "Download" : "Descarga"],
               ] as [key, label]}
@@ -341,7 +378,7 @@
           {/if}
           {#if visibleCols.bitrate}
             <span class="relative">
-              Bitrate
+              {lang === "ca" ? "Qualitat" : lang === "en" ? "Quality" : "Calidad"}
               {#if visibleCols.duration}
                 <ColumnResizeHandle onResize={(delta) => resizeColumns("bitrate", "duration", delta)} />
               {/if}
@@ -418,7 +455,7 @@
             {/if}
             {#if visibleCols.bitrate}
               <span class="truncate text-[10px] font-mono text-audiophile-muted tabular-nums">
-                {queueBitrateLabel(track)}
+                {queueQualityLabel(track)}
               </span>
             {/if}
             {#if visibleCols.duration}
@@ -456,32 +493,82 @@
     <!-- svelte-ignore a11y_click_events_have_key_events -->
     <!-- svelte-ignore a11y_no_static_element_interactions -->
     <div
-      class="px-3 py-2 border-t shrink-0 cursor-pointer select-none"
+      class="px-2.5 py-2 border-t shrink-0 cursor-pointer select-none bg-slate-950/40 backdrop-blur-sm"
       style="border-color: {appearance.accentColor}22;"
-      title={lang === "ca" ? "Doble clic per canviar telemetria" : lang === "en" ? "Double click to toggle telemetry" : "Doble clic para cambiar telemetría"}
-      ondblclick={() => { queueHudMode = (queueHudMode + 1) % 4; }}
+      title={lang === "ca" ? "Doble clic per canviar vista" : lang === "en" ? "Double click to cycle view" : "Doble clic para cambiar vista"}
+      ondblclick={() => { queueHudMode = (queueHudMode + 1) % hudPanels.length; }}
     >
-      <div class="flex items-center justify-between mb-1.5">
-        <div class="text-[9px] uppercase tracking-[0.18em] text-audiophile-muted">{currentHudPanel.label}</div>
-        <div class="flex gap-1">
-          {#each hudPanels as _, index}
-            <span
-              class="h-1 w-3 rounded-full"
-              style="background: {index === queueHudMode ? appearance.accentColor : `${appearance.accentColor}33`};"
-            ></span>
+      <div class="flex items-center gap-2.5">
+        <!-- Vertical Pagination Dots at the extreme left -->
+        <div class="flex flex-col items-center justify-center gap-1 shrink-0 py-0.5" role="tablist">
+          {#each hudPanels as panel, index}
+            <button
+              type="button"
+              onclick={(e) => {
+                e.stopPropagation();
+                queueHudMode = index;
+              }}
+              class="group relative flex items-center justify-center p-0.5 cursor-pointer focus:outline-none"
+              title={`${index + 1}/6 · ${panel.label}`}
+              aria-label={panel.label}
+            >
+              <span
+                class="transition-all duration-300 rounded-full block"
+                style={index === queueHudMode
+                  ? `width: 3.5px; height: 13px; background: ${appearance.accentColor}; box-shadow: 0 0 10px ${appearance.accentColor}, 0 0 3px ${appearance.accentColor};`
+                  : `width: 3px; height: 4px; background: ${appearance.accentColor}35;`}
+              ></span>
+            </button>
           {/each}
         </div>
-      </div>
-      <div class="grid grid-cols-3 gap-2">
-        {#each currentHudPanel.cells as cell}
-          <div class="min-w-0">
-            <div class="text-[8px] uppercase tracking-wider text-audiophile-muted">{cell.k}</div>
-            <div class="text-[11px] font-mono tabular-nums truncate" style="color: {appearance.accentColor};">{cell.v}</div>
+
+        <!-- Main HUD Panel Content -->
+        <div class="flex-1 min-w-0">
+          <div class="flex items-center justify-between mb-1">
+            <div class="text-[9px] uppercase tracking-[0.16em] text-audiophile-muted flex items-center gap-1.5 font-bold">
+              <span>{currentHudPanel.label}</span>
+              <span class="text-[8px] font-mono opacity-50">[{queueHudMode + 1}/6]</span>
+            </div>
+            {#if currentHudPanel.type === "spectrum"}
+              <span class="text-[8px] font-mono uppercase tracking-wider text-audiophile-muted opacity-80" style="color: {appearance.accentColor};">
+                48 BANDS · HI-RES
+              </span>
+            {:else if currentHudPanel.type === "wave"}
+              <span class="text-[8px] font-mono uppercase tracking-wider text-audiophile-muted opacity-80" style="color: {appearance.accentColor};">
+                ANALOG OSCILLOSCOPE
+              </span>
+            {/if}
           </div>
-        {/each}
-      </div>
-      <div class="mt-1.5 h-[3px] rounded-full overflow-hidden" style="background: {appearance.accentColor}22;">
-        <div class="h-full rounded-full" style="width: {progressPercent}%; background: {appearance.accentColor};"></div>
+
+          {#if currentHudPanel.type === "spectrum"}
+            <QueueHudVisualizer
+              mode="spectrum"
+              accentColor={appearance.accentColor}
+              {isPlaying}
+              {telemetry}
+            />
+          {:else if currentHudPanel.type === "wave"}
+            <QueueHudVisualizer
+              mode="wave"
+              accentColor={appearance.accentColor}
+              {isPlaying}
+              {telemetry}
+            />
+          {:else}
+            <div class="grid grid-cols-3 gap-2">
+              {#each currentHudPanel.cells as cell}
+                <div class="min-w-0">
+                  <div class="text-[8px] uppercase tracking-wider text-audiophile-muted truncate">{cell.k}</div>
+                  <div class="text-[11px] font-mono tabular-nums truncate font-medium" style="color: {appearance.accentColor};">{cell.v}</div>
+                </div>
+              {/each}
+            </div>
+          {/if}
+
+          <div class="mt-1.5 h-[3px] rounded-full overflow-hidden" style="background: {appearance.accentColor}22;">
+            <div class="h-full rounded-full transition-all duration-300" style="width: {progressPercent}%; background: {appearance.accentColor}; box-shadow: 0 0 6px {appearance.accentColor}66;"></div>
+          </div>
+        </div>
       </div>
     </div>
 
