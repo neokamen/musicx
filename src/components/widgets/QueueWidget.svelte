@@ -169,13 +169,13 @@
     const labelHardware = lang === "ca" ? "Hardware & DSP" : lang === "en" ? "Hardware & DSP" : "Hardware & DSP";
     const labelQueue = lang === "ca" ? "Cua de Reproducció" : lang === "en" ? "Playback Queue" : "Cola de Reproducción";
     const labelSignal = lang === "ca" ? "Senyal Hi-Fi & DAC" : lang === "en" ? "Hi-Fi Signal & DAC" : "Señal Hi-Fi & DAC";
-    const labelWaveform = lang === "ca" ? "Ones de la Cançó" : lang === "en" ? "Song Waveform" : "Ondas de la Canción";
-    const labelBlank = lang === "ca" ? "En Blanc (Repòs)" : lang === "en" ? "Blank (Standby)" : "En Blanco (Reposo)";
+    const labelWaveform = lang === "ca" ? "Ones de la Cançó (HD)" : lang === "en" ? "Song Waveform (HD)" : "Ondas de la Canción (HD)";
+    const labelFluidWave = lang === "ca" ? "Ona Fluida Contínua" : lang === "en" ? "Fluid Continuous Wave" : "Onda Fluida Continua";
+    const labelBlank = lang === "ca" ? "En Blanc" : lang === "en" ? "Blank" : "En Blanco";
 
     const isCurrent = currentTrack && telemetry.filepath && currentTrack.filepath === telemetry.filepath;
     const curDur = isCurrent && telemetry.duration > 0 ? telemetry.duration : (currentTrack?.duration_seconds || 0);
     const curSr = isCurrent && telemetry.sample_rate > 0 ? telemetry.sample_rate : (currentTrack?.sample_rate || 0);
-    const curBits = isCurrent && telemetry.bits_per_sample > 0 ? telemetry.bits_per_sample : (currentTrack?.bit_depth || 0);
     const curBr = isCurrent && telemetry.bitrate > 0 ? telemetry.bitrate : (currentTrack?.bitrate_kbps || 0);
 
     return [
@@ -188,8 +188,6 @@
           { k: lang === "ca" ? "Sessions" : "Sesiones", v: String(listeningStats.totalSessions) },
           { k: lang === "ca" ? "Temps Total" : "Tiempo Total", v: listenedLabel },
           { k: "Tempo", v: telemetry.tempo_bpm ? `${Math.round(telemetry.tempo_bpm)} BPM` : "—" },
-          { k: "Confiança", v: telemetry.tempo_confidence ? `${Math.round(telemetry.tempo_confidence * 100)}%` : "—" },
-          { k: "Estat", v: telemetry.state || (isPlaying ? "Playing" : "Standby") },
         ],
       },
       {
@@ -200,9 +198,7 @@
           { k: "Driver", v: (telemetry.output_device || "ALSA").split(" ")[0] },
           { k: "Stream", v: bitPerfectMode ? "Bit-Perfect" : "PipeWire" },
           { k: "Buffer", v: "1024 spls" },
-          { k: "Canales", v: `${telemetry.channels || 2} Ch Stereo` },
           { k: "Volumen", v: `${Math.round(volume * 100)}%` },
-          { k: "Modo DSP", v: bitPerfectMode ? "Direct 1:1" : "DSP Activo" },
         ],
       },
       {
@@ -214,8 +210,6 @@
           { k: "Resto Pista", v: curDur > 0 ? formatDuration(Math.max(0, curDur - (telemetry.current_time || 0))) : "—" },
           { k: "Resto Cola", v: remainingSec ? formatDuration(remainingSec) : "—" },
           { k: "Total Cola", v: `${queue.length} pistas` },
-          { k: "Posición", v: formatDuration(telemetry.current_time || 0) },
-          { k: "Duración", v: curDur ? formatDuration(curDur) : "—" },
         ],
       },
       {
@@ -226,15 +220,19 @@
           { k: "Formato", v: currentTrack ? queueFormatLabel(currentTrack) : "—" },
           { k: "Calidad", v: currentTrack ? queueQualityLabel(currentTrack) : "—" },
           { k: "Muestreo", v: curSr > 0 ? `${(curSr / 1000).toFixed(1)} kHz` : "—" },
-          { k: "Profundidad", v: curBits > 0 ? `${curBits}-bit` : "—" },
           { k: "Bitrate", v: curBr > 0 ? `${curBr} kbps` : "—" },
-          { k: "Origen", v: currentTrack && isStreamTrack(currentTrack) ? "Stream" : currentTrack ? "Local" : "Idle" },
         ],
       },
       {
         id: "waveform",
         label: labelWaveform,
         type: "waveform" as const,
+        cells: [],
+      },
+      {
+        id: "fluid_wave",
+        label: labelFluidWave,
+        type: "fluid_wave" as const,
         cells: [],
       },
       {
@@ -505,17 +503,15 @@
       </div>
     {/if}
 
-    <!-- svelte-ignore a11y_click_events_have_key_events -->
-    <!-- svelte-ignore a11y_no_static_element_interactions -->
     <div
-      class="m-2 p-2.5 rounded-xl border shrink-0 cursor-pointer select-none shadow-xl backdrop-blur-md transition-all duration-200"
-      style="background: rgba(0, 0, 0, 0.45); border-color: {appearance.accentColor}25;"
+      class="border-t shrink-0 cursor-pointer select-none transition-colors h-[50px] px-3 py-1 flex items-center bg-audiophile-surface"
+      style="border-color: {appearance.accentColor}25;"
       title={lang === "ca" ? "Doble clic per canviar vista" : lang === "en" ? "Double click to cycle view" : "Doble clic para cambiar vista"}
       ondblclick={() => { queueHudMode = (queueHudMode + 1) % hudPanels.length; }}
     >
-      <div class="flex items-center gap-2.5">
+      <div class="flex items-center gap-2.5 w-full h-full">
         <!-- Vertical Pagination Dots at the extreme left (100% round dots, illuminated point) -->
-        <div class="flex flex-col items-center justify-center gap-1.5 shrink-0 py-0.5" role="tablist">
+        <div class="flex flex-col items-center justify-center gap-1 shrink-0 py-0.5" role="tablist">
           {#each hudPanels as panel, index}
             <button
               type="button"
@@ -530,7 +526,7 @@
               <span
                 class="transition-all duration-200 rounded-full block"
                 style={index === queueHudMode
-                  ? `width: 5px; height: 5px; background: #ffffff; box-shadow: 0 0 10px ${appearance.accentColor}, 0 0 3px ${appearance.accentColor}; outline: 2px solid ${appearance.accentColor};`
+                  ? `width: 5px; height: 5px; background: #ffffff; box-shadow: 0 0 8px ${appearance.accentColor}, 0 0 2px ${appearance.accentColor}; outline: 1.5px solid ${appearance.accentColor};`
                   : `width: 3.5px; height: 3.5px; background: ${appearance.accentColor}35;`}
               ></span>
             </button>
@@ -538,70 +534,41 @@
         </div>
 
         <!-- Main HUD Panel Content -->
-        <div class="flex-1 min-w-0">
-          <div class="flex items-center justify-between mb-1.5">
-            <div class="flex items-center gap-2">
-              <span
-                class="w-1.5 h-1.5 rounded-full inline-block"
-                style="background: {isPlaying ? appearance.accentColor : '#64748b'}; box-shadow: {isPlaying ? `0 0 8px ${appearance.accentColor}` : 'none'};"
-              ></span>
-              <span class="text-[9.5px] font-black uppercase tracking-[0.16em]" style="color: {appearance.accentColor};">
-                {currentHudPanel.label}
-              </span>
-            </div>
-            <div class="flex items-center gap-1.5">
-              {#if currentHudPanel.type === "waveform"}
-                <span
-                  class="text-[8px] font-mono px-1.5 py-0.2 rounded font-bold tracking-wider"
-                  style="background: {appearance.accentColor}18; border: 1px solid {appearance.accentColor}35; color: {appearance.accentColor};"
-                >
-                  INTERACTIVE WAVEFORM
-                </span>
-              {:else if currentHudPanel.type === "blank"}
-                <span
-                  class="text-[8px] font-mono px-1.5 py-0.2 rounded font-semibold tracking-wider opacity-60"
-                  style="background: {appearance.accentColor}12; border: 1px solid {appearance.accentColor}25; color: {appearance.accentColor};"
-                >
-                  STANDBY
-                </span>
-              {:else}
-                <span
-                  class="text-[8px] font-mono font-semibold px-1.5 py-0.2 rounded"
-                  style="background: {appearance.accentColor}12; border: 1px solid {appearance.accentColor}25; color: {appearance.accentColor};"
-                >
-                  {queueHudMode + 1} / {hudPanels.length}
-                </span>
-              {/if}
-            </div>
-          </div>
-
-          {#if currentHudPanel.type === "waveform"}
+        {#if currentHudPanel.type === "blank"}
+          <!-- Blank mode: strictly nothing inside, only the extreme dots -->
+          <div class="flex-1 h-full"></div>
+        {:else if currentHudPanel.type === "waveform"}
+          <div class="flex-1 h-full overflow-hidden">
             <QueueHudVisualizer
+              mode="waveform"
               accentColor={appearance.accentColor}
             />
-          {:else if currentHudPanel.type === "blank"}
-            <div class="h-9 flex items-center justify-center text-[10px] font-mono tracking-widest uppercase opacity-35" style="color: {appearance.accentColor};">
-              · MODO REPOSO ·
-            </div>
-          {:else}
-            <div class="grid grid-cols-3 gap-1.5 my-0.5">
-              {#each currentHudPanel.cells as cell}
-                <div
-                  class="rounded-lg px-2 py-1.5 flex flex-col justify-between shadow-inner transition-colors bg-black/40"
-                  style="border: 1px solid {appearance.accentColor}18;"
-                >
-                  <span class="text-[7.5px] uppercase font-bold tracking-wider opacity-60 truncate flex items-center gap-1">
-                    <span class="w-1 h-1 rounded-full" style="background: {appearance.accentColor};"></span>
-                    {cell.k}
-                  </span>
-                  <span class="text-[11.5px] font-mono font-bold tabular-nums truncate tracking-tight" style="color: {appearance.accentColor}; text-shadow: 0 0 10px {appearance.accentColor}33;">
-                    {cell.v}
-                  </span>
-                </div>
-              {/each}
-            </div>
-          {/if}
-        </div>
+          </div>
+        {:else if currentHudPanel.type === "fluid_wave"}
+          <div class="flex-1 h-full overflow-hidden">
+            <QueueHudVisualizer
+              mode="fluid_wave"
+              accentColor={appearance.accentColor}
+            />
+          </div>
+        {:else}
+          <div class="flex-1 grid grid-cols-4 gap-1.5 h-full items-center">
+            {#each currentHudPanel.cells as cell}
+              <div
+                class="rounded px-2 py-0.5 flex flex-col justify-center h-full bg-black/20"
+                style="border: 1px solid {appearance.accentColor}18;"
+              >
+                <span class="text-[7.5px] uppercase font-bold tracking-wider opacity-60 truncate flex items-center gap-1">
+                  <span class="w-1 h-1 rounded-full shrink-0" style="background: {appearance.accentColor};"></span>
+                  {cell.k}
+                </span>
+                <span class="text-[11px] font-mono font-bold tabular-nums truncate tracking-tight" style="color: {appearance.accentColor};">
+                  {cell.v}
+                </span>
+              </div>
+            {/each}
+          </div>
+        {/if}
       </div>
     </div>
 
