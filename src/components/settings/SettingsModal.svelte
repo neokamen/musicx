@@ -974,22 +974,23 @@
               <label class="text-xs font-bold uppercase tracking-wider text-slate-300">
                 Curvatura de Esquinas
               </label>
-              <div class="grid grid-cols-4 gap-2">
+              <div class="grid grid-cols-4 gap-2.5">
                 {#each [
-                  { id: 'square' as CornerRadius, label: 'Recto (0px)' },
-                  { id: 'industrial' as CornerRadius, label: 'DAW (4px)' },
-                  { id: 'modern' as CornerRadius, label: 'Moderno (8px)' },
-                  { id: 'smooth' as CornerRadius, label: 'Suave (14px)' },
+                  { id: 'square' as CornerRadius, label: 'Recto', px: '0px', r: 0 },
+                  { id: 'industrial' as CornerRadius, label: 'DAW', px: '4px', r: 4 },
+                  { id: 'modern' as CornerRadius, label: 'Moderno', px: '8px', r: 8 },
+                  { id: 'smooth' as CornerRadius, label: 'Suave', px: '14px', r: 14 },
                 ] as r (r.id)}
                   <button
                     onclick={() => {
                       cornerRadius = r.id;
                       triggerApplyTheme(accent, bgTheme, customAccentHex, customThemeHex, bgOpacity, neonGlow, neonIntensity, tintedBorders, tintedBordersRatio, r.id);
                     }}
-                    class="p-2 rounded-lg border text-xs font-semibold transition cursor-pointer text-center flex flex-col items-center gap-2 {cornerRadius === r.id ? 'border-cyan-400 bg-cyan-950/40 text-cyan-300' : 'border-slate-800 bg-slate-900/60 text-slate-400 hover:text-slate-200'}"
+                    class="h-14 p-2 border text-xs font-semibold transition-all cursor-pointer text-center flex flex-col items-center justify-center gap-0.5 {cornerRadius === r.id ? 'border-cyan-400 bg-cyan-950/40 text-cyan-300' : 'border-slate-800 bg-slate-900/60 text-slate-400 hover:text-slate-200'}"
+                    style="border-radius: {r.r}px; {cornerRadius === r.id ? `border-color: ${appearance.accentColor}; color: ${appearance.accentColor}; box-shadow: 0 0 14px ${appearance.accentColor}33;` : ''}"
                   >
-                    <span class="w-10 h-7 border border-current bg-slate-950/40" style="border-radius: {r.id === 'square' ? 0 : r.id === 'industrial' ? 4 : r.id === 'modern' ? 8 : 14}px;"></span>
-                    <span>{r.label}</span>
+                    <span class="font-bold">{r.label}</span>
+                    <span class="text-[10px] font-mono opacity-70">({r.px})</span>
                   </button>
                 {/each}
               </div>
@@ -1585,9 +1586,14 @@
         {#if activeTab === 'audio'}
           <div class="space-y-6">
             <div class="p-4 rounded-xl bg-slate-900/40 border border-slate-800/80 space-y-3">
-              <label class="text-xs font-bold uppercase tracking-wider text-slate-300">
-                Motor de Decodificación y Remuestreo Hi-Fi
-              </label>
+              <div class="flex items-center justify-between">
+                <label class="text-xs font-bold uppercase tracking-wider text-slate-300">
+                  Motor de Decodificación y Remuestreo Hi-Fi
+                </label>
+                <span class="text-[10px] font-mono px-2 py-0.5 rounded bg-cyan-950/40 border border-cyan-500/30 text-cyan-300 font-semibold">
+                  {audioSettings.resamplingQuality === 'bit_perfect' ? 'ALSA DIRECT 1:1' : audioSettings.resamplingQuality === 'symphonia_96k' ? 'SYMPHONIA CORE' : 'PIPEWIRE FLOAT32'}
+                </span>
+              </div>
               <div class="grid grid-cols-3 gap-2">
                 {#each [
                   { id: 'bit_perfect' as const, label: 'ALSA Direct Bit-Perfect' },
@@ -1596,11 +1602,21 @@
                 ] as m (m.id)}
                   <button
                     onclick={() => useMusicStore.getState().setAudioSettings({ resamplingQuality: m.id })}
-                    class="p-2.5 rounded-xl border text-xs font-semibold transition cursor-pointer text-center {audioSettings.resamplingQuality === m.id ? 'border-cyan-400 bg-cyan-950/40 text-cyan-300' : 'border-slate-800 bg-slate-900/60 text-slate-400 hover:text-slate-200'}"
+                    class="p-2.5 rounded-xl border text-xs font-semibold transition cursor-pointer text-center {audioSettings.resamplingQuality === m.id ? 'border-cyan-400 bg-cyan-950/40 text-cyan-300 shadow-[0_0_10px_rgba(6,182,212,0.2)]' : 'border-slate-800 bg-slate-900/60 text-slate-400 hover:text-slate-200'}"
+                    style={audioSettings.resamplingQuality === m.id ? `border-color: ${appearance.accentColor}; color: ${appearance.accentColor};` : undefined}
                   >
                     {m.label}
                   </button>
                 {/each}
+              </div>
+              <div class="text-[11px] rounded-lg bg-slate-950/60 border border-slate-800/60 p-2 text-slate-400">
+                {#if audioSettings.resamplingQuality === 'bit_perfect'}
+                  <span class="text-emerald-400 font-semibold">Bit-Perfect Activo:</span> Salida hardware directa 1:1 sin remuestreo ni atenuación. El DAC recibe la frecuencia nativa del archivo (ej. 44.1k, 48k, 96k, 192k).
+                {:else if audioSettings.resamplingQuality === 'symphonia_96k'}
+                  <span class="text-cyan-400 font-semibold">Symphonia Core:</span> Decodificación nativa de alta fidelidad mediante Symphonia v0.5 en Rust con precisión de coma flotante.
+                {:else}
+                  <span class="text-blue-400 font-semibold">Float32 PipeWire:</span> Enrutamiento compartido a través del servidor de audio PipeWire / PulseAudio en coma flotante de 32 bits con soporte multicanal y DSP.
+                {/if}
               </div>
             </div>
 

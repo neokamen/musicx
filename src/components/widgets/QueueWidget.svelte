@@ -173,6 +173,7 @@
     const labelSource = lang === "ca" ? "Font" : lang === "en" ? "Source" : "Fuente";
     const labelSpectrum = lang === "ca" ? "Espectre Hi-Fi" : lang === "en" ? "Hi-Fi Spectrum" : "Espectro Hi-Fi";
     const labelWave = lang === "ca" ? "Ona Contínua Fluida" : lang === "en" ? "Fluid Continuous Wave" : "Onda Continua Fluida";
+    const labelCyber = lang === "ca" ? "Llàser Quàntic Stereo" : lang === "en" ? "Quantum Stereo Laser" : "Láser Cuántico Stereo";
 
     return [
       {
@@ -225,6 +226,12 @@
         id: "wave",
         label: labelWave,
         type: "wave" as const,
+        cells: [],
+      },
+      {
+        id: "cyber_flux",
+        label: labelCyber,
+        type: "cyber_flux" as const,
         cells: [],
       },
     ];
@@ -493,14 +500,14 @@
     <!-- svelte-ignore a11y_click_events_have_key_events -->
     <!-- svelte-ignore a11y_no_static_element_interactions -->
     <div
-      class="px-2.5 py-2 border-t shrink-0 cursor-pointer select-none bg-slate-950/40 backdrop-blur-sm"
-      style="border-color: {appearance.accentColor}22;"
+      class="m-2 p-2.5 rounded-xl border shrink-0 cursor-pointer select-none bg-gradient-to-b from-slate-900/90 via-slate-950/95 to-black/95 shadow-xl backdrop-blur-md transition-all duration-200"
+      style="border-color: {appearance.accentColor}33; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.08);"
       title={lang === "ca" ? "Doble clic per canviar vista" : lang === "en" ? "Double click to cycle view" : "Doble clic para cambiar vista"}
       ondblclick={() => { queueHudMode = (queueHudMode + 1) % hudPanels.length; }}
     >
       <div class="flex items-center gap-2.5">
-        <!-- Vertical Pagination Dots at the extreme left -->
-        <div class="flex flex-col items-center justify-center gap-1 shrink-0 py-0.5" role="tablist">
+        <!-- Vertical Pagination Dots at the extreme left (100% round dots, illuminated point) -->
+        <div class="flex flex-col items-center justify-center gap-1.5 shrink-0 py-0.5" role="tablist">
           {#each hudPanels as panel, index}
             <button
               type="button"
@@ -509,14 +516,14 @@
                 queueHudMode = index;
               }}
               class="group relative flex items-center justify-center p-0.5 cursor-pointer focus:outline-none"
-              title={`${index + 1}/6 · ${panel.label}`}
+              title={`${index + 1}/${hudPanels.length} · ${panel.label}`}
               aria-label={panel.label}
             >
               <span
-                class="transition-all duration-300 rounded-full block"
+                class="transition-all duration-200 rounded-full block"
                 style={index === queueHudMode
-                  ? `width: 3.5px; height: 13px; background: ${appearance.accentColor}; box-shadow: 0 0 10px ${appearance.accentColor}, 0 0 3px ${appearance.accentColor};`
-                  : `width: 3px; height: 4px; background: ${appearance.accentColor}35;`}
+                  ? `width: 6px; height: 6px; background: #ffffff; box-shadow: 0 0 10px ${appearance.accentColor}, 0 0 4px ${appearance.accentColor}; outline: 2px solid ${appearance.accentColor};`
+                  : `width: 4px; height: 4px; background: ${appearance.accentColor}40;`}
               ></span>
             </button>
           {/each}
@@ -524,49 +531,74 @@
 
         <!-- Main HUD Panel Content -->
         <div class="flex-1 min-w-0">
-          <div class="flex items-center justify-between mb-1">
-            <div class="text-[9px] uppercase tracking-[0.16em] text-audiophile-muted flex items-center gap-1.5 font-bold">
-              <span>{currentHudPanel.label}</span>
-              <span class="text-[8px] font-mono opacity-50">[{queueHudMode + 1}/6]</span>
+          <div class="flex items-center justify-between mb-1.5">
+            <div class="flex items-center gap-2">
+              <span
+                class="w-1.5 h-1.5 rounded-full inline-block"
+                style="background: {isPlaying ? appearance.accentColor : '#64748b'}; box-shadow: {isPlaying ? `0 0 8px ${appearance.accentColor}` : 'none'};"
+              ></span>
+              <span class="text-[9.5px] font-black uppercase tracking-[0.16em] text-slate-200">
+                {currentHudPanel.label}
+              </span>
             </div>
-            {#if currentHudPanel.type === "spectrum"}
-              <span class="text-[8px] font-mono uppercase tracking-wider text-audiophile-muted opacity-80" style="color: {appearance.accentColor};">
-                48 BANDS · HI-RES
-              </span>
-            {:else if currentHudPanel.type === "wave"}
-              <span class="text-[8px] font-mono uppercase tracking-wider text-audiophile-muted opacity-80" style="color: {appearance.accentColor};">
-                ANALOG OSCILLOSCOPE
-              </span>
-            {/if}
+            <div class="flex items-center gap-1.5">
+              {#if currentHudPanel.type === "spectrum"}
+                <span class="text-[8px] font-mono px-1.5 py-0.2 rounded bg-cyan-950/60 border border-cyan-500/40 text-cyan-300 font-bold tracking-wider">
+                  48 BANDS · HI-RES FFT
+                </span>
+              {:else if currentHudPanel.type === "wave"}
+                <span class="text-[8px] font-mono px-1.5 py-0.2 rounded bg-cyan-950/60 border border-cyan-500/40 text-cyan-300 font-bold tracking-wider">
+                  ANALOG OSCILLOSCOPE
+                </span>
+              {:else if currentHudPanel.type === "cyber_flux"}
+                <span class="text-[8px] font-mono px-1.5 py-0.2 rounded bg-fuchsia-950/60 border border-fuchsia-500/40 text-fuchsia-300 font-bold tracking-wider">
+                  QUANTUM STEREO LASER
+                </span>
+              {:else}
+                <span class="text-[8px] font-mono text-slate-400 font-semibold px-1.5 py-0.2 rounded bg-white/[0.04] border border-white/10">
+                  {queueHudMode + 1} / {hudPanels.length}
+                </span>
+              {/if}
+            </div>
           </div>
 
           {#if currentHudPanel.type === "spectrum"}
             <QueueHudVisualizer
               mode="spectrum"
               accentColor={appearance.accentColor}
-              {isPlaying}
-              {telemetry}
             />
           {:else if currentHudPanel.type === "wave"}
             <QueueHudVisualizer
               mode="wave"
               accentColor={appearance.accentColor}
-              {isPlaying}
-              {telemetry}
+            />
+          {:else if currentHudPanel.type === "cyber_flux"}
+            <QueueHudVisualizer
+              mode="cyber_flux"
+              accentColor={appearance.accentColor}
             />
           {:else}
-            <div class="grid grid-cols-3 gap-2">
+            <div class="grid grid-cols-3 gap-1.5 my-0.5">
               {#each currentHudPanel.cells as cell}
-                <div class="min-w-0">
-                  <div class="text-[8px] uppercase tracking-wider text-audiophile-muted truncate">{cell.k}</div>
-                  <div class="text-[11px] font-mono tabular-nums truncate font-medium" style="color: {appearance.accentColor};">{cell.v}</div>
+                <div class="rounded-lg bg-slate-900/80 border border-slate-800/80 px-2 py-1.5 flex flex-col justify-between shadow-inner hover:border-slate-700/80 transition-colors">
+                  <span class="text-[7.5px] uppercase font-bold tracking-wider text-slate-400 truncate flex items-center gap-1">
+                    <span class="w-1 h-1 rounded-full opacity-60" style="background: {appearance.accentColor};"></span>
+                    {cell.k}
+                  </span>
+                  <span class="text-[11.5px] font-mono font-bold tabular-nums truncate tracking-tight text-slate-100" style="color: {appearance.accentColor}; text-shadow: 0 0 10px {appearance.accentColor}33;">
+                    {cell.v}
+                  </span>
                 </div>
               {/each}
             </div>
           {/if}
 
-          <div class="mt-1.5 h-[3px] rounded-full overflow-hidden" style="background: {appearance.accentColor}22;">
-            <div class="h-full rounded-full transition-all duration-300" style="width: {progressPercent}%; background: {appearance.accentColor}; box-shadow: 0 0 6px {appearance.accentColor}66;"></div>
+          <!-- Recessed glowing progress bar -->
+          <div class="mt-2 h-1 rounded-full overflow-hidden bg-slate-950 border border-white/[0.06] p-[0.5px]">
+            <div
+              class="h-full rounded-full transition-all duration-300"
+              style="width: {progressPercent}%; background: linear-gradient(90deg, {appearance.accentColor}88, {appearance.accentColor}); box-shadow: 0 0 8px {appearance.accentColor};"
+            ></div>
           </div>
         </div>
       </div>

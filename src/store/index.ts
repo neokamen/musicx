@@ -992,7 +992,13 @@ export const useMusicStore = create<MusicPlayerStore>((set, get) => ({
 
   setBitPerfectMode: async (enabled: boolean) => {
     await api.setBitPerfect(enabled);
-    set({ bitPerfectMode: enabled });
+    set((state) => ({
+      bitPerfectMode: enabled,
+      audioSettings: {
+        ...state.audioSettings,
+        resamplingQuality: enabled ? "bit_perfect" : "float32",
+      },
+    }));
   },
 
   setOutputDevice: async (deviceName: string) => {
@@ -1121,6 +1127,19 @@ export const useMusicStore = create<MusicPlayerStore>((set, get) => ({
         is_xts_pro_enabled: next.isXtsProEnabled,
         tube_warmth: next.tubeWarmth,
       }).catch(() => {});
+      if (patch.resamplingQuality !== undefined) {
+        const isBp = patch.resamplingQuality === "bit_perfect";
+        api.setBitPerfect(isBp).catch(() => {});
+      }
+      if (patch.bufferLatency !== undefined) {
+        const frameMap: Record<string, number> = {
+          ultra_low: 64,
+          low: 256,
+          stable: 1024,
+        };
+        const frames = frameMap[patch.bufferLatency] || 512;
+        api.setAudioBufferSize(frames).catch(() => {});
+      }
       radioAudioService.setDspSettings({
         isEqEnabled: next.isEqEnabled,
         eqGains: next.eqGains,
@@ -1132,7 +1151,12 @@ export const useMusicStore = create<MusicPlayerStore>((set, get) => ({
         isXdssEnabled: next.isXdssEnabled,
         isXtsProEnabled: next.isXtsProEnabled,
       });
-      return { audioSettings: next };
+      return {
+        audioSettings: next,
+        ...(patch.resamplingQuality !== undefined
+          ? { bitPerfectMode: patch.resamplingQuality === "bit_perfect" }
+          : {}),
+      };
     });
   },
 
