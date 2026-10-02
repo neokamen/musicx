@@ -228,17 +228,9 @@
   );
 
   let engineColor = $derived(
-    currentAudioEngine.id === "bit_perfect"
-      ? "#10b981"
-      : currentAudioEngine.id === "rubato"
-        ? (accentColor || "#06b6d4")
-        : currentAudioEngine.id === "soxr"
-          ? "#3b82f6"
-          : currentAudioEngine.id === "r8brain"
-            ? "#8b5cf6"
-            : currentAudioEngine.id === "zita"
-              ? "#f59e0b"
-              : "#64748b"
+    currentAudioEngine.id === "rubato"
+      ? (accentColor || "#06b6d4")
+      : currentAudioEngine.color
   );
   let isEngineActive = $derived(currentAudioEngine.id !== "float32");
 

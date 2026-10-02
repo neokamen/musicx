@@ -9,7 +9,7 @@
   import AudioEQModal from "./components/audio/AudioEQModal.svelte";
   import RadioHubModal from "./components/radio/RadioHubModal.svelte";
   import StreamMusicModal from "./components/widgets/StreamMusicModal.svelte";
-  import { useMusicStore } from "./store/index";
+  import { useMusicStore, AUDIO_ENGINES } from "./store/index";
   import { initTheme } from "./lib/theme";
   import { FIRST_RUN_PROFILE } from "./components/layout/defaultLayout";
   import whiteLogo from "../simple-white-logo.png";
@@ -429,21 +429,15 @@
         <span class="hidden lg:inline-flex self-end mb-[5px] -translate-y-[5px] items-center gap-1.5 whitespace-nowrap text-[10px] font-mono">
           <span
             class="h-1.5 w-1.5 rounded-full"
-            style="background: {$useMusicStore.audioSettings.resamplingQuality === 'rubato' ? ($useMusicStore.appearance.accentColor || '#06b6d4') : $useMusicStore.audioSettings.resamplingQuality === 'soxr' ? '#3b82f6' : $useMusicStore.audioSettings.resamplingQuality === 'r8brain' ? '#8b5cf6' : $useMusicStore.audioSettings.resamplingQuality === 'zita' ? '#f59e0b' : ($useMusicStore.audioSettings.resamplingQuality === 'bit_perfect' || $useMusicStore.telemetry.is_bit_perfect) ? '#10b981' : '#64748b'};"
+            style="background: {(AUDIO_ENGINES.find((e) => e.id === $useMusicStore.audioSettings.resamplingQuality) || AUDIO_ENGINES[0]).id === 'rubato' ? ($useMusicStore.appearance.accentColor || '#06b6d4') : (AUDIO_ENGINES.find((e) => e.id === $useMusicStore.audioSettings.resamplingQuality) || AUDIO_ENGINES[0]).color};"
           ></span>
           <span class="text-slate-400 font-medium">
-            {#if $useMusicStore.audioSettings.resamplingQuality === 'rubato'}
-              Rubato Sinc Hi-Fi
-            {:else if $useMusicStore.audioSettings.resamplingQuality === 'soxr'}
-              Libsoxr VHQ
-            {:else if $useMusicStore.audioSettings.resamplingQuality === 'r8brain'}
-              r8brain Free SRC
-            {:else if $useMusicStore.audioSettings.resamplingQuality === 'zita'}
-              Zita Resampler
-            {:else if $useMusicStore.audioSettings.resamplingQuality === 'bit_perfect' || $useMusicStore.telemetry.is_bit_perfect}
+            {#if $useMusicStore.audioSettings.resamplingQuality === 'bit_perfect' || $useMusicStore.telemetry.is_bit_perfect}
               {t('bitPerfectAlsa', lang)}
-            {:else}
+            {:else if $useMusicStore.audioSettings.resamplingQuality === 'float32'}
               {t('sharedPipewire', lang)}
+            {:else}
+              {(AUDIO_ENGINES.find((e) => e.id === $useMusicStore.audioSettings.resamplingQuality) || AUDIO_ENGINES[0]).name.split(' (')[0]}
             {/if}
           </span>
         </span>

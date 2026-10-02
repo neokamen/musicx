@@ -24,10 +24,13 @@ use rubato::{Resampler, SincFixedIn, SincInterpolationParameters, SincInterpolat
 #[serde(rename_all = "snake_case")]
 pub enum ResamplingEngine {
     BitPerfect,
-    Rubato,
     Soxr,
     R8brain,
+    Symphonia192k,
+    Rubato,
+    Symphonia96k,
     Zita,
+    Speexdsp,
     Float32,
 }
 
@@ -35,20 +38,26 @@ impl ResamplingEngine {
     pub fn as_str(&self) -> &'static str {
         match self {
             ResamplingEngine::BitPerfect => "bit_perfect",
-            ResamplingEngine::Rubato => "rubato",
             ResamplingEngine::Soxr => "soxr",
             ResamplingEngine::R8brain => "r8brain",
+            ResamplingEngine::Symphonia192k => "symphonia_192k",
+            ResamplingEngine::Rubato => "rubato",
+            ResamplingEngine::Symphonia96k => "symphonia_96k",
             ResamplingEngine::Zita => "zita",
+            ResamplingEngine::Speexdsp => "speexdsp",
             ResamplingEngine::Float32 => "float32",
         }
     }
 
     pub fn from_str(s: &str) -> Self {
         match s.to_lowercase().as_str() {
-            "rubato" => ResamplingEngine::Rubato,
             "soxr" => ResamplingEngine::Soxr,
             "r8brain" => ResamplingEngine::R8brain,
+            "symphonia_192k" => ResamplingEngine::Symphonia192k,
+            "rubato" => ResamplingEngine::Rubato,
+            "symphonia_96k" => ResamplingEngine::Symphonia96k,
             "zita" => ResamplingEngine::Zita,
+            "speexdsp" => ResamplingEngine::Speexdsp,
             "float32" => ResamplingEngine::Float32,
             _ => ResamplingEngine::BitPerfect,
         }
@@ -94,16 +103,6 @@ impl ResamplingPipeline {
         let ratio = target_sr as f64 / source_sr as f64;
 
         let resampler = match engine {
-            ResamplingEngine::Rubato => {
-                let params = SincInterpolationParameters {
-                    sinc_len: 128,
-                    f_cutoff: 0.95,
-                    interpolation: SincInterpolationType::Cubic,
-                    oversampling_factor: 256,
-                    window: WindowFunction::BlackmanHarris,
-                };
-                ActiveResampler::Sinc(SincFixedIn::<f32>::new(ratio, 2.0, params, chunk_size, channels).map_err(|e| e.to_string())?)
-            }
             ResamplingEngine::Soxr => {
                 let params = SincInterpolationParameters {
                     sinc_len: 256,
@@ -117,6 +116,36 @@ impl ResamplingPipeline {
             ResamplingEngine::R8brain => {
                 ActiveResampler::Fft(FftFixedInOut::<f32>::new(source_sr, target_sr, chunk_size, channels).map_err(|e| e.to_string())?)
             }
+            ResamplingEngine::Symphonia192k => {
+                let params = SincInterpolationParameters {
+                    sinc_len: 160,
+                    f_cutoff: 0.96,
+                    interpolation: SincInterpolationType::Cubic,
+                    oversampling_factor: 256,
+                    window: WindowFunction::BlackmanHarris,
+                };
+                ActiveResampler::Sinc(SincFixedIn::<f32>::new(ratio, 2.0, params, chunk_size, channels).map_err(|e| e.to_string())?)
+            }
+            ResamplingEngine::Rubato => {
+                let params = SincInterpolationParameters {
+                    sinc_len: 128,
+                    f_cutoff: 0.95,
+                    interpolation: SincInterpolationType::Cubic,
+                    oversampling_factor: 256,
+                    window: WindowFunction::BlackmanHarris,
+                };
+                ActiveResampler::Sinc(SincFixedIn::<f32>::new(ratio, 2.0, params, chunk_size, channels).map_err(|e| e.to_string())?)
+            }
+            ResamplingEngine::Symphonia96k => {
+                let params = SincInterpolationParameters {
+                    sinc_len: 128,
+                    f_cutoff: 0.95,
+                    interpolation: SincInterpolationType::Linear,
+                    oversampling_factor: 128,
+                    window: WindowFunction::BlackmanHarris,
+                };
+                ActiveResampler::Sinc(SincFixedIn::<f32>::new(ratio, 2.0, params, chunk_size, channels).map_err(|e| e.to_string())?)
+            }
             ResamplingEngine::Zita => {
                 let params = SincInterpolationParameters {
                     sinc_len: 64,
@@ -124,6 +153,16 @@ impl ResamplingPipeline {
                     interpolation: SincInterpolationType::Linear,
                     oversampling_factor: 128,
                     window: WindowFunction::Hann2,
+                };
+                ActiveResampler::Sinc(SincFixedIn::<f32>::new(ratio, 2.0, params, chunk_size, channels).map_err(|e| e.to_string())?)
+            }
+            ResamplingEngine::Speexdsp => {
+                let params = SincInterpolationParameters {
+                    sinc_len: 32,
+                    f_cutoff: 0.90,
+                    interpolation: SincInterpolationType::Linear,
+                    oversampling_factor: 64,
+                    window: WindowFunction::Hann,
                 };
                 ActiveResampler::Sinc(SincFixedIn::<f32>::new(ratio, 2.0, params, chunk_size, channels).map_err(|e| e.to_string())?)
             }
@@ -608,9 +647,18 @@ impl AudioEngineInternal {
             let ch = source.channels;
             let target_sr = match self.resampling_engine {
                 ResamplingEngine::BitPerfect => sr,
-                ResamplingEngine::Rubato | ResamplingEngine::Soxr | ResamplingEngine::R8brain | ResamplingEngine::Zita => {
+                ResamplingEngine::Soxr | ResamplingEngine::R8brain | ResamplingEngine::Rubato | ResamplingEngine::Zita => {
                     if sr <= 48_000 {
                         96_000
+                    } else {
+                        sr
+                    }
+                }
+                ResamplingEngine::Symphonia192k => 192_000,
+                ResamplingEngine::Symphonia96k => 96_000,
+                ResamplingEngine::Speexdsp => {
+                    if sr <= 48_000 {
+                        48_000
                     } else {
                         sr
                     }
@@ -648,9 +696,18 @@ impl AudioEngineInternal {
 
                 let target_sr = match self.resampling_engine {
                     ResamplingEngine::BitPerfect => sr,
-                    ResamplingEngine::Rubato | ResamplingEngine::Soxr | ResamplingEngine::R8brain | ResamplingEngine::Zita => {
+                    ResamplingEngine::Soxr | ResamplingEngine::R8brain | ResamplingEngine::Rubato | ResamplingEngine::Zita => {
                         if sr <= 48_000 {
                             96_000
+                        } else {
+                            sr
+                        }
+                    }
+                    ResamplingEngine::Symphonia192k => 192_000,
+                    ResamplingEngine::Symphonia96k => 96_000,
+                    ResamplingEngine::Speexdsp => {
+                        if sr <= 48_000 {
+                            48_000
                         } else {
                             sr
                         }

@@ -1611,15 +1611,21 @@
               </div>
               <div class="text-[11px] rounded-lg bg-slate-950/60 border border-slate-800/60 p-2.5 text-slate-400">
                 {#if audioSettings.resamplingQuality === 'bit_perfect'}
-                  <span class="text-emerald-400 font-semibold">Bit-Perfect Activo:</span> Salida hardware directa 1:1 sin remuestreo ni atenuación. El DAC recibe la frecuencia nativa del archivo (ej. 44.1k, 48k, 96k, 192k).
-                {:else if audioSettings.resamplingQuality === 'rubato'}
-                  <span class="text-cyan-400 font-semibold">Rubato Sinc Hi-Fi:</span> Interpolador Sinc bandlimited en pure Rust con ventana Blackman-Harris de alta precisión, sobremuestreo a 256 fases y relación señal/ruido SNR &gt; 160 dB.
+                  <span class="text-emerald-400 font-semibold">Bit-Perfect Activo (Máxima Pureza):</span> Salida hardware directa 1:1 sin remuestreo ni atenuación digital. El DAC recibe la frecuencia nativa exacta bit a bit.
                 {:else if audioSettings.resamplingQuality === 'soxr'}
-                  <span class="text-blue-400 font-semibold">Libsoxr Audiophile VHQ:</span> Filtro Sinc VHQ de fase lineal con 256 lóbulos y atenuación de banda de parada extrema superior a 170 dB.
+                  <span class="text-blue-400 font-semibold">Libsoxr Audiophile VHQ (256 Lóbulos):</span> Filtro Sinc VHQ de fase lineal de máxima fidelidad con corte empinado y atenuación de banda superior a 170 dB.
                 {:else if audioSettings.resamplingQuality === 'r8brain'}
-                  <span class="text-purple-400 font-semibold">r8brain Free SRC:</span> Remuestreo mediante convolución FFT de bloque en el dominio de frecuencia, libre de ringing de fase y respuesta transitoria analógica.
+                  <span class="text-purple-400 font-semibold">r8brain Free SRC (Convolución FFT):</span> Remuestreo por convolución FFT de bloque en frecuencia, libre de ringing de fase y respuesta transitoria analógica.
+                {:else if audioSettings.resamplingQuality === 'symphonia_192k'}
+                  <span class="text-purple-400 font-semibold">Symphonia Ultra 192k (Ultra Hi-Res):</span> Remuestreo ultra Hi-Res a 192 kHz con interpolador Sinc de alta precisión armónica integrado en Rust.
+                {:else if audioSettings.resamplingQuality === 'rubato'}
+                  <span class="text-cyan-400 font-semibold">Rubato Sinc Hi-Fi (128 Fases):</span> Interpolador Sinc bandlimited en pure Rust con ventana Blackman-Harris de alta precisión y relación señal/ruido SNR &gt; 160 dB.
+                {:else if audioSettings.resamplingQuality === 'symphonia_96k'}
+                  <span class="text-teal-400 font-semibold">Symphonia Studio 96k (Estudio):</span> Decodificación nativa de alta fidelidad mediante Symphonia en Rust con remuestreo de estudio a 96 kHz float.
                 {:else if audioSettings.resamplingQuality === 'zita'}
-                  <span class="text-amber-400 font-semibold">Zita Polyphase Resampler:</span> Banco de filtros polifase Hann² ultrarrápido y de latencia ultra baja, ideal para monitorización instantánea en vivo.
+                  <span class="text-amber-400 font-semibold">Zita Polyphase Resampler (Baja Latencia):</span> Banco de filtros polifase Hann² ultrarrápido y de latencia ultra baja, ideal para monitorización instantánea.
+                {:else if audioSettings.resamplingQuality === 'speexdsp'}
+                  <span class="text-pink-400 font-semibold">SpeexDSP Polyphase (Eficiencia):</span> Resampler polifásico estándar de alta eficiencia con ventana Hann de 32 fases optimizado para bajo consumo de CPU.
                 {:else}
                   <span class="text-slate-400 font-semibold">Float32 PipeWire:</span> Enrutamiento compartido a través del servidor de audio PipeWire / PulseAudio en coma flotante de 32 bits con soporte multicanal y DSP.
                 {/if}

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { useMusicStore } from "../../store/index.ts";
+  import { useMusicStore, AUDIO_ENGINES } from "../../store/index.ts";
   import { ListMusic, Play, Trash2, X, Radio as RadioIcon, Globe, Volume2, Download, SlidersHorizontal } from "@lucide/svelte";
   import RadioHubModal from "../radio/RadioHubModal.svelte";
   import StreamMusicModal from "./StreamMusicModal.svelte";
@@ -199,7 +199,7 @@
         type: "cells" as const,
         cells: [
           { k: "Driver", v: (telemetry.output_device || "ALSA").split(" ")[0] },
-          { k: "Stream", v: audioSettings.resamplingQuality === "rubato" ? "Rubato Sinc" : audioSettings.resamplingQuality === "soxr" ? "Libsoxr VHQ" : audioSettings.resamplingQuality === "r8brain" ? "r8brain SRC" : audioSettings.resamplingQuality === "zita" ? "Zita Resamp" : bitPerfectMode ? "Bit-Perfect" : "PipeWire" },
+          { k: "Stream", v: (AUDIO_ENGINES.find((e) => e.id === audioSettings.resamplingQuality) || AUDIO_ENGINES[0]).name.split(' (')[0] },
           { k: "Buffer", v: `${audioSettings.bufferLatency === "ultra_low" ? 64 : audioSettings.bufferLatency === "very_low" ? 128 : audioSettings.bufferLatency === "low" ? 256 : audioSettings.bufferLatency === "medium" ? 512 : 1024} spls` },
           { k: "Volumen", v: `${Math.round(volume * 100)}%` },
         ],

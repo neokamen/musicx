@@ -57,15 +57,27 @@ export interface AppearanceState {
   marqueeDelay: number;
 }
 
-export type ResamplingQuality = "bit_perfect" | "rubato" | "soxr" | "r8brain" | "zita" | "float32";
+export type ResamplingQuality =
+  | "bit_perfect"
+  | "soxr"
+  | "r8brain"
+  | "symphonia_192k"
+  | "rubato"
+  | "symphonia_96k"
+  | "zita"
+  | "speexdsp"
+  | "float32";
 
 export const AUDIO_ENGINES = [
-  { id: "bit_perfect" as const, name: "Bit-Perfect (ALSA Direct 1:1)", badge: "1:1", color: "#10b981", description: "Salida hardware directa 1:1 bit a bit sin remuestreo ni DSP" },
-  { id: "rubato" as const, name: "Rubato Sinc Hi-Fi", badge: "RUBA", color: "#06b6d4", description: "Interpolador Sinc Blackman-Harris de alta precisión (SNR > 160 dB)" },
-  { id: "soxr" as const, name: "Libsoxr Audiophile VHQ", badge: "SOXR", color: "#3b82f6", description: "Filtro VHQ de fase lineal con 256 lóbulos y corte empinado" },
-  { id: "r8brain" as const, name: "r8brain Free SRC", badge: "R8B", color: "#8b5cf6", description: "Remuestreo por convolución FFT de bloque en frecuencia" },
-  { id: "zita" as const, name: "Zita Polyphase Resampler", badge: "ZITA", color: "#f59e0b", description: "Banco de filtros polifase Hann² ultrarrápido y latencia ultra baja" },
-  { id: "float32" as const, name: "PipeWire Float32 HD", badge: "FP32", color: "#64748b", description: "Enrutamiento compartido PipeWire en coma flotante de 32 bits con DSP" },
+  { id: "bit_perfect" as const, name: "Bit-Perfect (ALSA Direct 1:1)", badge: "1:1", color: "#10b981", description: "Salida hardware directa 1:1 bit a bit sin remuestreo ni DSP (Puntualidad Absoluta)" },
+  { id: "soxr" as const, name: "Libsoxr Audiophile VHQ", badge: "SOXR", color: "#3b82f6", description: "Filtro Sinc VHQ de fase lineal de 256 lóbulos y atenuación extrema > 170 dB" },
+  { id: "r8brain" as const, name: "r8brain Free SRC", badge: "R8B", color: "#8b5cf6", description: "Remuestreo por convolución FFT de bloque en frecuencia libre de ringing" },
+  { id: "symphonia_192k" as const, name: "Symphonia Ultra 192 kHz", badge: "192k", color: "#a855f7", description: "Remuestreo ultra Hi-Res a 192 kHz con interpolación Sinc de alta precisión" },
+  { id: "rubato" as const, name: "Rubato Sinc Hi-Fi", badge: "RUBA", color: "#06b6d4", description: "Interpolador Sinc Blackman-Harris de 128 fases y relación SNR > 160 dB" },
+  { id: "symphonia_96k" as const, name: "Symphonia Studio 96 kHz", badge: "96k", color: "#14b8a6", description: "Decodificación nativa de alta fidelidad con remuestreo de estudio a 96 kHz float" },
+  { id: "zita" as const, name: "Zita Polyphase Resampler", badge: "ZITA", color: "#f59e0b", description: "Banco de filtros polifase Hann² optimizado para ultra baja latencia" },
+  { id: "speexdsp" as const, name: "SpeexDSP Polyphase", badge: "SPX", color: "#ec4899", description: "Resampler polifásico estándar de alta eficiencia con ventana Hann de 32 fases" },
+  { id: "float32" as const, name: "PipeWire Float32 HD", badge: "FP32", color: "#64748b", description: "Enrutamiento compartido PipeWire en coma flotante de 32 bits con ecualizador y DSP" },
 ] as const;
 
 export interface AudioSettingsState {
@@ -468,7 +480,17 @@ function loadStoredSettings(): {
         if (!savedAudio.bufferVersion || (bufferLatency === "ultra_low" && savedAudio.bufferVersion < 2)) {
           bufferLatency = "medium";
         }
-        const validEngines: ResamplingQuality[] = ["bit_perfect", "rubato", "soxr", "r8brain", "zita", "float32"];
+        const validEngines: ResamplingQuality[] = [
+          "bit_perfect",
+          "soxr",
+          "r8brain",
+          "symphonia_192k",
+          "rubato",
+          "symphonia_96k",
+          "zita",
+          "speexdsp",
+          "float32",
+        ];
         let resamplingQuality: ResamplingQuality = savedAudio.resamplingQuality && validEngines.includes(savedAudio.resamplingQuality as ResamplingQuality)
           ? (savedAudio.resamplingQuality as ResamplingQuality)
           : "bit_perfect";
