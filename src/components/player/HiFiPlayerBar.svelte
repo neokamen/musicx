@@ -227,6 +227,7 @@
     (bitPerfectMode ? AUDIO_ENGINES[0] : AUDIO_ENGINES[AUDIO_ENGINES.length - 1])
   );
 
+  let isEngineActive = $derived(currentAudioEngine.id !== "float32");
   let engineColor = $derived(currentAudioEngine.color);
 
   const handleCycleAudioEngine = () => {
@@ -713,8 +714,8 @@
 
           <button
             onclick={handleCycleAudioEngine}
-            class="h-8 w-8 rounded-lg border flex items-center justify-center shrink-0 transition-all cursor-pointer {bitPerfectPulse ? 'scale-105 ring-2' : ''}"
-            style="border-color: {engineColor}88; background-color: {engineColor}1c; color: {engineColor}; box-shadow: 0 0 12px {engineColor}40;"
+            class="h-8 w-8 rounded-lg border flex items-center justify-center shrink-0 transition-all cursor-pointer {isEngineActive ? '' : 'border-slate-800 bg-slate-900/80 text-slate-500 hover:text-slate-300'} {bitPerfectPulse ? 'scale-105 ring-2' : ''}"
+            style={isEngineActive ? `border-color: ${engineColor}88; background-color: ${engineColor}1c; color: ${engineColor}; box-shadow: 0 0 12px ${engineColor}40;` : undefined}
             title={`Motor de audio: ${currentAudioEngine.name} [${currentAudioEngine.badge}] · ${currentAudioEngine.description} (clic para alternar)`}
             aria-label={`Motor de audio: ${currentAudioEngine.name}`}
           >

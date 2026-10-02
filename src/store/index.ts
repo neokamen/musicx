@@ -77,7 +77,7 @@ export const AUDIO_ENGINES = [
   { id: "symphonia_96k" as const, name: "Symphonia Studio 96 kHz", badge: "96k", color: "#a3e635", description: "Decodificación nativa de alta fidelidad con remuestreo de estudio a 96 kHz float" },
   { id: "zita" as const, name: "Zita Polyphase Resampler", badge: "ZITA", color: "#ffb700", description: "Banco de filtros polifase Hann² optimizado para ultra baja latencia" },
   { id: "speexdsp" as const, name: "SpeexDSP Polyphase", badge: "SPX", color: "#ff5722", description: "Resampler polifásico estándar de alta eficiencia con ventana Hann de 32 fases" },
-  { id: "float32" as const, name: "PipeWire Float32 HD", badge: "FP32", color: "#6366f1", description: "Enrutamiento compartido PipeWire en coma flotante de 32 bits con ecualizador y DSP" },
+  { id: "float32" as const, name: "PipeWire Float32 HD", badge: "FP32", color: "#64748b", description: "Enrutamiento compartido PipeWire en coma flotante de 32 bits con ecualizador y DSP" },
 ] as const;
 
 export interface AudioSettingsState {

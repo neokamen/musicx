@@ -1591,7 +1591,7 @@
                 <label class="text-xs font-bold uppercase tracking-wider text-slate-300">
                   Motor de Decodificación y Remuestreo Hi-Fi
                 </label>
-                <span class="text-[10px] font-mono px-2 py-0.5 rounded font-semibold transition-all duration-300" style="background: {currentEngine.color}20; border: 1px solid {currentEngine.color}50; color: {currentEngine.color}; box-shadow: 0 0 10px {currentEngine.color}33;">
+                <span class="text-[10px] font-mono px-2 py-0.5 rounded font-semibold transition-all duration-300" style={currentEngine.id === 'float32' ? 'background: #33415540; border: 1px solid #475569; color: #94a3b8;' : `background: ${currentEngine.color}20; border: 1px solid ${currentEngine.color}50; color: ${currentEngine.color}; box-shadow: 0 0 10px ${currentEngine.color}33;`}>
                   {currentEngine.name}
                 </span>
               </div>
@@ -1601,13 +1601,13 @@
                   <button
                     onclick={() => useMusicStore.getState().setAudioSettings({ resamplingQuality: m.id })}
                     class="p-2.5 rounded-xl border text-xs font-semibold transition-all duration-200 cursor-pointer text-center {isSelected ? 'bg-slate-900/95 shadow-lg' : 'border-slate-800/80 bg-slate-900/50 text-slate-400 hover:text-slate-100 hover:border-slate-700'}"
-                    style={isSelected ? `border-color: ${m.color}; color: ${m.color}; box-shadow: 0 0 14px ${m.color}35;` : undefined}
+                    style={isSelected ? (m.id === 'float32' ? 'border-color: #64748b; color: #94a3b8;' : `border-color: ${m.color}; color: ${m.color}; box-shadow: 0 0 14px ${m.color}35;`) : undefined}
                   >
                     <div class="flex items-center justify-center gap-1.5 mb-1">
-                      <span class="text-[9px] font-mono px-1.5 py-0.5 rounded font-bold transition-colors" style="background: {m.color}25; color: {m.color}; border: 1px solid {m.color}50;">{m.badge}</span>
-                      <span class="font-bold" style={isSelected ? `color: ${m.color}; text-shadow: 0 0 8px ${m.color}55;` : undefined}>{m.name.split(' ')[0]}</span>
+                      <span class="text-[9px] font-mono px-1.5 py-0.5 rounded font-bold transition-colors" style={m.id === 'float32' ? 'background: #33415540; color: #94a3b8; border: 1px solid #475569;' : `background: ${m.color}25; color: ${m.color}; border: 1px solid ${m.color}50;`}>{m.badge}</span>
+                      <span class="font-bold" style={isSelected ? (m.id === 'float32' ? 'color: #94a3b8;' : `color: ${m.color}; text-shadow: 0 0 8px ${m.color}55;`) : undefined}>{m.name.split(' ')[0]}</span>
                     </div>
-                    <span class="text-[10px] opacity-80 font-normal block truncate" style={isSelected ? `color: ${m.color}ee;` : undefined}>{m.name}</span>
+                    <span class="text-[10px] opacity-80 font-normal block truncate" style={isSelected ? (m.id === 'float32' ? 'color: #94a3b8;' : `color: ${m.color}ee;`) : undefined}>{m.name}</span>
                   </button>
                 {/each}
               </div>
@@ -1629,7 +1629,7 @@
                 {:else if audioSettings.resamplingQuality === 'speexdsp'}
                   <span class="font-semibold" style="color: #ff5722;">SpeexDSP Polyphase (Eficiencia):</span> Resampler polifásico estándar de alta eficiencia con ventana Hann de 32 fases optimizado para bajo consumo de CPU.
                 {:else}
-                  <span class="font-semibold" style="color: #6366f1;">Float32 PipeWire (Compartido):</span> Enrutamiento compartido a través del servidor de audio PipeWire / PulseAudio en coma flotante de 32 bits con soporte multicanal y DSP.
+                  <span class="font-semibold text-slate-400">Float32 PipeWire (Compartido):</span> Enrutamiento compartido a través del servidor de audio PipeWire / PulseAudio en coma flotante de 32 bits con soporte multicanal y DSP.
                 {/if}
               </div>
             </div>
