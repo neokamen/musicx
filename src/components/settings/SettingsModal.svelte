@@ -1627,15 +1627,16 @@
               <label class="text-xs font-bold uppercase tracking-wider text-slate-300">
                 Tamaño de Buffer y Latencia PCM
               </label>
-              <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              <div class="grid grid-cols-2 sm:grid-cols-5 gap-2">
                 {#each [
                   { id: 'ultra_low' as const, label: 'Ultra Baja', sub: '64 spls · 1.5ms' },
+                  { id: 'very_low' as const, label: 'Muy Baja', sub: '128 spls · 2.9ms' },
                   { id: 'low' as const, label: 'Baja', sub: '256 spls · 5.8ms' },
                   { id: 'medium' as const, label: 'Media', sub: '512 spls · 11.6ms' },
                   { id: 'stable' as const, label: 'Estable', sub: '1024 spls · 23.2ms' },
                 ] as b (b.id)}
                   <button
-                    onclick={() => useMusicStore.getState().setAudioSettings({ bufferLatency: b.id })}
+                    onclick={() => useMusicStore.getState().setAudioSettings({ bufferLatency: b.id, bufferVersion: 2 })}
                     class="p-2.5 rounded-xl border text-xs font-semibold transition cursor-pointer text-center flex flex-col items-center justify-center gap-0.5 {audioSettings.bufferLatency === b.id ? 'border-cyan-400 bg-cyan-950/40 text-cyan-300' : 'border-slate-800 bg-slate-900/60 text-slate-400 hover:text-slate-200'}"
                     style={audioSettings.bufferLatency === b.id ? `border-color: ${appearance.accentColor}; color: ${appearance.accentColor};` : undefined}
                   >

@@ -29,10 +29,10 @@
     buffer_capacity_frames: 88200,
     buffer_fill_frames: 0,
     buffer_fill_percent: 0,
-    hardware_buffer_frames: 256,
+    hardware_buffer_frames: 512,
     sample_rate: 44100,
     channels: 2,
-    latency_ms: 5.80,
+    latency_ms: 11.61,
     underruns: 0,
     overruns: 0,
     total_xruns: 0,
@@ -41,7 +41,7 @@
     is_active: false,
   });
 
-  let selectedBufferSize = $state<number>(256);
+  let selectedBufferSize = $derived(telemetry.hardware_buffer_frames || 512);
   let isChangingBuffer = $state(false);
   let themeMode = $state<"dsp" | "app">("app");
 
@@ -61,7 +61,7 @@
   let radioIsRealUsage = $state(false);
 
   let canvas = $state<HTMLCanvasElement | null>(null);
-  let latencyHistory = new Array(HISTORY_LENGTH).fill(5.80);
+  let latencyHistory = new Array(HISTORY_LENGTH).fill(11.61);
   let radioThroughputHistory = new Array(HISTORY_LENGTH).fill(0);
 
   function drawGraph() {
@@ -165,7 +165,6 @@
     getBufferTelemetry()
       .then((init) => {
         telemetry = init;
-        selectedBufferSize = init.hardware_buffer_frames;
         latencyHistory.fill(init.latency_ms);
       })
       .catch((err) => console.error("Error fetching initial buffer telemetry:", err));
@@ -209,17 +208,17 @@
     isChangingBuffer = true;
     try {
       const confirmed = await setAudioBufferSize(newSize);
-      selectedBufferSize = confirmed;
       telemetry.hardware_buffer_frames = confirmed;
       telemetry.latency_ms = (confirmed / (telemetry.sample_rate || 44100)) * 1000;
-      const latMap: Record<number, "ultra_low" | "low" | "medium" | "stable"> = {
+      const latMap: Record<number, "ultra_low" | "very_low" | "low" | "medium" | "stable"> = {
         64: "ultra_low",
+        128: "very_low",
         256: "low",
         512: "medium",
         1024: "stable",
       };
       if (latMap[confirmed]) {
-        useMusicStore.getState().setAudioSettings({ bufferLatency: latMap[confirmed] });
+        useMusicStore.getState().setAudioSettings({ bufferLatency: latMap[confirmed], bufferVersion: 2 });
       }
     } catch (e) {
       console.error("Failed to change buffer size:", e);

@@ -227,6 +227,17 @@
     (bitPerfectMode ? AUDIO_ENGINES[0] : AUDIO_ENGINES[3])
   );
 
+  let engineColor = $derived(
+    currentAudioEngine.id === "bit_perfect"
+      ? "#10b981"
+      : currentAudioEngine.id === "symphonia_192k"
+        ? "#a855f7"
+        : currentAudioEngine.id === "symphonia_96k"
+          ? (accentColor || "#06b6d4")
+          : "#64748b"
+  );
+  let isEngineActive = $derived(currentAudioEngine.id !== "float32");
+
   const handleCycleAudioEngine = () => {
     const currentId = audioSettings?.resamplingQuality || (bitPerfectMode ? "bit_perfect" : "float32");
     const currentIndex = AUDIO_ENGINES.findIndex((e) => e.id === currentId);
@@ -711,13 +722,12 @@
 
           <button
             onclick={handleCycleAudioEngine}
-            class="h-8 px-2 min-w-[38px] rounded border flex items-center justify-center gap-1 shrink-0 transition-all cursor-pointer font-mono text-[10px] font-bold select-none {currentAudioEngine.id !== 'float32' ? 'border-cyan-400 bg-cyan-950/40 text-cyan-300 shadow-[0_0_9px_var(--app-accent)]' : 'border-slate-800 bg-slate-900 text-slate-400 hover:text-slate-200'} {bitPerfectPulse ? 'scale-105 ring-2' : ''}"
-            style={currentAudioEngine.id !== 'float32' ? `border-color: ${accentColor}; color: ${accentColor}; box-shadow: 0 0 8px ${accentColor}40;` : ''}
-            title={`Motor de audio: ${currentAudioEngine.name} · ${currentAudioEngine.description} (clic para alternar)`}
+            class="h-8 w-8 rounded-lg border flex items-center justify-center shrink-0 transition-all cursor-pointer {isEngineActive ? '' : 'border-slate-800 bg-slate-900 text-slate-500 hover:text-slate-300'} {bitPerfectPulse ? 'scale-105 ring-2' : ''}"
+            style={isEngineActive ? `border-color: ${engineColor}; background-color: ${engineColor}20; color: ${engineColor}; box-shadow: 0 0 10px ${engineColor}40;` : undefined}
+            title={`Motor de audio: ${currentAudioEngine.name} [${currentAudioEngine.badge}] · ${currentAudioEngine.description} (clic para alternar)`}
             aria-label={`Motor de audio: ${currentAudioEngine.name}`}
           >
-            <Sparkles size={12} />
-            <span>{currentAudioEngine.badge}</span>
+            <Sparkles size={15} />
           </button>
 
           <span

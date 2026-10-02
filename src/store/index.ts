@@ -69,7 +69,8 @@ export const AUDIO_ENGINES = [
 export interface AudioSettingsState {
   allowExtraVolumeBoost: boolean;
   resamplingQuality: ResamplingQuality;
-  bufferLatency: "ultra_low" | "low" | "medium" | "stable";
+  bufferLatency: "ultra_low" | "very_low" | "low" | "medium" | "stable";
+  bufferVersion?: number;
   crossfadeMs: number;
   ditherEngine: "tpdf" | "none";
   isEqEnabled: boolean;
@@ -292,6 +293,7 @@ const defaultAudioSettings: AudioSettingsState = {
   allowExtraVolumeBoost: true,
   resamplingQuality: "bit_perfect",
   bufferLatency: "medium",
+  bufferVersion: 2,
   crossfadeMs: 0,
   ditherEngine: "tpdf",
   isEqEnabled: false,
@@ -459,28 +461,40 @@ function loadStoredSettings(): {
           ? rawLanguage
           : detectSystemLanguage();
 
-      return {
-        language: validLanguage,
-        appearance: {
-          ...defaultAppearance,
-          ...savedAppearance,
-          inPlayBpmPulseEnabled:
-            savedAppearance.inPlayBpmPulseEnabled ?? legacyInPlayBpmPulseEnabled ?? defaultAppearance.inPlayBpmPulseEnabled,
-          playButtonBpmPulseEnabled:
-            savedAppearance.playButtonBpmPulseEnabled ?? legacyPlayButtonBpmPulseEnabled ?? defaultAppearance.playButtonBpmPulseEnabled,
-          playButtonClickEffect:
-            (savedAppearance as { playButtonClickEffect?: AppearanceState["playButtonClickEffect"] }).playButtonClickEffect
-            ?? defaultAppearance.playButtonClickEffect,
-          marqueeSpeed:
-            savedAppearance.marqueeSpeed ?? getSavedMarqueeSpeed() ?? defaultAppearance.marqueeSpeed,
-          marqueeDelay:
-            savedAppearance.marqueeDelay ?? getSavedMarqueeDelay() ?? defaultAppearance.marqueeDelay,
-        },
-        audioSettings: { ...defaultAudioSettings, ...(parsed.audioSettings || {}) },
-        playbackSettings: { ...defaultPlaybackSettings, ...savedPlaybackSettings },
-        listeningStats,
-        librarySettings: { ...defaultLibrarySettings, ...(parsed.librarySettings || {}) },
-      };
+        const savedAudio = (parsed.audioSettings || {}) as Partial<AudioSettingsState>;
+        let bufferLatency = savedAudio.bufferLatency || defaultAudioSettings.bufferLatency;
+        if (!savedAudio.bufferVersion || (bufferLatency === "ultra_low" && savedAudio.bufferVersion < 2)) {
+          bufferLatency = "medium";
+        }
+        const audioSettings: AudioSettingsState = {
+          ...defaultAudioSettings,
+          ...savedAudio,
+          bufferLatency,
+          bufferVersion: 2,
+        };
+
+        return {
+          language: validLanguage,
+          appearance: {
+            ...defaultAppearance,
+            ...savedAppearance,
+            inPlayBpmPulseEnabled:
+              savedAppearance.inPlayBpmPulseEnabled ?? legacyInPlayBpmPulseEnabled ?? defaultAppearance.inPlayBpmPulseEnabled,
+            playButtonBpmPulseEnabled:
+              savedAppearance.playButtonBpmPulseEnabled ?? legacyPlayButtonBpmPulseEnabled ?? defaultAppearance.playButtonBpmPulseEnabled,
+            playButtonClickEffect:
+              (savedAppearance as { playButtonClickEffect?: AppearanceState["playButtonClickEffect"] }).playButtonClickEffect
+              ?? defaultAppearance.playButtonClickEffect,
+            marqueeSpeed:
+              savedAppearance.marqueeSpeed ?? getSavedMarqueeSpeed() ?? defaultAppearance.marqueeSpeed,
+            marqueeDelay:
+              savedAppearance.marqueeDelay ?? getSavedMarqueeDelay() ?? defaultAppearance.marqueeDelay,
+          },
+          audioSettings,
+          playbackSettings: { ...defaultPlaybackSettings, ...savedPlaybackSettings },
+          listeningStats,
+          librarySettings: { ...defaultLibrarySettings, ...(parsed.librarySettings || {}) },
+        };
     }
   } catch {
     // Fallback on parse failure
@@ -1177,11 +1191,12 @@ export const useMusicStore = create<MusicPlayerStore>((set, get) => ({
       if (patch.bufferLatency !== undefined) {
         const frameMap: Record<string, number> = {
           ultra_low: 64,
+          very_low: 128,
           low: 256,
           medium: 512,
           stable: 1024,
         };
-        const frames = frameMap[patch.bufferLatency] || 256;
+        const frames = frameMap[patch.bufferLatency] || 512;
         api.setAudioBufferSize(frames).catch(() => {});
       }
       radioAudioService.setDspSettings({
@@ -1559,6 +1574,7 @@ export const useMusicStore = create<MusicPlayerStore>((set, get) => ({
     const audio = get().audioSettings;
     const frameMap: Record<string, number> = {
       ultra_low: 64,
+      very_low: 128,
       low: 256,
       medium: 512,
       stable: 1024,
