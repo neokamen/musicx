@@ -20,14 +20,23 @@
   function getInitialStyle(): SpectrumStyle {
     if (nodeKey && typeof window !== "undefined") {
       const saved = localStorage.getItem(`musicx_spectrum_style_${nodeKey}`);
+      if (saved === "quantum_laser") return "fluid_wave";
       if (saved && SPECTRUM_STYLES.some((s) => s.id === saved)) {
         return saved as SpectrumStyle;
       }
     }
-    return appearance.spectrumStyle || "bars";
+    const current = appearance.spectrumStyle as string;
+    return current === "quantum_laser" ? "fluid_wave" : (appearance.spectrumStyle || "bars");
   }
 
   let visualStyle = $state<SpectrumStyle>(getInitialStyle());
+
+  $effect(() => {
+    if (!nodeKey) {
+      const current = appearance.spectrumStyle as string;
+      visualStyle = current === "quantum_laser" ? "fluid_wave" : (appearance.spectrumStyle || "bars");
+    }
+  });
 
   function setStyleAndSave(newStyle: SpectrumStyle) {
     visualStyle = newStyle;
@@ -148,63 +157,124 @@
       }
 
       switch (visualStyle) {
-        case "quantum_laser": {
-          const halfWidth = w / 2;
-          const horizonY = h * 0.74;
-          const maxLaserH = horizonY * 0.94;
-          const bandsCount = Math.min(numBands, 48);
-          const barW = Math.max(2, (halfWidth - 8) / bandsCount - 1);
-          const gap = 1;
+        case "fluid_wave": {
+          const midY = h * 0.5;
+          const phase = timeSec * (currentIsPlaying ? 3.8 : 1.2);
 
-          for (let i = 0; i < bandsCount; i++) {
-            const hL = Math.max(1.5, channelBands[0][i] * maxLaserH);
-            const hR = Math.max(1.5, channelBands[1][i] * maxLaserH);
+          // Calculate energy from bands
+          let bassEnergy = 0;
+          let midEnergy = 0;
+          let highEnergy = 0;
 
-            const xL = halfWidth - 3 - (i + 1) * (barW + gap);
-            const xR = halfWidth + 3 + i * (barW + gap);
+          const numSamples = Math.min(numBands, 64);
+          const bassCount = Math.max(1, Math.floor(numSamples * 0.2));
+          const midCount = Math.max(1, Math.floor(numSamples * 0.6));
 
-            // Left Laser (mirrored to left)
-            const gradL = ctx.createLinearGradient(0, horizonY, 0, horizonY - hL);
-            gradL.addColorStop(0, `${accent}35`);
-            gradL.addColorStop(0.7, accent);
-            gradL.addColorStop(1, "#38bdf8");
-            ctx.fillStyle = gradL;
-            ctx.fillRect(xL, horizonY - hL, barW, hL);
-            ctx.fillStyle = "#ffffff";
-            ctx.fillRect(xL, horizonY - hL, barW, 2);
+          for (let i = 0; i < bassCount; i++) {
+            bassEnergy += currentBands[i] || 0;
+          }
+          bassEnergy /= bassCount;
 
-            // Left Specular Reflection
-            const refHL = hL * 0.35;
-            const refGradL = ctx.createLinearGradient(0, horizonY, 0, horizonY + refHL);
-            refGradL.addColorStop(0, `${accent}60`);
-            refGradL.addColorStop(1, "transparent");
-            ctx.fillStyle = refGradL;
-            ctx.fillRect(xL, horizonY + 1, barW, refHL);
+          for (let i = bassCount; i < midCount; i++) {
+            midEnergy += currentBands[i] || 0;
+          }
+          midEnergy /= (midCount - bassCount);
 
-            // Right Laser (mirrored to right)
-            const gradR = ctx.createLinearGradient(0, horizonY, 0, horizonY - hR);
-            gradR.addColorStop(0, `${accent}35`);
-            gradR.addColorStop(0.7, accent);
-            gradR.addColorStop(1, "#f43f5e");
-            ctx.fillStyle = gradR;
-            ctx.fillRect(xR, horizonY - hR, barW, hR);
-            ctx.fillStyle = "#ffffff";
-            ctx.fillRect(xR, horizonY - hR, barW, 2);
+          for (let i = midCount; i < numSamples; i++) {
+            highEnergy += currentBands[i] || 0;
+          }
+          highEnergy /= Math.max(1, numSamples - midCount);
 
-            // Right Specular Reflection
-            const refHR = hR * 0.35;
-            const refGradR = ctx.createLinearGradient(0, horizonY, 0, horizonY + refHR);
-            refGradR.addColorStop(0, `${accent}60`);
-            refGradR.addColorStop(1, "transparent");
-            ctx.fillStyle = refGradR;
-            ctx.fillRect(xR, horizonY + 1, barW, refHR);
+          const maxAmplitude = h * 0.44;
+          const amp = currentIsPlaying
+            ? Math.min(maxAmplitude, Math.max(4, h * (bassEnergy * 0.45 + midEnergy * 0.35 + highEnergy * 0.2 + 0.04)))
+            : Math.min(maxAmplitude, Math.max(3, h * 0.08));
+
+          const numPoints = Math.min(72, Math.max(32, Math.floor(w / 12)));
+          const step = w / (numPoints - 1);
+
+          const drawWaveLine = (mirrorSign: number, phaseOffset: number) => {
+            const points: { x: number; y: number }[] = [];
+
+            for (let i = 0; i < numPoints; i++) {
+              const x = i * step;
+              const normX = i / (numPoints - 1);
+              const envelope = Math.sin(normX * Math.PI);
+
+              const bandIdx = Math.min(numBands - 1, Math.floor(normX * numBands));
+              const bandVal = currentIsPlaying ? (currentBands[bandIdx] || 0) * 0.8 : 0;
+
+              const wave =
+                Math.sin(normX * 8 + phase + phaseOffset) * 0.55 +
+                Math.sin(normX * 18 - phase * 1.3 + phaseOffset) * 0.28 +
+                Math.cos(normX * 32 + phase * 2.1) * (0.17 + bandVal * 0.35);
+
+              const y = midY + mirrorSign * wave * amp * envelope;
+              points.push({ x, y });
+            }
+
+            // Translucent Underfill
+            ctx.beginPath();
+            ctx.moveTo(0, midY);
+            ctx.lineTo(points[0].x, points[0].y);
+            for (let i = 0; i < points.length - 1; i++) {
+              const xc = (points[i].x + points[i + 1].x) / 2;
+              const yc = (points[i].y + points[i + 1].y) / 2;
+              ctx.quadraticCurveTo(points[i].x, points[i].y, xc, yc);
+            }
+            ctx.lineTo(points[points.length - 1].x, points[points.length - 1].y);
+            ctx.lineTo(w, midY);
+            ctx.closePath();
+
+            const areaGrad = ctx.createLinearGradient(0, midY, 0, mirrorSign > 0 ? h : 0);
+            areaGrad.addColorStop(0, `${accent}40`);
+            areaGrad.addColorStop(0.7, `${accent}12`);
+            areaGrad.addColorStop(1, "transparent");
+            ctx.fillStyle = areaGrad;
+            ctx.fill();
+
+            // Luminous Wave Crest
+            ctx.beginPath();
+            ctx.moveTo(points[0].x, points[0].y);
+            for (let i = 0; i < points.length - 1; i++) {
+              const xc = (points[i].x + points[i + 1].x) / 2;
+              const yc = (points[i].y + points[i + 1].y) / 2;
+              ctx.quadraticCurveTo(points[i].x, points[i].y, xc, yc);
+            }
+            ctx.lineTo(points[points.length - 1].x, points[points.length - 1].y);
+
+            ctx.strokeStyle = accent;
+            ctx.lineWidth = currentApp.neonGlow ? 2.4 : 1.8;
+            ctx.shadowColor = accent;
+            ctx.shadowBlur = currentApp.neonGlow ? (currentApp.neonIntensity / 100) * 18 : 8;
+            ctx.stroke();
+            ctx.shadowBlur = 0;
+
+            // White Core Filament
+            ctx.beginPath();
+            ctx.moveTo(points[0].x, points[0].y);
+            for (let i = 0; i < points.length - 1; i++) {
+              const xc = (points[i].x + points[i + 1].x) / 2;
+              const yc = (points[i].y + points[i + 1].y) / 2;
+              ctx.quadraticCurveTo(points[i].x, points[i].y, xc, yc);
+            }
+            ctx.lineTo(points[points.length - 1].x, points[points.length - 1].y);
+            ctx.strokeStyle = "#ffffff";
+            ctx.lineWidth = 0.75;
+            ctx.stroke();
+          };
+
+          // Draw main wave
+          drawWaveLine(1, 0);
+
+          // If mirrored, draw symmetric upper wave
+          if (currentApp.cavaMirrored) {
+            drawWaveLine(-1, Math.PI * 0.5);
           }
 
-          // Center separator & horizon
-          ctx.fillStyle = `${accent}aa`;
-          ctx.fillRect(halfWidth - 0.75, 0, 1.5, horizonY);
-          ctx.fillStyle = `${accent}55`;
-          ctx.fillRect(0, horizonY, w, 1);
+          // Subtle center horizon
+          ctx.fillStyle = `${accent}18`;
+          ctx.fillRect(0, midY - 0.5, w, 1);
           break;
         }
 
