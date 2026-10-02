@@ -1563,4 +1563,14 @@ export const useMusicStore = create<MusicPlayerStore>((set, get) => ({
   },
 }));
 
+// Adapt Zustand's store to Svelte's readable store contract:
+// Svelte requires store.subscribe to call listener(state) synchronously upon subscription.
+const originalSubscribe = useMusicStore.subscribe.bind(useMusicStore);
+(useMusicStore as any).subscribe = (run: (state: MusicPlayerStore) => void) => {
+  run(useMusicStore.getState());
+  return originalSubscribe((state: MusicPlayerStore) => {
+    run(state);
+  });
+};
+
 export const useAppStore = useMusicStore;
