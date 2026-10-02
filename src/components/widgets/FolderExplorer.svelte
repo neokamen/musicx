@@ -19,6 +19,7 @@
     House,
   } from "@lucide/svelte";
   import type { FileNode } from "../../types/index.ts";
+  import { t } from "../../i18n/translations.ts";
 
   type ExplorerViewMode = "compact" | "details" | "grid";
 
@@ -26,6 +27,7 @@
   let appearance = $derived($useMusicStore.appearance);
   let scanStatus = $derived($useMusicStore.scanStatus);
   let librarySettings = $derived($useMusicStore.librarySettings);
+  let lang = $derived($useMusicStore.language);
 
   let filterQuery = $state("");
   let isEditingPath = $state(false);
@@ -225,7 +227,7 @@
       <input
         type="text"
         bind:value={filterQuery}
-        placeholder="Filtrar en esta carpeta..."
+        placeholder={t("filterInFolder", lang)}
         class="w-full bg-transparent text-[11px] text-slate-200 placeholder-slate-500 focus:outline-none"
       />
     </div>
@@ -242,8 +244,8 @@
         <Radio size={24} class="text-slate-700" />
         <span>
           {explorer.isLoading
-            ? "Cargando directorio..."
-            : "No se encontraron carpetas ni pistas de audio compatibles"}
+            ? (lang === "ca" ? "Carregant directori..." : lang === "en" ? "Loading directory..." : "Cargando directorio...")
+            : (lang === "ca" ? "No s'han trobat carpetes ni pistes d'àudio compatibles" : lang === "en" ? "No compatible folders or audio tracks found" : "No se encontraron carpetas ni pistas de audio compatibles")}
         </span>
       </div>
     {:else}
@@ -337,10 +339,10 @@
         <table class="w-full text-left border-collapse">
           <thead>
             <tr class="border-b border-slate-800 text-[10px] text-slate-400 uppercase font-sans">
-              <th class="p-2">Nombre</th>
-              <th class="p-2 w-24">Tipo</th>
-              <th class="p-2 w-28 text-right">Tamaño</th>
-              <th class="p-2 w-16 text-center">Acción</th>
+              <th class="p-2">{t("name", lang)}</th>
+              <th class="p-2 w-24">{t("type", lang)}</th>
+              <th class="p-2 w-28 text-right">{t("size", lang)}</th>
+              <th class="p-2 w-16 text-center">{t("action", lang)}</th>
             </tr>
           </thead>
           <tbody>

@@ -23,6 +23,7 @@
     Sparkles,
     Zap,
   } from "@lucide/svelte";
+  import { t } from "../../i18n/translations.ts";
 
   const FORMAT_COLORS: Record<string, string> = {
     MP3: "#f59e0b",
@@ -71,6 +72,7 @@
   let availableDevices = $derived($useMusicStore.availableDevices);
   let selectedDevice = $derived($useMusicStore.selectedDevice);
   let appearance = $derived($useMusicStore.appearance);
+  let lang = $derived($useMusicStore.language);
 
   let isDeviceMenuOpen = $state(false);
   let isEqPopupOpen = $state(false);
@@ -90,7 +92,7 @@
   let duration = $derived(telemetry.duration || currentTrack?.duration_seconds || 0);
 
   let title = $derived(telemetry.track_title || currentTrack?.title || "Musicx Hi-Fi Player");
-  let artist = $derived(telemetry.track_artist || currentTrack?.artist || "Listo para reproducir");
+  let artist = $derived(telemetry.track_artist || currentTrack?.artist || t("readyToPlay", lang));
   let format = $derived(
     currentTrack?.format ||
       (telemetry.filepath ? telemetry.filepath.split(".").pop()?.toUpperCase() : "PCM")
@@ -363,7 +365,7 @@
           onclick={() => useMusicStore.getState().toggleShuffle()}
           class="p-1.5 transition-colors {transportStyle.secondary}"
           style="color: {shuffle ? accentColor : '#94a3b8'};"
-          aria-label={`Aleatorio: ${shuffle ? "Activado" : "Desactivado"}`}
+          aria-label={lang === "ca" ? `Aleatori: ${shuffle ? "Activat" : "Desactivat"}` : lang === "en" ? `Shuffle: ${shuffle ? "On" : "Off"}` : `Aleatorio: ${shuffle ? "Activado" : "Desactivado"}`}
         >
           <Shuffle size={14} />
         </button>
@@ -371,7 +373,7 @@
         <button
           onclick={() => void useMusicStore.getState().previousTrack()}
           class="p-1.5 text-slate-300 transition-colors cursor-pointer {transportStyle.secondary}"
-          aria-label="Pista anterior"
+          aria-label={t("previous", lang)}
         >
           <SkipBack size={16} />
         </button>
@@ -380,7 +382,7 @@
           onclick={handlePlayClick}
           class="flex h-10 w-10 items-center justify-center text-slate-950 hover:scale-105 active:scale-95 transition-all font-bold cursor-pointer {transportStyle.primary}"
           style="background-color: {accentColor}; box-shadow: {appearance.neonGlow ? `0 0 15px ${accentColor}66` : '0 4px 12px rgba(0,0,0,0.4)'}; animation: {isPlaying && appearance.playButtonBpmPulseEnabled ? `bpm-play-button ${beatPeriod}s ease-in-out infinite` : 'none'};"
-          aria-label={isPlaying ? "Pausar" : "Reproducir"}
+          aria-label={isPlaying ? t("pause", lang) : t("play", lang)}
         >
           {#if isPlaying}
             <Pause size={18} fill="currentColor" class={isPlayFlipping && appearance.playButtonClickEffect !== "none" ? `animate-play-button-${appearance.playButtonClickEffect || "pulse"}` : ""} />
@@ -392,7 +394,7 @@
         <button
           onclick={() => void useMusicStore.getState().nextTrack()}
           class="p-1.5 text-slate-300 transition-colors cursor-pointer {transportStyle.secondary}"
-          aria-label="Siguiente pista"
+          aria-label={t("next", lang)}
         >
           <SkipForward size={16} />
         </button>
@@ -401,7 +403,7 @@
           onclick={() => useMusicStore.getState().cycleRepeat()}
           class="p-1.5 transition-colors {transportStyle.secondary}"
           style="color: {repeat !== 'off' ? accentColor : '#94a3b8'};"
-          aria-label={`Repetir: ${repeat}`}
+          aria-label={lang === "ca" ? `Repetir: ${repeat}` : lang === "en" ? `Repeat: ${repeat}` : `Repetir: ${repeat}`}
         >
           {#if repeat === "one"}
             <Repeat1 size={14} />
@@ -764,8 +766,8 @@
         <button
           onclick={() => void useMusicStore.getState().setVolume(volume > 0 ? 0 : 1)}
           class="flex h-8 w-6 -translate-x-[3px] items-center justify-start text-slate-400 hover:text-white transition-colors cursor-pointer"
-          title="Silenciar / Activar audio"
-          aria-label={volume === 0 ? "Activar audio" : "Silenciar audio"}
+          title={volume === 0 ? t("unmuteAudio", lang) : t("muteAudio", lang)}
+          aria-label={volume === 0 ? t("unmuteAudio", lang) : t("muteAudio", lang)}
         >
           {#if volume === 0}
             <VolumeX size={15} />
@@ -783,7 +785,7 @@
           oninput={handleVolume}
           class="volume-slider h-1.5 w-full appearance-none rounded-full cursor-pointer"
           style="--volume-color: {isBoosted ? '#ef4444' : accentColor}; background: {volPct > 0 ? `linear-gradient(to right, ${volColor}35 0%, ${volColor}90 ${volPct * 0.7}%, ${volColor} ${volPct}%, rgba(71, 85, 105, 0.65) ${volPct}%, rgba(71, 85, 105, 0.65) 100%)` : `linear-gradient(to right, rgba(71, 85, 105, 0.65) 0%, rgba(71, 85, 105, 0.65) 100%)`};"
-          aria-label={`Volumen ${volumePercentage}%`}
+          aria-label={`${t("volume", lang)} ${volumePercentage}%`}
         />
 
         <span

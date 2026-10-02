@@ -8,6 +8,7 @@
   import ColumnResizeHandle from "./ColumnResizeHandle.svelte";
   import { isStreamTrack } from "../../lib/streamTracks.ts";
   import type { Track } from "../../types/index.ts";
+  import { t } from "../../i18n/translations.ts";
 
   const FORMAT_COLORS: Record<string, string> = {
     MP3: "#f59e0b",
@@ -53,6 +54,7 @@
   let listeningStats = $derived($useMusicStore.listeningStats);
   let telemetry = $derived($useMusicStore.telemetry);
   let volume = $derived($useMusicStore.volume);
+  let lang = $derived($useMusicStore.language);
 
   let showRadio = $state(false);
   let queueHudMode = $state(0);
@@ -145,37 +147,47 @@
       ? `${Math.floor(listened / 3600)}h ${Math.floor((listened % 3600) / 60)}m`
       : `${Math.floor(listened / 60)}m ${Math.floor(listened % 60)}s`;
 
+    const labelSession = lang === "ca" ? "Sessió" : lang === "en" ? "Session" : "Sesión";
+    const labelTracks = lang === "ca" ? "Pistes" : lang === "en" ? "Tracks" : "Pistas";
+    const labelSessions = lang === "ca" ? "Sessions" : lang === "en" ? "Sessions" : "Sesiones";
+    const labelTime = lang === "ca" ? "Temps" : lang === "en" ? "Time" : "Tiempo";
+    const labelState = lang === "ca" ? "Estat" : lang === "en" ? "State" : "Estado";
+    const labelQueue = lang === "ca" ? "Cua" : lang === "en" ? "Queue" : "Cola";
+    const labelLeft = lang === "ca" ? "Restant" : lang === "en" ? "Left" : "Resto";
+    const labelSignal = lang === "ca" ? "Senyal" : lang === "en" ? "Signal" : "Señal";
+    const labelSource = lang === "ca" ? "Font" : lang === "en" ? "Source" : "Fuente";
+
     return [
       {
-        label: "Sesión",
+        label: labelSession,
         cells: [
-          { k: "Pistas", v: String(listeningStats.totalTracksPlayed) },
-          { k: "Sesiones", v: String(listeningStats.totalSessions) },
-          { k: "Tiempo", v: listenedLabel },
+          { k: labelTracks, v: String(listeningStats.totalTracksPlayed) },
+          { k: labelSessions, v: String(listeningStats.totalSessions) },
+          { k: labelTime, v: listenedLabel },
         ],
       },
       {
         label: "Buffer",
         cells: [
-          { k: "Estado", v: telemetry.state || (isPlaying ? "Playing" : "Paused") },
+          { k: labelState, v: telemetry.state || (isPlaying ? "Playing" : "Paused") },
           { k: "Pos", v: formatDuration(telemetry.current_time || 0) },
           { k: "Dur", v: telemetry.duration ? formatDuration(telemetry.duration) : "—" },
         ],
       },
       {
-        label: "Cola",
+        label: labelQueue,
         cells: [
-          { k: "Ítem", v: queue.length ? `${Math.min(queue.length, queueIndex + 1)}/${queue.length}` : "0/0" },
-          { k: "Resto", v: remainingSec ? formatDuration(remainingSec) : "—" },
+          { k: "#", v: queue.length ? `${Math.min(queue.length, queueIndex + 1)}/${queue.length}` : "0/0" },
+          { k: labelLeft, v: remainingSec ? formatDuration(remainingSec) : "—" },
           { k: "Vol", v: `${Math.round(volume * 100)}%` },
         ],
       },
       {
-        label: "Señal",
+        label: labelSignal,
         cells: [
-          { k: "Formato", v: currentTrack ? queueFormatLabel(currentTrack) : "—" },
+          { k: t("type", lang), v: currentTrack ? queueFormatLabel(currentTrack) : "—" },
           { k: "Bitrate", v: currentTrack ? queueBitrateLabel(currentTrack) : "—" },
-          { k: "Fuente", v: currentTrack && isStreamTrack(currentTrack) ? "Stream" : currentTrack ? "Local" : "Idle" },
+          { k: labelSource, v: currentTrack && isStreamTrack(currentTrack) ? "Stream" : currentTrack ? "Local" : "Idle" },
         ],
       },
     ];
@@ -217,14 +229,14 @@
         </div>
         <div class="min-w-0">
           <div class="text-[11px] font-bold uppercase tracking-[0.18em] text-audiophile-text">
-            Cola de reproducción
+            {t("queueTitle", lang)}
           </div>
           <div class="text-[10px] text-audiophile-muted font-mono truncate">
-            {queue.length} {queue.length === 1 ? "pista" : "pistas"}
+            {queue.length} {t("tracks", lang)}
             {#if queue.length > 0}
               {" · "}
               {formatDuration(totalDuration)}
-              {remaining > 0 && remaining !== totalDuration ? ` · quedan ${formatDuration(remaining)}` : ""}
+              {remaining > 0 && remaining !== totalDuration ? ` · ${lang === 'ca' ? 'queden' : lang === 'en' ? 'remaining' : 'quedan'} ${formatDuration(remaining)}` : ""}
             {/if}
           </div>
         </div>
@@ -251,19 +263,21 @@
             type="button"
             onclick={() => { isColMenuOpen = !isColMenuOpen; }}
             class="p-1.5 rounded-md text-audiophile-muted hover:text-audiophile-text hover:bg-white/5"
-            title="Configurar columnas"
+            title={lang === "ca" ? "Configurar columnes" : lang === "en" ? "Configure columns" : "Configurar columnas"}
           >
             <SlidersHorizontal size={14} />
           </button>
           {#if isColMenuOpen}
             <div class="absolute right-0 top-8 z-50 w-44 space-y-1.5 rounded-lg border border-slate-700 bg-slate-950 p-2 font-mono text-[10px] shadow-2xl">
-              <div class="border-b border-slate-800 pb-1 font-bold text-slate-400">Columnas de cola</div>
+              <div class="border-b border-slate-800 pb-1 font-bold text-slate-400">
+                {lang === "ca" ? "Columnes de cua" : lang === "en" ? "Queue columns" : "Columnas de cola"}
+              </div>
               {#each [
-                ["album", "Álbum"],
-                ["format", "Tipo"],
+                ["album", lang === "ca" ? "Àlbum" : lang === "en" ? "Album" : "Álbum"],
+                ["format", t("type", lang)],
                 ["bitrate", "Bitrate"],
-                ["duration", "Duración"],
-                ["download", "Descarga"],
+                ["duration", t("duration", lang)],
+                ["download", lang === "ca" ? "Descàrrega" : lang === "en" ? "Download" : "Descarga"],
               ] as [key, label]}
                 <label class="flex cursor-pointer items-center justify-between text-slate-200">
                   <span>{label}</span>
@@ -285,7 +299,7 @@
             type="button"
             onclick={() => useMusicStore.getState().clearQueue()}
             class="p-1.5 rounded-md text-audiophile-muted hover:text-red-400 hover:bg-red-500/10"
-            title="Vaciar cola"
+            title={t("clearQueue", lang)}
           >
             <Trash2 size={14} />
           </button>
@@ -296,9 +310,9 @@
     {#if queue.length === 0}
       <div class="flex-1 flex flex-col items-center justify-center text-audiophile-muted p-6 gap-3">
         <ListMusic size={36} class="opacity-25" />
-        <p class="text-sm">La cola está vacía</p>
+        <p class="text-sm">{t("queueEmpty", lang)}</p>
         <p class="text-[11px] text-center max-w-[220px] opacity-70">
-          Añade pistas locales o abre Radio / Stream Music desde la cabecera.
+          {t("queueEmptyDesc", lang)}
         </p>
       </div>
     {:else}
@@ -312,14 +326,14 @@
             <ColumnResizeHandle onResize={(delta) => resizeColumns("index", "title", delta)} />
           </span>
           <span class="relative min-w-0">
-            Pista
+            {lang === "ca" ? "Pista" : lang === "en" ? "Track" : "Pista"}
             {#if visibleCols.format}
               <ColumnResizeHandle onResize={(delta) => resizeColumns("title", "format", delta)} />
             {/if}
           </span>
           {#if visibleCols.format}
             <span class="relative">
-              Tipo
+              {t("type", lang)}
               {#if visibleCols.bitrate}
                 <ColumnResizeHandle onResize={(delta) => resizeColumns("format", "bitrate", delta)} />
               {/if}
@@ -334,7 +348,7 @@
             </span>
           {/if}
           {#if visibleCols.duration}
-            <span class="text-right">Dur.</span>
+            <span class="text-right">{t("duration", lang)}</span>
           {/if}
           {#if visibleCols.download}
             <span></span>
@@ -363,7 +377,7 @@
                 event.stopPropagation();
                 void useMusicStore.getState().playFromQueue(i);
               }}
-              title={playingNow ? "Reproduciendo" : "Reproducir"}
+              title={playingNow ? t("playing", lang) : t("play", lang)}
             >
               {#if playingNow}
                 <Volume2
@@ -444,7 +458,7 @@
     <div
       class="px-3 py-2 border-t shrink-0 cursor-pointer select-none"
       style="border-color: {appearance.accentColor}22;"
-      title="Doble clic para cambiar telemetría"
+      title={lang === "ca" ? "Doble clic per canviar telemetria" : lang === "en" ? "Double click to toggle telemetry" : "Doble clic para cambiar telemetría"}
       ondblclick={() => { queueHudMode = (queueHudMode + 1) % 4; }}
     >
       <div class="flex items-center justify-between mb-1.5">
@@ -476,7 +490,7 @@
         class="pointer-events-none absolute inset-0 z-30 flex items-center justify-center rounded-md border-2 border-dashed bg-black/45 text-sm font-semibold"
         style="border-color: {appearance.accentColor}; color: {appearance.accentColor};"
       >
-        Soltar para añadir a la cola
+        {lang === "ca" ? "Deixa anar per afegir a la cua" : lang === "en" ? "Drop to add to queue" : "Soltar para añadir a la cola"}
       </div>
     {/if}
 

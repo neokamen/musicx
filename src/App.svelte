@@ -15,6 +15,7 @@
   import whiteLogo from "../simple-white-logo.png";
   import blackLogo from "../simple-black-logo.png";
   import packageInfo from "../package.json";
+  import { t } from "./i18n/translations";
 
   const LAST_WINDOW_STATE_KEY = "musicx_last_window_state";
   const NORMAL_WINDOW_SIZE_KEY = "musicx_normal_window_size";
@@ -361,6 +362,7 @@
   const customStyles = $derived(
     `background-color: var(--app-bg); color: var(--app-text); backdrop-filter: ${$useMusicStore.appearance.glassmorphism ? `blur(${$useMusicStore.appearance.glassBlur}px)` : "none"};`
   );
+  let lang = $derived($useMusicStore.language);
 </script>
 
 <div
@@ -404,7 +406,7 @@
               Music<span style="color: {$useMusicStore.appearance.accentColor || '#06b6d4'};">x</span>
             </span>
             <div class="mt-0.5 flex items-center gap-1.5 font-mono text-[8px] text-slate-500">
-              <span>THE AUDIO PLAYER</span>
+              <span>{t('theAudioPlayer', lang)}</span>
               <span
                 class="font-mono text-[8px] font-light tracking-widest select-none opacity-85"
                 style="color: {$useMusicStore.appearance.accentColor || '#06b6d4'};"
@@ -421,11 +423,11 @@
             class="h-1.5 w-1.5 rounded-full {$useMusicStore.isPlaying ? 'bg-emerald-400' : 'bg-slate-500'}"
             style={$useMusicStore.isPlaying && $useMusicStore.appearance.inPlayBpmPulseEnabled && $useMusicStore.telemetry.tempo_bpm ? `animation: bpm-beat-glow ${60 / bpm}s ease-in-out infinite` : undefined}
           ></span>
-          <span style="color: {$useMusicStore.appearance.accentColor || '#06b6d4'};">In Play:</span>
+          <span style="color: {$useMusicStore.appearance.accentColor || '#06b6d4'};">{t('inPlay', lang)}</span>
           <span>{listenedDuration}</span>
         </span>
         <span class="hidden lg:inline-flex self-end mb-[5px] -translate-y-[5px] items-center whitespace-nowrap text-[10px] text-slate-500">
-          {$useMusicStore.telemetry.is_bit_perfect ? "ALSA / BIT-PERFECT" : "PIPEWIRE / COMPARTIDO"}
+          {$useMusicStore.telemetry.is_bit_perfect ? t('bitPerfectAlsa', lang) : t('sharedPipewire', lang)}
         </span>
       </div>
 
@@ -434,20 +436,20 @@
           onclick={() => useMusicStore.getState().setStreamMusicOpen(true)}
           class="flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-lg border font-sans font-semibold transition cursor-pointer relative"
           style="border-color: {$useMusicStore.appearance.accentColor || '#06b6d4'}50; background-color: {$useMusicStore.appearance.accentColor || '#06b6d4'}15; color: {$useMusicStore.appearance.accentColor || '#06b6d4'};"
-          title="Abrir Stream Music"
+          title="Stream Music"
         >
           <Globe size={13} />
-          <span>Stream Music</span>
+          <span>{t('streamMusic', lang)}</span>
         </button>
 
         <button
           onclick={() => useMusicStore.getState().setRadioHubOpen(true)}
           class="flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-lg border font-sans font-semibold transition cursor-pointer relative"
           style="border-color: {isRadioActive ? `${$useMusicStore.appearance.accentColor || '#06b6d4'}90` : `${$useMusicStore.appearance.accentColor || '#06b6d4'}50`}; background-color: {isRadioActive ? `${$useMusicStore.appearance.accentColor || '#06b6d4'}25` : `${$useMusicStore.appearance.accentColor || '#06b6d4'}15`}; color: {$useMusicStore.appearance.accentColor || '#06b6d4'}; {isRadioActive ? `box-shadow: 0 0 12px ${$useMusicStore.appearance.accentColor || '#06b6d4'}40;` : ''}"
-          title="Abrir Radio Online (Neowave)"
+          title="Radio Online (Neowave)"
         >
           <RadioIcon size={13} class={isRadioActive ? "animate-pulse" : ""} />
-          <span>Radio</span>
+          <span>{t('radio', lang)}</span>
           {#if isRadioActive}
             <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping inline-block"></span>
           {/if}
@@ -457,24 +459,24 @@
           onclick={() => { isAudioEqOpen = true; }}
           class="flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-lg border font-sans font-semibold transition cursor-pointer"
           style="border-color: {$useMusicStore.appearance.accentColor || '#06b6d4'}50; background-color: {$useMusicStore.appearance.accentColor || '#06b6d4'}15; color: {$useMusicStore.appearance.accentColor || '#06b6d4'};"
-          title="Abrir Audio EQ PRO completo tipo Soundix"
+          title="Audio EQ PRO"
         >
           <SlidersHorizontal size={13} />
-          <span>Audio EQ PRO</span>
+          <span>{t('audioEqPro', lang)}</span>
         </button>
 
         <button
           onclick={() => { isLayoutEditing = !isLayoutEditing; }}
           class="flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-lg border transition cursor-pointer font-sans"
           style="border-color: {$useMusicStore.appearance.accentColor || '#06b6d4'}50; background-color: {isLayoutEditing ? `${$useMusicStore.appearance.accentColor || '#06b6d4'}25` : 'transparent'}; color: {$useMusicStore.appearance.accentColor || '#06b6d4'};"
-          title={isLayoutEditing ? "Guardar distribución" : "Editar interfaz"}
+          title={isLayoutEditing ? t('saveLayout', lang) : t('editLayout', lang)}
         >
           {#if isLayoutEditing}
             <Check size={13} />
           {:else}
             <SlidersHorizontal size={13} />
           {/if}
-          <span>{isLayoutEditing ? "Guardar Layout" : "Editar Interfaz"}</span>
+          <span>{isLayoutEditing ? t('saveLayout', lang) : t('editLayout', lang)}</span>
         </button>
 
         <button
@@ -482,14 +484,14 @@
           class="flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-slate-200 border border-slate-700 transition cursor-pointer font-sans"
         >
           <Settings size={13} />
-          <span>Ajustes</span>
+          <span>{t('settings', lang)}</span>
         </button>
 
         <button
           onclick={() => void handleMiniPlayerToggle()}
           class="flex items-center justify-center rounded-lg border border-slate-700 p-1.5 text-slate-300 transition hover:border-cyan-400 hover:text-cyan-300 cursor-pointer"
-          title="Activar mini reproductor"
-          aria-label="Activar mini reproductor"
+          title={t('miniPlayer', lang)}
+          aria-label={t('miniPlayer', lang)}
         >
           <Minimize2 size={13} />
         </button>

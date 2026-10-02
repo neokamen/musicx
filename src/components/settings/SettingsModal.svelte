@@ -33,6 +33,7 @@
   import packageInfo from '../../../package.json';
   import { FIRST_RUN_PROFILE } from '../layout/defaultLayout.ts';
   import { SPECTRUM_STYLES, CAVA_STYLES } from '../../types/spectrum.ts';
+  import { t } from '../../i18n/translations.ts';
   import { TRANSPORT_STYLES, type TransportStyle } from '../../lib/transportStyles.ts';
   import {
     ACCENT_OPTIONS,
@@ -502,7 +503,7 @@
             style="background-color: {appearance.accentColor || '#06b6d4'}; box-shadow: {neonGlow ? `0 0 8px ${appearance.accentColor || '#06b6d4'}` : 'none'};"
           ></div>
           <h2 class="text-base font-bold tracking-wide font-mono" style="color: {appearance.accentColor || '#06b6d4'};">
-            Ajustes de Configuración &bull; Musicx
+            {t('settings', language)} &bull; Musicx
           </h2>
         </div>
 
@@ -525,13 +526,13 @@
         </button>
         <div bind:this={tabsRef} class="flex min-w-0 flex-1 px-2 gap-2 overflow-x-auto settings-tabs-scroll">
           {#each [
-            { id: 'general', label: 'General', icon: Sliders },
-            { id: 'appearance', label: 'Apariencia', icon: Palette },
-            { id: 'cava', label: 'Visualización en vivo', icon: Activity },
-            { id: 'playback', label: 'Reproducción', icon: Music },
-            { id: 'audio', label: 'Audio & DSP', icon: Volume2 },
-            { id: 'library', label: 'Biblioteca', icon: FolderOpen },
-            { id: 'about', label: 'Acerca de', icon: Info },
+            { id: 'general', label: t('general', language), icon: Sliders },
+            { id: 'appearance', label: t('appearance', language), icon: Palette },
+            { id: 'cava', label: language === 'ca' ? 'Visualització en viu' : language === 'en' ? 'Live Visualizer' : 'Visualización en vivo', icon: Activity },
+            { id: 'playback', label: t('playback', language), icon: Music },
+            { id: 'audio', label: t('audio', language) + ' & DSP', icon: Volume2 },
+            { id: 'library', label: t('library', language), icon: FolderOpen },
+            { id: 'about', label: language === 'ca' ? 'Quant a' : language === 'en' ? 'About' : 'Acerca de', icon: Info },
           ] as tab (tab.id)}
             {@const Icon = tab.icon}
             {@const isActive = activeTab === tab.id}
@@ -567,7 +568,7 @@
           <div class="space-y-6">
             <div class="p-4 rounded-xl bg-slate-900/40 border border-slate-800/80 space-y-3">
               <label class="text-xs font-bold uppercase tracking-wider text-slate-300">
-                Idioma de la aplicación
+                {t('appLanguage', language)}
               </label>
               <div class="grid grid-cols-3 gap-3">
                 {#each [

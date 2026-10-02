@@ -3,7 +3,7 @@ import { homeDir } from "@tauri-apps/api/path";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import type { AudioTelemetry, FileNode, PlaybackState, RepeatMode, ScanStatus, Track } from "../types/index.ts";
 import * as api from "../services/api.ts";
-import type { Language } from "../i18n/translations.ts";
+import { type Language, detectSystemLanguage } from "../i18n/translations.ts";
 import type { SpectrumStyle } from "../types/spectrum.ts";
 import type { TransportStyle } from "../lib/transportStyles.ts";
 import type { RadioStation } from "../types/radio.ts";
@@ -380,6 +380,44 @@ async function loadLiveFullBackupIntoStore(
   }
 }
 
+export const QUEUE_STORAGE_KEY = "musicx_playback_queue";
+
+export interface StoredQueueData {
+  queue: Track[];
+  queueIndex: number;
+  currentTrack: Track | null;
+}
+
+export function loadStoredQueue(): StoredQueueData {
+  try {
+    const raw = localStorage.getItem(QUEUE_STORAGE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed.queue)) {
+        return {
+          queue: parsed.queue,
+          queueIndex: typeof parsed.queueIndex === "number" ? parsed.queueIndex : -1,
+          currentTrack: parsed.currentTrack || null,
+        };
+      }
+    }
+  } catch {
+    // Ignore invalid storage
+  }
+  return { queue: [], queueIndex: -1, currentTrack: null };
+}
+
+export function saveStoredQueue(queue: Track[], queueIndex: number, currentTrack: Track | null) {
+  try {
+    localStorage.setItem(
+      QUEUE_STORAGE_KEY,
+      JSON.stringify({ queue, queueIndex, currentTrack })
+    );
+  } catch {
+    // Ignore storage errors
+  }
+}
+
 function loadStoredSettings(): {
   language: Language;
   appearance: AppearanceState;
@@ -405,8 +443,15 @@ function loadStoredSettings(): {
         playButtonBpmPulseEnabled: legacyPlayButtonBpmPulseEnabled,
         ...savedPlaybackSettings
       } = parsed.playbackSettings || {};
+
+      const rawLanguage = parsed.language;
+      const validLanguage: Language =
+        rawLanguage === "es" || rawLanguage === "ca" || rawLanguage === "en"
+          ? rawLanguage
+          : detectSystemLanguage();
+
       return {
-        language: parsed.language || "es",
+        language: validLanguage,
         appearance: {
           ...defaultAppearance,
           ...savedAppearance,
@@ -432,7 +477,7 @@ function loadStoredSettings(): {
     // Fallback on parse failure
   }
   return {
-    language: "es",
+    language: detectSystemLanguage(),
     appearance: defaultAppearance,
     audioSettings: defaultAudioSettings,
     playbackSettings: defaultPlaybackSettings,
@@ -540,12 +585,14 @@ const defaultHomePath = (() => {
   }
 })();
 
+const initialQueueData = loadStoredQueue();
+
 export const useMusicStore = create<MusicPlayerStore>((set, get) => ({
   isPlaying: false,
   volume: 1.0,
-  currentTrack: null,
-  queue: [],
-  queueIndex: -1,
+  currentTrack: initialQueueData.currentTrack,
+  queue: initialQueueData.queue,
+  queueIndex: initialQueueData.queueIndex,
   shuffle: false,
   repeat: "off",
   activeRadioStation: null,
@@ -553,7 +600,15 @@ export const useMusicStore = create<MusicPlayerStore>((set, get) => ({
   isRadioHubOpen: false,
   isStreamMusicOpen: false,
 
-  telemetry: initialTelemetry,
+  telemetry: {
+    ...initialTelemetry,
+    track_title: initialQueueData.currentTrack?.title || "",
+    track_artist: initialQueueData.currentTrack?.artist || "",
+    filepath: initialQueueData.currentTrack?.filepath || "",
+    duration: initialQueueData.currentTrack?.duration_seconds || 0,
+    bitrate: initialQueueData.currentTrack?.bitrate_kbps || 0,
+    sample_rate: initialQueueData.currentTrack?.sample_rate || 0,
+  },
   availableDevices: [],
   selectedDevice: "Default",
   bitPerfectMode: true, // Bit-perfect exclusive by default
@@ -620,6 +675,8 @@ export const useMusicStore = create<MusicPlayerStore>((set, get) => ({
           listeningStats: nextStats,
           librarySettings: state.librarySettings,
         });
+
+        saveStoredQueue(newQueue, newIdx, targetTrack);
 
         return {
           currentTrack: targetTrack,
@@ -878,6 +935,8 @@ export const useMusicStore = create<MusicPlayerStore>((set, get) => ({
   },
 
   setQueue: async (tracks: Track[], startIndex = 0) => {
+    const track = tracks[startIndex] ?? null;
+    saveStoredQueue(tracks, startIndex, track);
     set({
       queue: tracks,
       queueIndex: startIndex,
@@ -890,7 +949,9 @@ export const useMusicStore = create<MusicPlayerStore>((set, get) => ({
   addToQueue: (track: Track | Track[]) => {
     set((state) => {
       const toAdd = Array.isArray(track) ? track : [track];
-      return { queue: [...state.queue, ...toAdd] };
+      const nextQueue = [...state.queue, ...toAdd];
+      saveStoredQueue(nextQueue, state.queueIndex, state.currentTrack);
+      return { queue: nextQueue };
     });
   },
 
@@ -906,11 +967,13 @@ export const useMusicStore = create<MusicPlayerStore>((set, get) => ({
           nextIndex = nextQueue.length - 1;
         }
       }
+      saveStoredQueue(nextQueue, nextIndex, nextQueue[nextIndex] ?? null);
       return { queue: nextQueue, queueIndex: nextIndex };
     });
   },
 
   clearQueue: () => {
+    saveStoredQueue([], -1, null);
     set({ queue: [], queueIndex: -1 });
   },
 
@@ -1426,8 +1489,18 @@ export const useMusicStore = create<MusicPlayerStore>((set, get) => ({
 
     // Ensure the sync file gets a final flush on exit, regardless of the chosen frequency
     const appWindow = getCurrentWindow();
+    const handleExitSave = () => {
+      const state = get();
+      saveStoredQueue(state.queue, state.queueIndex, state.currentTrack);
+    };
+
+    if (typeof window !== "undefined") {
+      window.addEventListener("beforeunload", handleExitSave);
+    }
+
     const unlistenClose = await appWindow.onCloseRequested(async (event) => {
       const state = get();
+      saveStoredQueue(state.queue, state.queueIndex, state.currentTrack);
       if (state.librarySettings.statsBackupMode === "sync" && state.librarySettings.statsSyncFilePath) {
         event.preventDefault();
         if (statsCloseInProgress) return;
@@ -1522,6 +1595,11 @@ export const useMusicStore = create<MusicPlayerStore>((set, get) => ({
     await get().refreshAudioDevices();
     await get().fetchLibraryTracks();
 
+    const initialTrack = get().currentTrack;
+    if (initialTrack?.filepath && !isStreamTrack(initialTrack)) {
+      void get().fetchTrackCoverArt(initialTrack.filepath);
+    }
+
     let systemMusicFolder = "/home/Música";
     try {
       systemMusicFolder = `${(await homeDir()).replace(/\/+$/, "")}/Música`;
@@ -1554,6 +1632,9 @@ export const useMusicStore = create<MusicPlayerStore>((set, get) => ({
     }
 
     return () => {
+      if (typeof window !== "undefined") {
+        window.removeEventListener("beforeunload", handleExitSave);
+      }
       unlistenTele();
       unlistenScan();
       unlistenEnded();

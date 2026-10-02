@@ -17,6 +17,7 @@
   import StreamMusicModal from "./StreamMusicModal.svelte";
   import ColumnResizeHandle from "./ColumnResizeHandle.svelte";
   import VirtualTrackRow from "./VirtualTrackRow.svelte";
+  import { t } from "../../i18n/translations.ts";
 
   type TrackColumn = "track" | "title" | "artist" | "album" | "format" | "bitrate" | "duration";
   type TrackColumnWidths = Record<TrackColumn, number>;
@@ -38,6 +39,7 @@
   let playbackSettings = $derived($useMusicStore.playbackSettings);
   let isPlaying = $derived($useMusicStore.isPlaying);
   let scanStatus = $derived($useMusicStore.scanStatus);
+  let lang = $derived($useMusicStore.language);
 
   let search = $state("");
   let sortField = $state<SortField>("artist");
@@ -185,7 +187,7 @@
           type="text"
           value={search}
           oninput={handleSearchChange}
-          placeholder="Buscar entre miles de pistas por título, artista, álbum..."
+          placeholder={t("searchTracks", lang)}
           class="w-full bg-transparent font-mono text-[11px] text-audiophile-text placeholder-audiophile-muted/50 focus:outline-none"
         />
       </div>
@@ -195,7 +197,7 @@
           <div class="flex items-center gap-1.5 text-audiophile-amber text-[10px] font-mono animate-pulse">
             <RefreshCw size={11} class="animate-spin" />
             <span>
-              Indexando {scanStatus.current}/{scanStatus.total}
+              {lang === "ca" ? "Indexant" : lang === "en" ? "Indexing" : "Indexando"} {scanStatus.current}/{scanStatus.total}
             </span>
           </div>
         {/if}
@@ -204,16 +206,18 @@
           <button
             onclick={() => { isColMenuOpen = !isColMenuOpen; }}
             class="p-1.5 rounded bg-slate-900 border border-slate-700 text-slate-300 hover:text-white transition"
-            title="Personalizar columnas visibles"
+            title={lang === "ca" ? "Configurar columnes" : lang === "en" ? "Configure columns" : "Personalizar columnas visibles"}
           >
             <SlidersHorizontal size={13} />
           </button>
 
           {#if isColMenuOpen}
             <div class="absolute top-8 right-0 w-44 p-2 bg-slate-950 border border-slate-700 shadow-2xl rounded-lg z-50 font-mono text-[10px] space-y-1.5">
-              <div class="text-slate-400 font-bold border-b border-slate-800 pb-1">Columnas de Biblioteca</div>
+              <div class="text-slate-400 font-bold border-b border-slate-800 pb-1">
+                {lang === "ca" ? "Columnes de Biblioteca" : lang === "en" ? "Library Columns" : "Columnas de Biblioteca"}
+              </div>
               <label class="flex items-center justify-between cursor-pointer text-slate-200">
-                <span>Artista</span>
+                <span>{lang === "ca" ? "Artista" : lang === "en" ? "Artist" : "Artista"}</span>
                 <input
                   type="checkbox"
                   checked={visibleCols.artist}
@@ -222,7 +226,7 @@
                 />
               </label>
               <label class="flex items-center justify-between cursor-pointer text-slate-200">
-                <span>Álbum</span>
+                <span>{lang === "ca" ? "Àlbum" : lang === "en" ? "Album" : "Álbum"}</span>
                 <input
                   type="checkbox"
                   checked={visibleCols.album}
@@ -231,7 +235,7 @@
                 />
               </label>
               <label class="flex items-center justify-between cursor-pointer text-slate-200">
-                <span>Formato</span>
+                <span>{t("type", lang)}</span>
                 <input
                   type="checkbox"
                   checked={visibleCols.format}
@@ -249,7 +253,7 @@
                 />
               </label>
               <label class="flex items-center justify-between cursor-pointer text-slate-200">
-                <span>Duración</span>
+                <span>{t("duration", lang)}</span>
                 <input
                   type="checkbox"
                   checked={visibleCols.duration}
@@ -309,7 +313,7 @@
         class="relative min-w-0 cursor-pointer flex items-center gap-1 group/col hover:text-white pr-2 truncate"
         style="flex: 0 0 {columnWidths.title}%;"
       >
-        <span>Título</span>
+        <span>{lang === "ca" ? "Títol" : lang === "en" ? "Title" : "Título"}</span>
         {@render renderSortIndicator("title")}
         {#if visibleCols.artist}
           <ColumnResizeHandle onResize={(delta) => resizeColumns("title", "artist", delta)} />
@@ -322,7 +326,7 @@
           class="relative cursor-pointer flex items-center gap-1 group/col hover:text-white shrink-0 pr-2 truncate"
           style="flex: 0 0 {columnWidths.artist}%;"
         >
-          <span>Artista</span>
+          <span>{lang === "ca" ? "Artista" : lang === "en" ? "Artist" : "Artista"}</span>
           {@render renderSortIndicator("artist")}
           {#if visibleCols.album}
             <ColumnResizeHandle onResize={(delta) => resizeColumns("artist", "album", delta)} />
@@ -336,7 +340,7 @@
           class="relative cursor-pointer flex items-center gap-1 group/col hover:text-white shrink-0 pr-2 truncate"
           style="flex: 0 0 {columnWidths.album}%;"
         >
-          <span>Álbum</span>
+          <span>{lang === "ca" ? "Àlbum" : lang === "en" ? "Album" : "Álbum"}</span>
           {@render renderSortIndicator("album")}
           {#if visibleCols.format}
             <ColumnResizeHandle onResize={(delta) => resizeColumns("album", "format", delta)} />
@@ -350,7 +354,7 @@
           class="relative w-20 text-center cursor-pointer flex items-center justify-center gap-1 group/col hover:text-white shrink-0"
           style="flex: 0 0 {columnWidths.format}%;"
         >
-          <span>Formato</span>
+          <span>{t("type", lang)}</span>
           {@render renderSortIndicator("format")}
           {#if visibleCols.bitrate}
             <ColumnResizeHandle onResize={(delta) => resizeColumns("format", "bitrate", delta)} />
@@ -378,7 +382,7 @@
           class="w-16 text-right cursor-pointer flex items-center justify-end gap-1 group/col hover:text-white shrink-0"
           style="flex: 0 0 {columnWidths.duration}%;"
         >
-          <span>Duración</span>
+          <span>{t("duration", lang)}</span>
           {@render renderSortIndicator("duration_seconds")}
         </div>
       {/if}
@@ -399,8 +403,8 @@
       {#if sortedTracks.length === 0}
         <div class="relative z-10 py-20 text-center text-audiophile-muted font-sans text-xs">
           {scanStatus.is_scanning
-            ? "Indexando archivos de audio en segundo plano..."
-            : "No se encontraron temas en la base de datos."}
+            ? (lang === "ca" ? "Indexant fitxers d'àudio en segon pla..." : lang === "en" ? "Indexing audio files in the background..." : "Indexando archivos de audio en segundo plano...")
+            : t("libraryEmpty", lang)}
         </div>
       {:else}
         <div
@@ -444,7 +448,7 @@
           class="flex items-center gap-2 px-2.5 py-1.5 hover:bg-audiophile-cyan/20 hover:text-audiophile-cyan rounded text-left transition-colors"
         >
           <Play size={12} fill="currentColor" />
-          <span>Reproducir ahora</span>
+          <span>{lang === "ca" ? "Reproduir ara" : lang === "en" ? "Play now" : "Reproducir ahora"}</span>
         </button>
         <button
           onclick={() => {
@@ -456,14 +460,14 @@
           class="flex items-center gap-2 px-2.5 py-1.5 hover:bg-audiophile-cyan/20 hover:text-audiophile-cyan rounded text-left transition-colors"
         >
           <Plus size={12} />
-          <span>Añadir a la cola</span>
+          <span>{lang === "ca" ? "Afegir a la cua" : lang === "en" ? "Add to queue" : "Añadir a la cola"}</span>
         </button>
       </div>
     {/if}
 
     <!-- Pie de estado -->
     <div class="h-6 px-3 border-t border-audiophile-border bg-audiophile-surface2 flex items-center justify-between text-[10px] font-mono text-audiophile-muted shrink-0">
-      <span>{sortedTracks.length} canciones · {Math.floor(visibleDurationSeconds / 60)} min visibles</span>
+      <span>{sortedTracks.length} {t("tracks", lang)} · {Math.floor(visibleDurationSeconds / 60)} min {lang === "ca" ? "visibles" : lang === "en" ? "visible" : "visibles"}</span>
       <span class="text-audiophile-green">VIRTUAL RENDERER: 60+ FPS</span>
     </div>
   </div>
