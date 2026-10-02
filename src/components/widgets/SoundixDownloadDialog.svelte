@@ -118,10 +118,10 @@
 
   const musicStore = useMusicStore;
   let accent = $derived($musicStore.appearance.accentColor || "#06b6d4");
-  let fallbackFolder = $derived($musicStore.librarySettings.musicFolder || "/home/neokamen/Descargas");
 
   let first = $derived(tracks[0]);
-  let saved = loadSavedOptions(fallbackFolder);
+  const initialFallback = musicStore.getState().librarySettings.musicFolder || "/home/neokamen/Descargas";
+  const saved = loadSavedOptions(initialFallback);
 
   let format = $state(saved.format);
   let bitrate = $state(saved.bitrate);

@@ -31,10 +31,17 @@
   let activePreset = $state("Plano");
   let showPresetsPanel = $state(false);
 
-  let subBoost = $state(audioSettings.eqSubBoost || 0);
-  let bassBoost = $state(audioSettings.eqBassBoost || 0);
-  let highpass = $state(audioSettings.eqHighpass || 0);
-  let lowpass = $state(audioSettings.eqLowpass || 0);
+  let subBoost = $state(0);
+  let bassBoost = $state(0);
+  let highpass = $state(0);
+  let lowpass = $state(0);
+
+  $effect(() => {
+    subBoost = audioSettings.eqSubBoost || 0;
+    bassBoost = audioSettings.eqBassBoost || 0;
+    highpass = audioSettings.eqHighpass || 0;
+    lowpass = audioSettings.eqLowpass || 0;
+  });
 
   let targetLufs = $state(-14);
   let truePeak = $state(-1.5);
@@ -400,6 +407,7 @@
           </div>
           <button
             type="button"
+            aria-label="Activar o desactivar normalizador"
             onclick={() =>
               musicStore.getState().setAudioSettings({ isNormalizerEnabled: !audioSettings.isNormalizerEnabled })
             }

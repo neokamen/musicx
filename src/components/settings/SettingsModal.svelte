@@ -896,6 +896,8 @@
                   <div class="text-[11px] text-slate-400">Iluminación externa en bordes y botones de control</div>
                 </div>
                 <button
+                  type="button"
+                  aria-label="Alternar Resplandor Neón Activo"
                   onclick={() => {
                     const next = !neonGlow;
                     neonGlow = next;
@@ -934,6 +936,8 @@
                   <div class="text-[11px] text-slate-400">Marcos de ventanas ligeramente pigmentados con el color de acento</div>
                 </div>
                 <button
+                  type="button"
+                  aria-label="Alternar Bordes Tintados con Acento"
                   onclick={() => {
                     const next = !tintedBorders;
                     tintedBorders = next;

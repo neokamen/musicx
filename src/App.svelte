@@ -92,7 +92,7 @@
   let miniPlayerTemplate = $state<MiniPlayerTemplate>(initialTemplate);
 
   let normalWindowSize = readStoredWindowSize(NORMAL_WINDOW_SIZE_KEY);
-  let isMiniPlayerCurrent = isMiniPlayer;
+  let isMiniPlayerCurrent = false;
   $effect(() => {
     isMiniPlayerCurrent = isMiniPlayer;
   });
