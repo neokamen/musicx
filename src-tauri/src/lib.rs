@@ -104,6 +104,7 @@ pub fn run() {
             commands::scan_directory,
             commands::read_directory_lazy,
             commands::get_track_cover_art,
+            commands::get_track_metadata,
             // ── Stream Music / Downloader (ported from Soundix) ──
             downloader::analyze_source_link,
             downloader::download_track_batch,

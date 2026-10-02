@@ -148,6 +148,66 @@
       }
 
       switch (visualStyle) {
+        case "quantum_laser": {
+          const halfWidth = w / 2;
+          const horizonY = h * 0.74;
+          const maxLaserH = horizonY * 0.94;
+          const bandsCount = Math.min(numBands, 48);
+          const barW = Math.max(2, (halfWidth - 8) / bandsCount - 1);
+          const gap = 1;
+
+          for (let i = 0; i < bandsCount; i++) {
+            const hL = Math.max(1.5, channelBands[0][i] * maxLaserH);
+            const hR = Math.max(1.5, channelBands[1][i] * maxLaserH);
+
+            const xL = halfWidth - 3 - (i + 1) * (barW + gap);
+            const xR = halfWidth + 3 + i * (barW + gap);
+
+            // Left Laser (mirrored to left)
+            const gradL = ctx.createLinearGradient(0, horizonY, 0, horizonY - hL);
+            gradL.addColorStop(0, `${accent}35`);
+            gradL.addColorStop(0.7, accent);
+            gradL.addColorStop(1, "#38bdf8");
+            ctx.fillStyle = gradL;
+            ctx.fillRect(xL, horizonY - hL, barW, hL);
+            ctx.fillStyle = "#ffffff";
+            ctx.fillRect(xL, horizonY - hL, barW, 2);
+
+            // Left Specular Reflection
+            const refHL = hL * 0.35;
+            const refGradL = ctx.createLinearGradient(0, horizonY, 0, horizonY + refHL);
+            refGradL.addColorStop(0, `${accent}60`);
+            refGradL.addColorStop(1, "transparent");
+            ctx.fillStyle = refGradL;
+            ctx.fillRect(xL, horizonY + 1, barW, refHL);
+
+            // Right Laser (mirrored to right)
+            const gradR = ctx.createLinearGradient(0, horizonY, 0, horizonY - hR);
+            gradR.addColorStop(0, `${accent}35`);
+            gradR.addColorStop(0.7, accent);
+            gradR.addColorStop(1, "#f43f5e");
+            ctx.fillStyle = gradR;
+            ctx.fillRect(xR, horizonY - hR, barW, hR);
+            ctx.fillStyle = "#ffffff";
+            ctx.fillRect(xR, horizonY - hR, barW, 2);
+
+            // Right Specular Reflection
+            const refHR = hR * 0.35;
+            const refGradR = ctx.createLinearGradient(0, horizonY, 0, horizonY + refHR);
+            refGradR.addColorStop(0, `${accent}60`);
+            refGradR.addColorStop(1, "transparent");
+            ctx.fillStyle = refGradR;
+            ctx.fillRect(xR, horizonY + 1, barW, refHR);
+          }
+
+          // Center separator & horizon
+          ctx.fillStyle = `${accent}aa`;
+          ctx.fillRect(halfWidth - 0.75, 0, 1.5, horizonY);
+          ctx.fillStyle = `${accent}55`;
+          ctx.fillRect(0, horizonY, w, 1);
+          break;
+        }
+
         case "bars": {
           const barWidth = (w / numBands) * 0.8;
           const gap = (w / numBands) * 0.2;

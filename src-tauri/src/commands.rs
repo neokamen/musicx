@@ -215,6 +215,21 @@ pub fn get_track_cover_art(path: String) -> Option<String> {
 }
 
 #[tauri::command]
+pub fn get_track_metadata(path: String, state: State<'_, AppState>) -> Result<TrackMetadata, String> {
+    if let Some(track) = state.db.get_track_by_path(&path) {
+        if track.duration_seconds > 0.0 {
+            return Ok(track);
+        }
+    }
+    let p = std::path::Path::new(&path);
+    if let Some(track) = crate::db::extract_metadata(p) {
+        let _ = state.db.upsert_track(&track);
+        return Ok(track);
+    }
+    Err(format!("Could not extract metadata for {}", path))
+}
+
+#[tauri::command]
 pub fn set_dsp_settings(
     state: State<'_, AppState>,
     settings: crate::audio::DspSettings,

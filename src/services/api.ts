@@ -122,6 +122,10 @@ export async function getTracksFromDb(query?: string): Promise<Track[]> {
   });
 }
 
+export async function getTrackMetadata(path: string): Promise<Track> {
+  return invoke<Track>("get_track_metadata", { path });
+}
+
 export async function getAudioEngineStatus(): Promise<{
   engine: string;
   status: string;

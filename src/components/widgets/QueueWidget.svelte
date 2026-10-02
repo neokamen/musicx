@@ -49,9 +49,12 @@
       return "Live";
     }
 
-    const br = track.bitrate_kbps > 0 ? `${track.bitrate_kbps}k` : "";
-    const sr = track.sample_rate > 0 ? Math.round(track.sample_rate / 1000) : 0;
-    const hz = sr > 0 ? `${sr}z` : "";
+    const isCurrent = telemetry.filepath && track.filepath === telemetry.filepath;
+    const bitrate = isCurrent && telemetry.bitrate ? telemetry.bitrate : track.bitrate_kbps;
+    const sampleRate = isCurrent && telemetry.sample_rate ? telemetry.sample_rate : track.sample_rate;
+
+    const br = bitrate > 0 ? `${bitrate}k` : "";
+    const hz = sampleRate > 0 ? `${Math.round(sampleRate / 1000)}z` : "";
 
     if (br && hz) return `${br} / ${hz}`;
     if (br) return br;
@@ -69,6 +72,7 @@
   let telemetry = $derived($useMusicStore.telemetry);
   let volume = $derived($useMusicStore.volume);
   let lang = $derived($useMusicStore.language);
+  let bitPerfectMode = $derived($useMusicStore.bitPerfectMode);
 
   let showRadio = $state(false);
   let queueHudMode = $state(0);
@@ -161,19 +165,18 @@
       ? `${Math.floor(listened / 3600)}h ${Math.floor((listened % 3600) / 60)}m`
       : `${Math.floor(listened / 60)}m ${Math.floor(listened % 60)}s`;
 
-    const labelSession = lang === "ca" ? "Sessió" : lang === "en" ? "Session" : "Sesión";
-    const labelTracks = lang === "ca" ? "Pistes" : lang === "en" ? "Tracks" : "Pistas";
-    const labelSessions = lang === "ca" ? "Sessions" : lang === "en" ? "Sessions" : "Sesiones";
-    const labelTime = lang === "ca" ? "Temps" : lang === "en" ? "Time" : "Tiempo";
-    const labelState = lang === "ca" ? "Estat" : lang === "en" ? "State" : "Estado";
-    const labelQueue = lang === "ca" ? "Cua" : lang === "en" ? "Queue" : "Cola";
-    const labelLeft = lang === "ca" ? "Restant" : lang === "en" ? "Left" : "Resto";
-    const labelSignal = lang === "ca" ? "Senyal Hi-Fi" : lang === "en" ? "Hi-Fi Signal" : "Señal Hi-Fi";
-    const labelQuality = lang === "ca" ? "Qualitat" : lang === "en" ? "Quality" : "Calidad";
-    const labelSource = lang === "ca" ? "Font" : lang === "en" ? "Source" : "Fuente";
-    const labelSpectrum = lang === "ca" ? "Espectre Hi-Fi" : lang === "en" ? "Hi-Fi Spectrum" : "Espectro Hi-Fi";
-    const labelWave = lang === "ca" ? "Ona Contínua Fluida" : lang === "en" ? "Fluid Continuous Wave" : "Onda Continua Fluida";
-    const labelCyber = lang === "ca" ? "Llàser Quàntic Stereo" : lang === "en" ? "Quantum Stereo Laser" : "Láser Cuántico Stereo";
+    const labelSession = lang === "ca" ? "Sessió & Rendiment" : lang === "en" ? "Session & Stats" : "Sesión & Rendimiento";
+    const labelHardware = lang === "ca" ? "Hardware & DSP" : lang === "en" ? "Hardware & DSP" : "Hardware & DSP";
+    const labelQueue = lang === "ca" ? "Cua de Reproducció" : lang === "en" ? "Playback Queue" : "Cola de Reproducción";
+    const labelSignal = lang === "ca" ? "Senyal Hi-Fi & DAC" : lang === "en" ? "Hi-Fi Signal & DAC" : "Señal Hi-Fi & DAC";
+    const labelWaveform = lang === "ca" ? "Ones de la Cançó" : lang === "en" ? "Song Waveform" : "Ondas de la Canción";
+    const labelBlank = lang === "ca" ? "En Blanc (Repòs)" : lang === "en" ? "Blank (Standby)" : "En Blanco (Reposo)";
+
+    const isCurrent = currentTrack && telemetry.filepath && currentTrack.filepath === telemetry.filepath;
+    const curDur = isCurrent && telemetry.duration > 0 ? telemetry.duration : (currentTrack?.duration_seconds || 0);
+    const curSr = isCurrent && telemetry.sample_rate > 0 ? telemetry.sample_rate : (currentTrack?.sample_rate || 0);
+    const curBits = isCurrent && telemetry.bits_per_sample > 0 ? telemetry.bits_per_sample : (currentTrack?.bit_depth || 0);
+    const curBr = isCurrent && telemetry.bitrate > 0 ? telemetry.bitrate : (currentTrack?.bitrate_kbps || 0);
 
     return [
       {
@@ -181,19 +184,25 @@
         label: labelSession,
         type: "cells" as const,
         cells: [
-          { k: labelTracks, v: String(listeningStats.totalTracksPlayed) },
-          { k: labelSessions, v: String(listeningStats.totalSessions) },
-          { k: labelTime, v: listenedLabel },
+          { k: lang === "ca" ? "Pistes" : "Pistas", v: String(listeningStats.totalTracksPlayed) },
+          { k: lang === "ca" ? "Sessions" : "Sesiones", v: String(listeningStats.totalSessions) },
+          { k: lang === "ca" ? "Temps Total" : "Tiempo Total", v: listenedLabel },
+          { k: "Tempo", v: telemetry.tempo_bpm ? `${Math.round(telemetry.tempo_bpm)} BPM` : "—" },
+          { k: "Confiança", v: telemetry.tempo_confidence ? `${Math.round(telemetry.tempo_confidence * 100)}%` : "—" },
+          { k: "Estat", v: telemetry.state || (isPlaying ? "Playing" : "Standby") },
         ],
       },
       {
         id: "buffer",
-        label: "Buffer & DSP",
+        label: labelHardware,
         type: "cells" as const,
         cells: [
-          { k: labelState, v: telemetry.state || (isPlaying ? "Playing" : "Paused") },
-          { k: "Pos", v: formatDuration(telemetry.current_time || 0) },
-          { k: "Dur", v: telemetry.duration ? formatDuration(telemetry.duration) : "—" },
+          { k: "Driver", v: (telemetry.output_device || "ALSA").split(" ")[0] },
+          { k: "Stream", v: bitPerfectMode ? "Bit-Perfect" : "PipeWire" },
+          { k: "Buffer", v: "1024 spls" },
+          { k: "Canales", v: `${telemetry.channels || 2} Ch Stereo` },
+          { k: "Volumen", v: `${Math.round(volume * 100)}%` },
+          { k: "Modo DSP", v: bitPerfectMode ? "Direct 1:1" : "DSP Activo" },
         ],
       },
       {
@@ -201,9 +210,12 @@
         label: labelQueue,
         type: "cells" as const,
         cells: [
-          { k: "#", v: queue.length ? `${Math.min(queue.length, queueIndex + 1)}/${queue.length}` : "0/0" },
-          { k: labelLeft, v: remainingSec ? formatDuration(remainingSec) : "—" },
-          { k: "Vol", v: `${Math.round(volume * 100)}%` },
+          { k: "Posición", v: queue.length ? `${Math.min(queue.length, queueIndex + 1)} / ${queue.length}` : "0 / 0" },
+          { k: "Resto Pista", v: curDur > 0 ? formatDuration(Math.max(0, curDur - (telemetry.current_time || 0))) : "—" },
+          { k: "Resto Cola", v: remainingSec ? formatDuration(remainingSec) : "—" },
+          { k: "Total Cola", v: `${queue.length} pistas` },
+          { k: "Posición", v: formatDuration(telemetry.current_time || 0) },
+          { k: "Duración", v: curDur ? formatDuration(curDur) : "—" },
         ],
       },
       {
@@ -211,34 +223,30 @@
         label: labelSignal,
         type: "cells" as const,
         cells: [
-          { k: t("type", lang), v: currentTrack ? queueFormatLabel(currentTrack) : "—" },
-          { k: labelQuality, v: currentTrack ? queueQualityLabel(currentTrack) : "—" },
-          { k: labelSource, v: currentTrack && isStreamTrack(currentTrack) ? "Stream" : currentTrack ? "Local" : "Idle" },
+          { k: "Formato", v: currentTrack ? queueFormatLabel(currentTrack) : "—" },
+          { k: "Calidad", v: currentTrack ? queueQualityLabel(currentTrack) : "—" },
+          { k: "Muestreo", v: curSr > 0 ? `${(curSr / 1000).toFixed(1)} kHz` : "—" },
+          { k: "Profundidad", v: curBits > 0 ? `${curBits}-bit` : "—" },
+          { k: "Bitrate", v: curBr > 0 ? `${curBr} kbps` : "—" },
+          { k: "Origen", v: currentTrack && isStreamTrack(currentTrack) ? "Stream" : currentTrack ? "Local" : "Idle" },
         ],
       },
       {
-        id: "spectrum",
-        label: labelSpectrum,
-        type: "spectrum" as const,
+        id: "waveform",
+        label: labelWaveform,
+        type: "waveform" as const,
         cells: [],
       },
       {
-        id: "wave",
-        label: labelWave,
-        type: "wave" as const,
-        cells: [],
-      },
-      {
-        id: "cyber_flux",
-        label: labelCyber,
-        type: "cyber_flux" as const,
+        id: "blank",
+        label: labelBlank,
+        type: "blank" as const,
         cells: [],
       },
     ];
   });
 
   let currentHudPanel = $derived(hudPanels[queueHudMode] || hudPanels[0]);
-  let progressPercent = $derived(telemetry.duration > 0 ? Math.min(100, (telemetry.current_time / telemetry.duration) * 100) : (isPlaying ? 55 : 8));
 </script>
 
 {#if showRadio}
@@ -467,7 +475,7 @@
             {/if}
             {#if visibleCols.duration}
               <span class="text-right text-[10px] font-mono text-audiophile-muted tabular-nums">
-                {formatDuration(track.duration_seconds)}
+                {formatDuration(telemetry.filepath && track.filepath === telemetry.filepath && telemetry.duration > 0 ? telemetry.duration : track.duration_seconds)}
               </span>
             {/if}
             {#if visibleCols.download}
@@ -500,8 +508,8 @@
     <!-- svelte-ignore a11y_click_events_have_key_events -->
     <!-- svelte-ignore a11y_no_static_element_interactions -->
     <div
-      class="m-2 p-2.5 rounded-xl border shrink-0 cursor-pointer select-none bg-gradient-to-b from-slate-900/90 via-slate-950/95 to-black/95 shadow-xl backdrop-blur-md transition-all duration-200"
-      style="border-color: {appearance.accentColor}33; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.08);"
+      class="m-2 p-2.5 rounded-xl border shrink-0 cursor-pointer select-none shadow-xl backdrop-blur-md transition-all duration-200"
+      style="background: rgba(0, 0, 0, 0.45); border-color: {appearance.accentColor}25;"
       title={lang === "ca" ? "Doble clic per canviar vista" : lang === "en" ? "Double click to cycle view" : "Doble clic para cambiar vista"}
       ondblclick={() => { queueHudMode = (queueHudMode + 1) % hudPanels.length; }}
     >
@@ -522,8 +530,8 @@
               <span
                 class="transition-all duration-200 rounded-full block"
                 style={index === queueHudMode
-                  ? `width: 6px; height: 6px; background: #ffffff; box-shadow: 0 0 10px ${appearance.accentColor}, 0 0 4px ${appearance.accentColor}; outline: 2px solid ${appearance.accentColor};`
-                  : `width: 4px; height: 4px; background: ${appearance.accentColor}40;`}
+                  ? `width: 5px; height: 5px; background: #ffffff; box-shadow: 0 0 10px ${appearance.accentColor}, 0 0 3px ${appearance.accentColor}; outline: 2px solid ${appearance.accentColor};`
+                  : `width: 3.5px; height: 3.5px; background: ${appearance.accentColor}35;`}
               ></span>
             </button>
           {/each}
@@ -537,69 +545,62 @@
                 class="w-1.5 h-1.5 rounded-full inline-block"
                 style="background: {isPlaying ? appearance.accentColor : '#64748b'}; box-shadow: {isPlaying ? `0 0 8px ${appearance.accentColor}` : 'none'};"
               ></span>
-              <span class="text-[9.5px] font-black uppercase tracking-[0.16em] text-slate-200">
+              <span class="text-[9.5px] font-black uppercase tracking-[0.16em]" style="color: {appearance.accentColor};">
                 {currentHudPanel.label}
               </span>
             </div>
             <div class="flex items-center gap-1.5">
-              {#if currentHudPanel.type === "spectrum"}
-                <span class="text-[8px] font-mono px-1.5 py-0.2 rounded bg-cyan-950/60 border border-cyan-500/40 text-cyan-300 font-bold tracking-wider">
-                  48 BANDS · HI-RES FFT
+              {#if currentHudPanel.type === "waveform"}
+                <span
+                  class="text-[8px] font-mono px-1.5 py-0.2 rounded font-bold tracking-wider"
+                  style="background: {appearance.accentColor}18; border: 1px solid {appearance.accentColor}35; color: {appearance.accentColor};"
+                >
+                  INTERACTIVE WAVEFORM
                 </span>
-              {:else if currentHudPanel.type === "wave"}
-                <span class="text-[8px] font-mono px-1.5 py-0.2 rounded bg-cyan-950/60 border border-cyan-500/40 text-cyan-300 font-bold tracking-wider">
-                  ANALOG OSCILLOSCOPE
-                </span>
-              {:else if currentHudPanel.type === "cyber_flux"}
-                <span class="text-[8px] font-mono px-1.5 py-0.2 rounded bg-fuchsia-950/60 border border-fuchsia-500/40 text-fuchsia-300 font-bold tracking-wider">
-                  QUANTUM STEREO LASER
+              {:else if currentHudPanel.type === "blank"}
+                <span
+                  class="text-[8px] font-mono px-1.5 py-0.2 rounded font-semibold tracking-wider opacity-60"
+                  style="background: {appearance.accentColor}12; border: 1px solid {appearance.accentColor}25; color: {appearance.accentColor};"
+                >
+                  STANDBY
                 </span>
               {:else}
-                <span class="text-[8px] font-mono text-slate-400 font-semibold px-1.5 py-0.2 rounded bg-white/[0.04] border border-white/10">
+                <span
+                  class="text-[8px] font-mono font-semibold px-1.5 py-0.2 rounded"
+                  style="background: {appearance.accentColor}12; border: 1px solid {appearance.accentColor}25; color: {appearance.accentColor};"
+                >
                   {queueHudMode + 1} / {hudPanels.length}
                 </span>
               {/if}
             </div>
           </div>
 
-          {#if currentHudPanel.type === "spectrum"}
+          {#if currentHudPanel.type === "waveform"}
             <QueueHudVisualizer
-              mode="spectrum"
               accentColor={appearance.accentColor}
             />
-          {:else if currentHudPanel.type === "wave"}
-            <QueueHudVisualizer
-              mode="wave"
-              accentColor={appearance.accentColor}
-            />
-          {:else if currentHudPanel.type === "cyber_flux"}
-            <QueueHudVisualizer
-              mode="cyber_flux"
-              accentColor={appearance.accentColor}
-            />
+          {:else if currentHudPanel.type === "blank"}
+            <div class="h-9 flex items-center justify-center text-[10px] font-mono tracking-widest uppercase opacity-35" style="color: {appearance.accentColor};">
+              · MODO REPOSO ·
+            </div>
           {:else}
             <div class="grid grid-cols-3 gap-1.5 my-0.5">
               {#each currentHudPanel.cells as cell}
-                <div class="rounded-lg bg-slate-900/80 border border-slate-800/80 px-2 py-1.5 flex flex-col justify-between shadow-inner hover:border-slate-700/80 transition-colors">
-                  <span class="text-[7.5px] uppercase font-bold tracking-wider text-slate-400 truncate flex items-center gap-1">
-                    <span class="w-1 h-1 rounded-full opacity-60" style="background: {appearance.accentColor};"></span>
+                <div
+                  class="rounded-lg px-2 py-1.5 flex flex-col justify-between shadow-inner transition-colors bg-black/40"
+                  style="border: 1px solid {appearance.accentColor}18;"
+                >
+                  <span class="text-[7.5px] uppercase font-bold tracking-wider opacity-60 truncate flex items-center gap-1">
+                    <span class="w-1 h-1 rounded-full" style="background: {appearance.accentColor};"></span>
                     {cell.k}
                   </span>
-                  <span class="text-[11.5px] font-mono font-bold tabular-nums truncate tracking-tight text-slate-100" style="color: {appearance.accentColor}; text-shadow: 0 0 10px {appearance.accentColor}33;">
+                  <span class="text-[11.5px] font-mono font-bold tabular-nums truncate tracking-tight" style="color: {appearance.accentColor}; text-shadow: 0 0 10px {appearance.accentColor}33;">
                     {cell.v}
                   </span>
                 </div>
               {/each}
             </div>
           {/if}
-
-          <!-- Recessed glowing progress bar -->
-          <div class="mt-2 h-1 rounded-full overflow-hidden bg-slate-950 border border-white/[0.06] p-[0.5px]">
-            <div
-              class="h-full rounded-full transition-all duration-300"
-              style="width: {progressPercent}%; background: linear-gradient(90deg, {appearance.accentColor}88, {appearance.accentColor}); box-shadow: 0 0 8px {appearance.accentColor};"
-            ></div>
-          </div>
         </div>
       </div>
     </div>

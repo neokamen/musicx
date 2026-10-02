@@ -1,5 +1,6 @@
 <script lang="ts">
   import { useMusicStore } from "../../store/index.ts";
+import * as api from "../../services/api.ts";
   import {
     ChevronLeft,
     ChevronRight,
@@ -61,8 +62,8 @@
     useMusicStore.getState().browseDirectory(path);
   };
 
-  const handleEntryPlay = (entry: FileNode) => {
-    void useMusicStore.getState().play({
+  const handleEntryPlay = async (entry: FileNode) => {
+    let track: Track = {
       filepath: entry.path,
       title: entry.name.replace(/\.[^/.]+$/, ""),
       artist: "Explorador de Archivos",
@@ -70,16 +71,33 @@
       track_number: null,
       duration_seconds: 0,
       format: entry.extension ? entry.extension.toUpperCase() : "AUDIO",
-      sample_rate: 44100,
-      bit_depth: 16,
-      bitrate_kbps: 1411,
+      sample_rate: 0,
+      bit_depth: 0,
+      bitrate_kbps: 0,
       file_size: entry.size,
       mtime: 0,
-    });
+    };
+    try {
+      const meta = await api.getTrackMetadata(entry.path);
+      if (meta && meta.duration_seconds > 0) {
+        track = {
+          ...track,
+          title: meta.title || track.title,
+          artist: meta.artist && meta.artist !== "Desconocido" ? meta.artist : track.artist,
+          album: meta.album && meta.album !== "Desconocido" ? meta.album : track.album,
+          duration_seconds: meta.duration_seconds,
+          sample_rate: meta.sample_rate || 0,
+          bit_depth: meta.bit_depth || 0,
+          bitrate_kbps: meta.bitrate_kbps || 0,
+          format: meta.format || track.format,
+        };
+      }
+    } catch {}
+    void useMusicStore.getState().play(track);
   };
 
-  const handleEntryAddToQueue = (entry: FileNode) => {
-    useMusicStore.getState().addToQueue({
+  const handleEntryAddToQueue = async (entry: FileNode) => {
+    let track: Track = {
       filepath: entry.path,
       title: entry.name.replace(/\.[^/.]+$/, ""),
       artist: "Explorador Local",
@@ -87,12 +105,29 @@
       track_number: null,
       duration_seconds: 0,
       format: entry.extension ? entry.extension.toUpperCase() : "AUDIO",
-      sample_rate: 44100,
-      bit_depth: 16,
-      bitrate_kbps: 1411,
+      sample_rate: 0,
+      bit_depth: 0,
+      bitrate_kbps: 0,
       file_size: entry.size,
       mtime: 0,
-    });
+    };
+    try {
+      const meta = await api.getTrackMetadata(entry.path);
+      if (meta && meta.duration_seconds > 0) {
+        track = {
+          ...track,
+          title: meta.title || track.title,
+          artist: meta.artist && meta.artist !== "Desconocido" ? meta.artist : track.artist,
+          album: meta.album && meta.album !== "Desconocido" ? meta.album : track.album,
+          duration_seconds: meta.duration_seconds,
+          sample_rate: meta.sample_rate || 0,
+          bit_depth: meta.bit_depth || 0,
+          bitrate_kbps: meta.bitrate_kbps || 0,
+          format: meta.format || track.format,
+        };
+      }
+    } catch {}
+    useMusicStore.getState().addToQueue(track);
   };
 
   const handleAddFolderToQueue = (entry: FileNode) => {
@@ -108,9 +143,9 @@
         track_number: idx + 1,
         duration_seconds: 0,
         format: e.extension ? e.extension.toUpperCase() : "AUDIO",
-        sample_rate: 44100,
-        bit_depth: 16,
-        bitrate_kbps: 1411,
+        sample_rate: 0,
+        bit_depth: 0,
+        bitrate_kbps: 0,
         file_size: e.size,
         mtime: 0,
       }));

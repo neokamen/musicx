@@ -947,12 +947,46 @@ export const useMusicStore = create<MusicPlayerStore>((set, get) => ({
   },
 
   addToQueue: (track: Track | Track[]) => {
+    const toAdd = Array.isArray(track) ? track : [track];
     set((state) => {
-      const toAdd = Array.isArray(track) ? track : [track];
       const nextQueue = [...state.queue, ...toAdd];
       saveStoredQueue(nextQueue, state.queueIndex, state.currentTrack);
       return { queue: nextQueue };
     });
+
+    const missing = toAdd.filter(
+      (t) => !isStreamTrack(t) && t.duration_seconds <= 0 && t.filepath
+    );
+    if (missing.length > 0) {
+      void Promise.all(
+        missing.map(async (t) => {
+          try {
+            const meta = await api.getTrackMetadata(t.filepath);
+            if (meta && meta.duration_seconds > 0) {
+              set((state) => {
+                const nextQueue = state.queue.map((item) =>
+                  item.filepath === t.filepath
+                    ? {
+                        ...item,
+                        title: meta.title || item.title,
+                        artist: meta.artist && meta.artist !== "Desconocido" ? meta.artist : item.artist,
+                        album: meta.album && meta.album !== "Desconocido" ? meta.album : item.album,
+                        duration_seconds: meta.duration_seconds,
+                        sample_rate: meta.sample_rate || item.sample_rate,
+                        bit_depth: meta.bit_depth || item.bit_depth,
+                        bitrate_kbps: meta.bitrate_kbps || item.bitrate_kbps,
+                        format: meta.format || item.format,
+                      }
+                    : item
+                );
+                saveStoredQueue(nextQueue, state.queueIndex, state.currentTrack);
+                return { queue: nextQueue };
+              });
+            }
+          } catch {}
+        })
+      );
+    }
   },
 
   removeFromQueue: (index: number) => {
@@ -1420,11 +1454,25 @@ export const useMusicStore = create<MusicPlayerStore>((set, get) => ({
       const currentTrack = state.currentTrack && state.currentTrack.filepath === telemetry.filepath
         ? {
             ...state.currentTrack,
+            duration_seconds: telemetry.duration > 0 ? telemetry.duration : state.currentTrack.duration_seconds,
             sample_rate: telemetry.sample_rate || state.currentTrack.sample_rate,
             bit_depth: telemetry.bits_per_sample || state.currentTrack.bit_depth,
             bitrate_kbps: telemetry.bitrate || state.currentTrack.bitrate_kbps,
           }
         : state.currentTrack;
+
+      const updatedQueue = state.queue.map((t) => {
+        if (telemetry.filepath && t.filepath === telemetry.filepath) {
+          return {
+            ...t,
+            duration_seconds: telemetry.duration > 0 ? telemetry.duration : t.duration_seconds,
+            sample_rate: telemetry.sample_rate > 0 ? telemetry.sample_rate : t.sample_rate,
+            bit_depth: telemetry.bits_per_sample > 0 ? telemetry.bits_per_sample : t.bit_depth,
+            bitrate_kbps: telemetry.bitrate > 0 ? telemetry.bitrate : t.bitrate_kbps,
+          };
+        }
+        return t;
+      });
 
       const wasPlaying = state.isPlaying && state.telemetry.state === "Playing";
       const duration = telemetry.duration || currentTrack?.duration_seconds || 0;
@@ -1455,6 +1503,7 @@ export const useMusicStore = create<MusicPlayerStore>((set, get) => ({
         selectedDevice: telemetry.output_device,
         listeningStats: updatedStats,
         currentTrack,
+        queue: updatedQueue,
       };
     });
   },

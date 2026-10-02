@@ -15,9 +15,11 @@ export type SpectrumStyle =
   | 'peak_meter'
   | 'retro_glow_meter'
   | 'retro_tube_meter'
-  | 'retro_scope_meter';
+  | 'retro_scope_meter'
+  | 'quantum_laser';
 
 export const SPECTRUM_STYLES: { id: SpectrumStyle; name: string }[] = [
+  { id: 'quantum_laser', name: 'Láser Cuántico Estéreo (Quantum Laser)' },
   { id: 'bars', name: 'Espectro de Barras Hi-Fi' },
   { id: 'wave', name: 'Onda Fluida Continua' },
   { id: 'circular', name: 'Espectro Radial / Circular' },
