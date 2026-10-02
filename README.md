@@ -1,12 +1,11 @@
 # musicx — the audio player
 
-Reproductor de audio Hi-Fi para Linux y Windows. Reproduce biblioteca local, radio por internet y Stream Music en la misma interfaz modular. El núcleo de audio está en Rust (Tauri v2); la interfaz es React 19 y TypeScript.
+Reproductor de audio Hi-Fi para Linux y Windows. Reproduce biblioteca local, radio por internet y Stream Music en la misma interfaz modular. El núcleo de audio está en Rust (Tauri v2); la interfaz es Svelte 5 y TypeScript.
 
-Inspirado en foobar2000 y fooyin: paneles redimensionables, widgets intercambiables y control fino del pipeline de sonido.
 
-Repositorio: [https://github.com/neokamen/musicx-theaudioplayer](https://github.com/neokamen/musicx-theaudioplayer)
+Repositorio: [https://github.com/neokamen/musicx](https://github.com/neokamen/musicx)
 
-Versión actual: **0.3.19**
+Versión actual: **0.3.36**
 
 ---
 
