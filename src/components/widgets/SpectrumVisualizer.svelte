@@ -58,6 +58,7 @@
 
     let animId: number;
     let lastTime = performance.now();
+    let fluidWavePhase = 0;
 
     const numBands = Math.max(16, Math.min(128, appearance.cavaBars || 64));
     const currentBands = new Float32Array(numBands);
@@ -158,123 +159,93 @@
 
       switch (visualStyle) {
         case "fluid_wave": {
-          const midY = h * 0.5;
-          const phase = timeSec * (currentIsPlaying ? 3.8 : 1.2);
+          fluidWavePhase += currentIsPlaying ? dt * 4.5 : dt * 1.6;
 
-          // Calculate energy from bands
           let bassEnergy = 0;
           let midEnergy = 0;
-          let highEnergy = 0;
-
-          const numSamples = Math.min(numBands, 64);
-          const bassCount = Math.max(1, Math.floor(numSamples * 0.2));
-          const midCount = Math.max(1, Math.floor(numSamples * 0.6));
-
-          for (let i = 0; i < bassCount; i++) {
-            bassEnergy += currentBands[i] || 0;
-          }
-          bassEnergy /= bassCount;
-
-          for (let i = bassCount; i < midCount; i++) {
-            midEnergy += currentBands[i] || 0;
-          }
-          midEnergy /= (midCount - bassCount);
-
-          for (let i = midCount; i < numSamples; i++) {
-            highEnergy += currentBands[i] || 0;
-          }
-          highEnergy /= Math.max(1, numSamples - midCount);
-
-          const maxAmplitude = h * 0.44;
-          const amp = currentIsPlaying
-            ? Math.min(maxAmplitude, Math.max(4, h * (bassEnergy * 0.45 + midEnergy * 0.35 + highEnergy * 0.2 + 0.04)))
-            : Math.min(maxAmplitude, Math.max(3, h * 0.08));
-
-          const numPoints = Math.min(72, Math.max(32, Math.floor(w / 12)));
-          const step = w / (numPoints - 1);
-
-          const drawWaveLine = (mirrorSign: number, phaseOffset: number) => {
-            const points: { x: number; y: number }[] = [];
-
-            for (let i = 0; i < numPoints; i++) {
-              const x = i * step;
-              const normX = i / (numPoints - 1);
-              const envelope = Math.sin(normX * Math.PI);
-
-              const bandIdx = Math.min(numBands - 1, Math.floor(normX * numBands));
-              const bandVal = currentIsPlaying ? (currentBands[bandIdx] || 0) * 0.8 : 0;
-
-              const wave =
-                Math.sin(normX * 8 + phase + phaseOffset) * 0.55 +
-                Math.sin(normX * 18 - phase * 1.3 + phaseOffset) * 0.28 +
-                Math.cos(normX * 32 + phase * 2.1) * (0.17 + bandVal * 0.35);
-
-              const y = midY + mirrorSign * wave * amp * envelope;
-              points.push({ x, y });
+          const spectrum = currentTelemetry.spectrum || [];
+          if (currentIsPlaying && spectrum.length > 0) {
+            const sampleCount = Math.min(12, spectrum.length);
+            for (let s = 0; s < sampleCount; s++) {
+              bassEnergy += spectrum[s] || 0;
             }
+            bassEnergy = (bassEnergy / sampleCount);
 
-            // Translucent Underfill
-            ctx.beginPath();
-            ctx.moveTo(0, midY);
-            ctx.lineTo(points[0].x, points[0].y);
-            for (let i = 0; i < points.length - 1; i++) {
-              const xc = (points[i].x + points[i + 1].x) / 2;
-              const yc = (points[i].y + points[i + 1].y) / 2;
-              ctx.quadraticCurveTo(points[i].x, points[i].y, xc, yc);
+            const midCount = Math.min(32, spectrum.length);
+            for (let s = sampleCount; s < midCount; s++) {
+              midEnergy += spectrum[s] || 0;
             }
-            ctx.lineTo(points[points.length - 1].x, points[points.length - 1].y);
-            ctx.lineTo(w, midY);
-            ctx.closePath();
-
-            const areaGrad = ctx.createLinearGradient(0, midY, 0, mirrorSign > 0 ? h : 0);
-            areaGrad.addColorStop(0, `${accent}40`);
-            areaGrad.addColorStop(0.7, `${accent}12`);
-            areaGrad.addColorStop(1, "transparent");
-            ctx.fillStyle = areaGrad;
-            ctx.fill();
-
-            // Luminous Wave Crest
-            ctx.beginPath();
-            ctx.moveTo(points[0].x, points[0].y);
-            for (let i = 0; i < points.length - 1; i++) {
-              const xc = (points[i].x + points[i + 1].x) / 2;
-              const yc = (points[i].y + points[i + 1].y) / 2;
-              ctx.quadraticCurveTo(points[i].x, points[i].y, xc, yc);
-            }
-            ctx.lineTo(points[points.length - 1].x, points[points.length - 1].y);
-
-            ctx.strokeStyle = accent;
-            ctx.lineWidth = currentApp.neonGlow ? 2.4 : 1.8;
-            ctx.shadowColor = accent;
-            ctx.shadowBlur = currentApp.neonGlow ? (currentApp.neonIntensity / 100) * 18 : 8;
-            ctx.stroke();
-            ctx.shadowBlur = 0;
-
-            // White Core Filament
-            ctx.beginPath();
-            ctx.moveTo(points[0].x, points[0].y);
-            for (let i = 0; i < points.length - 1; i++) {
-              const xc = (points[i].x + points[i + 1].x) / 2;
-              const yc = (points[i].y + points[i + 1].y) / 2;
-              ctx.quadraticCurveTo(points[i].x, points[i].y, xc, yc);
-            }
-            ctx.lineTo(points[points.length - 1].x, points[points.length - 1].y);
-            ctx.strokeStyle = "#ffffff";
-            ctx.lineWidth = 0.75;
-            ctx.stroke();
-          };
-
-          // Draw main wave
-          drawWaveLine(1, 0);
-
-          // If mirrored, draw symmetric upper wave
-          if (currentApp.cavaMirrored) {
-            drawWaveLine(-1, Math.PI * 0.5);
+            midEnergy = (midEnergy / (midCount - sampleCount));
+          } else {
+            bassEnergy = 0.08;
+            midEnergy = 0.04;
           }
 
-          // Subtle center horizon
-          ctx.fillStyle = `${accent}18`;
-          ctx.fillRect(0, midY - 0.5, w, 1);
+          const midY = h * 0.5;
+          const amplitude = Math.min(h * 0.44, Math.max(3, h * (bassEnergy * 0.65 + midEnergy * 0.35 + 0.1)));
+          const pointsCount = 48;
+          const step = w / (pointsCount - 1);
+          const points: { x: number; y: number }[] = [];
+
+          for (let i = 0; i < pointsCount; i++) {
+            const x = i * step;
+            const normX = i / (pointsCount - 1);
+            const envelope = Math.sin(normX * Math.PI);
+
+            const freqVal = currentIsPlaying && spectrum.length > 0
+              ? (spectrum[Math.min(i, spectrum.length - 1)] || 0) * 0.8
+              : 0;
+
+            const wave =
+              Math.sin(normX * 10 + fluidWavePhase) * 0.6 +
+              Math.sin(normX * 22 - fluidWavePhase * 1.4) * 0.28 +
+              Math.cos(normX * 36 + fluidWavePhase * 2) * (0.12 + freqVal * 0.3);
+
+            const y = midY + wave * amplitude * envelope;
+            points.push({ x, y });
+          }
+
+          // Draw translucent underfill
+          ctx.beginPath();
+          ctx.moveTo(0, h);
+          ctx.lineTo(points[0].x, points[0].y);
+          for (let i = 0; i < points.length - 1; i++) {
+            const xc = (points[i].x + points[i + 1].x) / 2;
+            const yc = (points[i].y + points[i + 1].y) / 2;
+            ctx.quadraticCurveTo(points[i].x, points[i].y, xc, yc);
+          }
+          ctx.lineTo(points[points.length - 1].x, points[points.length - 1].y);
+          ctx.lineTo(w, h);
+          ctx.closePath();
+
+          const areaGrad = ctx.createLinearGradient(0, midY - amplitude, 0, h);
+          areaGrad.addColorStop(0, `${accent}35`);
+          areaGrad.addColorStop(0.7, `${accent}10`);
+          areaGrad.addColorStop(1, "transparent");
+          ctx.fillStyle = areaGrad;
+          ctx.fill();
+
+          // Draw luminous wave crest
+          ctx.beginPath();
+          ctx.moveTo(points[0].x, points[0].y);
+          for (let i = 0; i < points.length - 1; i++) {
+            const xc = (points[i].x + points[i + 1].x) / 2;
+            const yc = (points[i].y + points[i + 1].y) / 2;
+            ctx.quadraticCurveTo(points[i].x, points[i].y, xc, yc);
+          }
+          ctx.lineTo(points[points.length - 1].x, points[points.length - 1].y);
+
+          ctx.strokeStyle = accent;
+          ctx.lineWidth = 1.8;
+          ctx.shadowColor = accent;
+          ctx.shadowBlur = 8;
+          ctx.stroke();
+          ctx.shadowBlur = 0;
+
+          // White core filament
+          ctx.strokeStyle = "#ffffff";
+          ctx.lineWidth = 0.6;
+          ctx.stroke();
           break;
         }
 

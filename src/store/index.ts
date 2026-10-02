@@ -57,9 +57,18 @@ export interface AppearanceState {
   marqueeDelay: number;
 }
 
+export type ResamplingQuality = "bit_perfect" | "symphonia_96k" | "symphonia_192k" | "float32";
+
+export const AUDIO_ENGINES = [
+  { id: "bit_perfect" as const, name: "Bit-Perfect (ALSA Direct 1:1)", badge: "1:1", description: "Salida hardware directa 1:1 sin remuestreo ni atenuación" },
+  { id: "symphonia_96k" as const, name: "Symphonia Studio 96 kHz", badge: "96k", description: "Decodificación nativa Symphonia a 96 kHz con coma flotante" },
+  { id: "symphonia_192k" as const, name: "Symphonia Ultra 192 kHz", badge: "192k", description: "Decodificación ultra Hi-Res Symphonia a 192 kHz" },
+  { id: "float32" as const, name: "PipeWire Float32 HD", badge: "FP32", description: "Enrutamiento compartido PipeWire en 32-bit float con DSP" },
+] as const;
+
 export interface AudioSettingsState {
   allowExtraVolumeBoost: boolean;
-  resamplingQuality: "bit_perfect" | "symphonia_96k" | "float32";
+  resamplingQuality: ResamplingQuality;
   bufferLatency: "ultra_low" | "low" | "medium" | "stable";
   crossfadeMs: number;
   ditherEngine: "tpdf" | "none";
@@ -282,7 +291,7 @@ const defaultAppearance: AppearanceState = {
 const defaultAudioSettings: AudioSettingsState = {
   allowExtraVolumeBoost: true,
   resamplingQuality: "bit_perfect",
-  bufferLatency: "low",
+  bufferLatency: "medium",
   crossfadeMs: 0,
   ditherEngine: "tpdf",
   isEqEnabled: false,
@@ -1548,6 +1557,18 @@ export const useMusicStore = create<MusicPlayerStore>((set, get) => ({
     });
 
     const audio = get().audioSettings;
+    const frameMap: Record<string, number> = {
+      ultra_low: 64,
+      low: 256,
+      medium: 512,
+      stable: 1024,
+    };
+    const initialBufferFrames = frameMap[audio?.bufferLatency || "medium"] || 512;
+    api.setAudioBufferSize(initialBufferFrames).catch(() => {});
+    if (audio?.resamplingQuality) {
+      api.setBitPerfect(audio.resamplingQuality === "bit_perfect").catch(() => {});
+    }
+
     radioAudioService.setVolume(get().volume);
     radioAudioService.setDspSettings({
       isEqEnabled: audio.isEqEnabled,

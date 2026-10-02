@@ -64,18 +64,24 @@
       if (mode === "waveform") {
         const rawPeaks = tele.seekbar_spectrum || [];
         const hasRealPeaks = rawPeaks.length > 0;
-        const binCount = hasRealPeaks ? rawPeaks.length : 160;
+        const binCount = hasRealPeaks ? Math.max(384, rawPeaks.length * 2) : 320;
 
         const centerY = height * 0.5;
         const maxH = height * 0.46;
-        const barW = Math.max(1.0, (width / binCount) * 0.72);
+        const barW = Math.max(0.65, (width / binCount) * 0.72);
         const gap = (width - binCount * barW) / Math.max(1, binCount - 1);
         const cursorX = progress * width;
 
         for (let i = 0; i < binCount; i++) {
           let amp = 0;
           if (hasRealPeaks) {
-            amp = Math.max(0.04, Math.min(1, rawPeaks[i] || 0));
+            const t = (i / (binCount - 1)) * (rawPeaks.length - 1);
+            const i0 = Math.floor(t);
+            const i1 = Math.min(rawPeaks.length - 1, i0 + 1);
+            const frac = t - i0;
+            const v0 = rawPeaks[i0] || 0;
+            const v1 = rawPeaks[i1] || 0;
+            amp = Math.max(0.04, Math.min(1, v0 * (1 - frac) + v1 * frac));
           } else {
             const norm = i / (binCount - 1);
             const env = Math.sin(norm * Math.PI);

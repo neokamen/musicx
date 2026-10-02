@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { useMusicStore } from "../../store/index.ts";
+  import { useMusicStore, AUDIO_ENGINES } from "../../store/index.ts";
   import { TRANSPORT_STYLES } from "../../lib/transportStyles.ts";
   import { SOUNDIX_PRESETS } from "../../types/eq.ts";
   import {
@@ -222,10 +222,19 @@
     void useMusicStore.getState().setVolume(val);
   };
 
-  const handleToggleBitPerfect = async () => {
+  let currentAudioEngine = $derived(
+    AUDIO_ENGINES.find((e) => e.id === audioSettings?.resamplingQuality) ||
+    (bitPerfectMode ? AUDIO_ENGINES[0] : AUDIO_ENGINES[3])
+  );
+
+  const handleCycleAudioEngine = () => {
+    const currentId = audioSettings?.resamplingQuality || (bitPerfectMode ? "bit_perfect" : "float32");
+    const currentIndex = AUDIO_ENGINES.findIndex((e) => e.id === currentId);
+    const nextIndex = (currentIndex + 1) % AUDIO_ENGINES.length;
+    const nextEngine = AUDIO_ENGINES[nextIndex];
     bitPerfectPulse = true;
-    await useMusicStore.getState().setBitPerfectMode(!bitPerfectMode);
-    setTimeout(() => { bitPerfectPulse = false; }, 800);
+    useMusicStore.getState().setAudioSettings({ resamplingQuality: nextEngine.id });
+    setTimeout(() => { bitPerfectPulse = false; }, 600);
   };
 
   const handlePlayClick = () => {
@@ -701,13 +710,14 @@
           </button>
 
           <button
-            onclick={handleToggleBitPerfect}
-            class="h-8 w-8 rounded border flex items-center justify-center shrink-0 transition-all cursor-pointer {bitPerfectMode ? 'border-cyan-400 bg-cyan-950/40 text-cyan-300 shadow-[0_0_9px_var(--app-accent)]' : 'border-slate-800 bg-slate-900 text-slate-500 hover:text-slate-300'} {bitPerfectPulse ? 'scale-105 ring-2' : ''}"
-            style={bitPerfectMode ? `border-color: ${accentColor}; color: ${accentColor}; box-shadow: 0 0 8px ${accentColor}40;` : ''}
-            title={`Bit-perfect: ${bitPerfectMode ? "activado" : "desactivado"}`}
-            aria-label="Activar o desactivar Bit-perfect"
+            onclick={handleCycleAudioEngine}
+            class="h-8 px-2 min-w-[38px] rounded border flex items-center justify-center gap-1 shrink-0 transition-all cursor-pointer font-mono text-[10px] font-bold select-none {currentAudioEngine.id !== 'float32' ? 'border-cyan-400 bg-cyan-950/40 text-cyan-300 shadow-[0_0_9px_var(--app-accent)]' : 'border-slate-800 bg-slate-900 text-slate-400 hover:text-slate-200'} {bitPerfectPulse ? 'scale-105 ring-2' : ''}"
+            style={currentAudioEngine.id !== 'float32' ? `border-color: ${accentColor}; color: ${accentColor}; box-shadow: 0 0 8px ${accentColor}40;` : ''}
+            title={`Motor de audio: ${currentAudioEngine.name} · ${currentAudioEngine.description} (clic para alternar)`}
+            aria-label={`Motor de audio: ${currentAudioEngine.name}`}
           >
-            <Sparkles size={15} />
+            <Sparkles size={12} />
+            <span>{currentAudioEngine.badge}</span>
           </button>
 
           <span

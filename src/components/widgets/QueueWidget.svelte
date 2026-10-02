@@ -199,7 +199,7 @@
         type: "cells" as const,
         cells: [
           { k: "Driver", v: (telemetry.output_device || "ALSA").split(" ")[0] },
-          { k: "Stream", v: audioSettings.resamplingQuality === "symphonia_96k" ? "Symphonia 96k" : bitPerfectMode ? "Bit-Perfect" : "PipeWire" },
+          { k: "Stream", v: audioSettings.resamplingQuality === "symphonia_192k" ? "Symphonia 192k" : audioSettings.resamplingQuality === "symphonia_96k" ? "Symphonia 96k" : bitPerfectMode ? "Bit-Perfect" : "PipeWire" },
           { k: "Buffer", v: `${audioSettings.bufferLatency === "ultra_low" ? 64 : audioSettings.bufferLatency === "low" ? 256 : audioSettings.bufferLatency === "medium" ? 512 : 1024} spls` },
           { k: "Volumen", v: `${Math.round(volume * 100)}%` },
         ],

@@ -68,8 +68,8 @@ impl AudioEngineHandle {
         let (sender, receiver) = channel();
         let telemetry = Arc::new(Mutex::new(AudioTelemetry::default()));
         let buffer_telemetry = Arc::new(Mutex::new(BufferTelemetry::default()));
-        let requested_buffer_frames = Arc::new(AtomicU32::new(256));
-        let actual_buffer_frames = Arc::new(AtomicU32::new(256));
+        let requested_buffer_frames = Arc::new(AtomicU32::new(512));
+        let actual_buffer_frames = Arc::new(AtomicU32::new(512));
 
         let telemetry_clone = Arc::clone(&telemetry);
         let buffer_telemetry_clone = Arc::clone(&buffer_telemetry);
@@ -946,7 +946,7 @@ fn estimate_tempo(onsets: &[f32]) -> (Option<f32>, f32) {
     }
 }
 
-const SEEKBAR_SPECTRUM_BINS: usize = 192;
+const SEEKBAR_SPECTRUM_BINS: usize = 384;
 
 fn analyze_track_waveform(path: &str) -> Vec<f32> {
     let mut source = match AudioSource::open(path) {
@@ -1158,8 +1158,8 @@ mod spectrum_tests {
         let _ = fs::remove_file(path);
 
         assert_eq!(waveform.len(), SEEKBAR_SPECTRUM_BINS);
-        let quiet_level = waveform[20..80].iter().sum::<f32>() / 60.0;
-        let loud_level = waveform[110..170].iter().sum::<f32>() / 60.0;
+        let quiet_level = waveform[40..160].iter().sum::<f32>() / 120.0;
+        let loud_level = waveform[220..340].iter().sum::<f32>() / 120.0;
         assert!(loud_level > quiet_level * 5.0);
     }
 }

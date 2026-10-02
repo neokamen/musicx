@@ -1591,14 +1591,15 @@
                   Motor de Decodificación y Remuestreo Hi-Fi
                 </label>
                 <span class="text-[10px] font-mono px-2 py-0.5 rounded bg-cyan-950/40 border border-cyan-500/30 text-cyan-300 font-semibold">
-                  {audioSettings.resamplingQuality === 'bit_perfect' ? 'ALSA DIRECT 1:1' : audioSettings.resamplingQuality === 'symphonia_96k' ? 'SYMPHONIA CORE' : 'PIPEWIRE FLOAT32'}
+                  {audioSettings.resamplingQuality === 'bit_perfect' ? 'ALSA DIRECT 1:1' : audioSettings.resamplingQuality === 'symphonia_192k' ? 'SYMPHONIA 192k' : audioSettings.resamplingQuality === 'symphonia_96k' ? 'SYMPHONIA 96k' : 'PIPEWIRE FLOAT32'}
                 </span>
               </div>
-              <div class="grid grid-cols-3 gap-2">
+              <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
                 {#each [
-                  { id: 'bit_perfect' as const, label: 'ALSA Direct Bit-Perfect' },
+                  { id: 'bit_perfect' as const, label: 'ALSA Direct 1:1' },
                   { id: 'symphonia_96k' as const, label: 'Symphonia 96 kHz' },
-                  { id: 'float32' as const, label: 'Float32 PipeWire HD' },
+                  { id: 'symphonia_192k' as const, label: 'Symphonia Ultra 192k' },
+                  { id: 'float32' as const, label: 'Float32 PipeWire' },
                 ] as m (m.id)}
                   <button
                     onclick={() => useMusicStore.getState().setAudioSettings({ resamplingQuality: m.id })}
@@ -1613,7 +1614,9 @@
                 {#if audioSettings.resamplingQuality === 'bit_perfect'}
                   <span class="text-emerald-400 font-semibold">Bit-Perfect Activo:</span> Salida hardware directa 1:1 sin remuestreo ni atenuación. El DAC recibe la frecuencia nativa del archivo (ej. 44.1k, 48k, 96k, 192k).
                 {:else if audioSettings.resamplingQuality === 'symphonia_96k'}
-                  <span class="text-cyan-400 font-semibold">Symphonia Core:</span> Decodificación nativa de alta fidelidad mediante Symphonia v0.5 en Rust con precisión de coma flotante.
+                  <span class="text-cyan-400 font-semibold">Symphonia Studio 96k:</span> Decodificación nativa de alta fidelidad mediante Symphonia v0.5 en Rust con remuestreo de estudio a 96 kHz de coma flotante.
+                {:else if audioSettings.resamplingQuality === 'symphonia_192k'}
+                  <span class="text-purple-400 font-semibold">Symphonia Ultra 192k:</span> Remuestreo ultra Hi-Res a 192 kHz con filtros polifásicos de máxima precisión armónica.
                 {:else}
                   <span class="text-blue-400 font-semibold">Float32 PipeWire:</span> Enrutamiento compartido a través del servidor de audio PipeWire / PulseAudio en coma flotante de 32 bits con soporte multicanal y DSP.
                 {/if}
