@@ -1584,50 +1584,52 @@
         {/if}
 
         {#if activeTab === 'audio'}
+          {@const currentEngine = AUDIO_ENGINES.find((e) => e.id === audioSettings.resamplingQuality) || AUDIO_ENGINES[0]}
           <div class="space-y-6">
             <div class="p-4 rounded-xl bg-slate-900/40 border border-slate-800/80 space-y-3">
               <div class="flex items-center justify-between">
                 <label class="text-xs font-bold uppercase tracking-wider text-slate-300">
                   Motor de Decodificación y Remuestreo Hi-Fi
                 </label>
-                <span class="text-[10px] font-mono px-2 py-0.5 rounded bg-cyan-950/40 border border-cyan-500/30 text-cyan-300 font-semibold">
-                  {AUDIO_ENGINES.find((e) => e.id === audioSettings.resamplingQuality)?.name || 'Bit-Perfect'}
+                <span class="text-[10px] font-mono px-2 py-0.5 rounded font-semibold transition-all duration-300" style="background: {currentEngine.color}20; border: 1px solid {currentEngine.color}50; color: {currentEngine.color}; box-shadow: 0 0 10px {currentEngine.color}33;">
+                  {currentEngine.name}
                 </span>
               </div>
               <div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
                 {#each AUDIO_ENGINES as m (m.id)}
+                  {@const isSelected = audioSettings.resamplingQuality === m.id}
                   <button
                     onclick={() => useMusicStore.getState().setAudioSettings({ resamplingQuality: m.id })}
-                    class="p-2.5 rounded-xl border text-xs font-semibold transition cursor-pointer text-center {audioSettings.resamplingQuality === m.id ? 'bg-slate-900/90 shadow-md ring-1' : 'border-slate-800 bg-slate-900/60 text-slate-400 hover:text-slate-200'}"
-                    style={audioSettings.resamplingQuality === m.id ? `border-color: ${m.color}; color: ${m.color}; box-shadow: 0 0 10px ${m.color}30;` : undefined}
+                    class="p-2.5 rounded-xl border text-xs font-semibold transition-all duration-200 cursor-pointer text-center {isSelected ? 'bg-slate-900/95 shadow-lg' : 'border-slate-800/80 bg-slate-900/50 text-slate-400 hover:text-slate-100 hover:border-slate-700'}"
+                    style={isSelected ? `border-color: ${m.color}; color: ${m.color}; box-shadow: 0 0 14px ${m.color}35;` : undefined}
                   >
-                    <div class="flex items-center justify-center gap-1.5 mb-0.5">
-                      <span class="text-[9px] font-mono px-1.5 py-0.5 rounded font-bold" style="background: {m.color}20; color: {m.color};">{m.badge}</span>
-                      <span>{m.name.split(' ')[0]}</span>
+                    <div class="flex items-center justify-center gap-1.5 mb-1">
+                      <span class="text-[9px] font-mono px-1.5 py-0.5 rounded font-bold transition-colors" style="background: {m.color}25; color: {m.color}; border: 1px solid {m.color}50;">{m.badge}</span>
+                      <span class="font-bold" style={isSelected ? `color: ${m.color}; text-shadow: 0 0 8px ${m.color}55;` : undefined}>{m.name.split(' ')[0]}</span>
                     </div>
-                    <span class="text-[10px] opacity-75 font-normal block truncate">{m.name}</span>
+                    <span class="text-[10px] opacity-80 font-normal block truncate" style={isSelected ? `color: ${m.color}ee;` : undefined}>{m.name}</span>
                   </button>
                 {/each}
               </div>
               <div class="text-[11px] rounded-lg bg-slate-950/60 border border-slate-800/60 p-2.5 text-slate-400">
                 {#if audioSettings.resamplingQuality === 'bit_perfect'}
-                  <span class="text-emerald-400 font-semibold">Bit-Perfect Activo (Máxima Pureza):</span> Salida hardware directa 1:1 sin remuestreo ni atenuación digital. El DAC recibe la frecuencia nativa exacta bit a bit.
+                  <span class="font-semibold" style="color: #10f08e;">Bit-Perfect Activo (Máxima Pureza):</span> Salida hardware directa 1:1 sin remuestreo ni atenuación digital. El DAC recibe la frecuencia nativa exacta bit a bit.
                 {:else if audioSettings.resamplingQuality === 'soxr'}
-                  <span class="text-blue-400 font-semibold">Libsoxr Audiophile VHQ (256 Lóbulos):</span> Filtro Sinc VHQ de fase lineal de máxima fidelidad con corte empinado y atenuación de banda superior a 170 dB.
+                  <span class="font-semibold" style="color: #2563eb;">Libsoxr Audiophile VHQ (256 Lóbulos):</span> Filtro Sinc VHQ de fase lineal de máxima fidelidad con corte empinado y atenuación de banda superior a 170 dB.
                 {:else if audioSettings.resamplingQuality === 'r8brain'}
-                  <span class="text-purple-400 font-semibold">r8brain Free SRC (Convolución FFT):</span> Remuestreo por convolución FFT de bloque en frecuencia, libre de ringing de fase y respuesta transitoria analógica.
+                  <span class="font-semibold" style="color: #8b5cf6;">r8brain Free SRC (Convolución FFT):</span> Remuestreo por convolución FFT de bloque en frecuencia, libre de ringing de fase y respuesta transitoria analógica.
                 {:else if audioSettings.resamplingQuality === 'symphonia_192k'}
-                  <span class="text-purple-400 font-semibold">Symphonia Ultra 192k (Ultra Hi-Res):</span> Remuestreo ultra Hi-Res a 192 kHz con interpolador Sinc de alta precisión armónica integrado en Rust.
+                  <span class="font-semibold" style="color: #f43f5e;">Symphonia Ultra 192k (Ultra Hi-Res):</span> Remuestreo ultra Hi-Res a 192 kHz con interpolador Sinc de alta precisión armónica integrado en Rust.
                 {:else if audioSettings.resamplingQuality === 'rubato'}
-                  <span class="text-cyan-400 font-semibold">Rubato Sinc Hi-Fi (128 Fases):</span> Interpolador Sinc bandlimited en pure Rust con ventana Blackman-Harris de alta precisión y relación señal/ruido SNR &gt; 160 dB.
+                  <span class="font-semibold" style="color: #00e5ff;">Rubato Sinc Hi-Fi (128 Fases):</span> Interpolador Sinc bandlimited en pure Rust con ventana Blackman-Harris de alta precisión y relación señal/ruido SNR &gt; 160 dB.
                 {:else if audioSettings.resamplingQuality === 'symphonia_96k'}
-                  <span class="text-teal-400 font-semibold">Symphonia Studio 96k (Estudio):</span> Decodificación nativa de alta fidelidad mediante Symphonia en Rust con remuestreo de estudio a 96 kHz float.
+                  <span class="font-semibold" style="color: #a3e635;">Symphonia Studio 96k (Estudio):</span> Decodificación nativa de alta fidelidad mediante Symphonia en Rust con remuestreo de estudio a 96 kHz float.
                 {:else if audioSettings.resamplingQuality === 'zita'}
-                  <span class="text-amber-400 font-semibold">Zita Polyphase Resampler (Baja Latencia):</span> Banco de filtros polifase Hann² ultrarrápido y de latencia ultra baja, ideal para monitorización instantánea.
+                  <span class="font-semibold" style="color: #ffb700;">Zita Polyphase Resampler (Baja Latencia):</span> Banco de filtros polifase Hann² ultrarrápido y de latencia ultra baja, ideal para monitorización instantánea.
                 {:else if audioSettings.resamplingQuality === 'speexdsp'}
-                  <span class="text-pink-400 font-semibold">SpeexDSP Polyphase (Eficiencia):</span> Resampler polifásico estándar de alta eficiencia con ventana Hann de 32 fases optimizado para bajo consumo de CPU.
+                  <span class="font-semibold" style="color: #ff5722;">SpeexDSP Polyphase (Eficiencia):</span> Resampler polifásico estándar de alta eficiencia con ventana Hann de 32 fases optimizado para bajo consumo de CPU.
                 {:else}
-                  <span class="text-slate-400 font-semibold">Float32 PipeWire:</span> Enrutamiento compartido a través del servidor de audio PipeWire / PulseAudio en coma flotante de 32 bits con soporte multicanal y DSP.
+                  <span class="font-semibold" style="color: #6366f1;">Float32 PipeWire (Compartido):</span> Enrutamiento compartido a través del servidor de audio PipeWire / PulseAudio en coma flotante de 32 bits con soporte multicanal y DSP.
                 {/if}
               </div>
             </div>

@@ -85,7 +85,7 @@
         size={14}
         style={isBitPerfect ? `color: ${appearance.accentColor}` : undefined}
       />
-      <span>{isBitPerfect ? "ALSA BIT-PERFECT: ACTIVADO" : "MODO COMPARTIDO (PIPEWIRE)"}</span>
+      <span>{isBitPerfect ? "Bit-Perfect (ALSA): Activado" : "Modo compartido (PipeWire)"}</span>
     </button>
 
     <div class="space-y-2 p-2.5 rounded-lg bg-slate-950 border border-slate-800 text-[10px] text-slate-300">

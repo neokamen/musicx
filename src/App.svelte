@@ -428,8 +428,8 @@
         </span>
         <span class="hidden lg:inline-flex self-end mb-[5px] -translate-y-[5px] items-center gap-1.5 whitespace-nowrap text-[10px] font-mono">
           <span
-            class="h-1.5 w-1.5 rounded-full"
-            style="background: {(AUDIO_ENGINES.find((e) => e.id === $useMusicStore.audioSettings.resamplingQuality) || AUDIO_ENGINES[0]).id === 'rubato' ? ($useMusicStore.appearance.accentColor || '#06b6d4') : (AUDIO_ENGINES.find((e) => e.id === $useMusicStore.audioSettings.resamplingQuality) || AUDIO_ENGINES[0]).color};"
+            class="h-1.5 w-1.5 rounded-full transition-all duration-300"
+            style="background: {(AUDIO_ENGINES.find((e) => e.id === $useMusicStore.audioSettings.resamplingQuality) || AUDIO_ENGINES[0]).color}; box-shadow: 0 0 8px {(AUDIO_ENGINES.find((e) => e.id === $useMusicStore.audioSettings.resamplingQuality) || AUDIO_ENGINES[0]).color};"
           ></span>
           <span class="text-slate-400 font-medium">
             {#if $useMusicStore.audioSettings.resamplingQuality === 'bit_perfect' || $useMusicStore.telemetry.is_bit_perfect}

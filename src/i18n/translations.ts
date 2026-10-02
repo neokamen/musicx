@@ -143,8 +143,8 @@ export const translations: Record<Language, TranslationDictionary> = {
     miniPlayer: 'Activar mini reproductor',
     theAudioPlayer: 'THE AUDIO PLAYER',
     inPlay: 'In Play:',
-    bitPerfectAlsa: 'ALSA / BIT-PERFECT',
-    sharedPipewire: 'PIPEWIRE / COMPARTIDO',
+    bitPerfectAlsa: 'Bit-Perfect (ALSA)',
+    sharedPipewire: 'PipeWire / Compartido',
 
     // Appearance
     accentColor: 'Color de acento',
@@ -265,8 +265,8 @@ export const translations: Record<Language, TranslationDictionary> = {
     miniPlayer: 'Activar mini reproductor',
     theAudioPlayer: "EL REPRODUCTOR D'ÀUDIO",
     inPlay: 'En Reproducció:',
-    bitPerfectAlsa: 'ALSA / BIT-PERFECT',
-    sharedPipewire: 'PIPEWIRE / COMPARTIT',
+    bitPerfectAlsa: 'Bit-Perfect (ALSA)',
+    sharedPipewire: 'PipeWire / Compartit',
 
     // Appearance
     accentColor: 'Color de destacament',
@@ -387,8 +387,8 @@ export const translations: Record<Language, TranslationDictionary> = {
     miniPlayer: 'Switch to mini player',
     theAudioPlayer: 'THE AUDIO PLAYER',
     inPlay: 'In Play:',
-    bitPerfectAlsa: 'ALSA / BIT-PERFECT',
-    sharedPipewire: 'PIPEWIRE / SHARED',
+    bitPerfectAlsa: 'Bit-Perfect (ALSA)',
+    sharedPipewire: 'PipeWire / Shared',
 
     // Appearance
     accentColor: 'Accent Color',
