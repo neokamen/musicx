@@ -1,4 +1,4 @@
-use crate::audio::{get_available_audio_devices, AudioCommand};
+use crate::audio::{get_available_audio_devices, AudioCommand, ResamplingEngine};
 use crate::db::{self, DatabaseManager};
 use crate::fs_lazy;
 use crate::models::{AudioTelemetry, BufferTelemetry, FileEntry, TrackMetadata};
@@ -110,6 +110,13 @@ pub fn set_output_device(
         device_name,
         bit_perfect: bit_perfect.unwrap_or(false),
     });
+    Ok(())
+}
+
+#[tauri::command]
+pub fn set_audio_engine(engine: String, state: State<'_, AppState>) -> Result<(), String> {
+    let eng = ResamplingEngine::from_str(&engine);
+    state.audio.set_audio_engine(eng);
     Ok(())
 }
 

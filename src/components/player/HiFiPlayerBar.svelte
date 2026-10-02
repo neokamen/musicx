@@ -224,17 +224,21 @@
 
   let currentAudioEngine = $derived(
     AUDIO_ENGINES.find((e) => e.id === audioSettings?.resamplingQuality) ||
-    (bitPerfectMode ? AUDIO_ENGINES[0] : AUDIO_ENGINES[3])
+    (bitPerfectMode ? AUDIO_ENGINES[0] : AUDIO_ENGINES[AUDIO_ENGINES.length - 1])
   );
 
   let engineColor = $derived(
     currentAudioEngine.id === "bit_perfect"
       ? "#10b981"
-      : currentAudioEngine.id === "symphonia_192k"
-        ? "#a855f7"
-        : currentAudioEngine.id === "symphonia_96k"
-          ? (accentColor || "#06b6d4")
-          : "#64748b"
+      : currentAudioEngine.id === "rubato"
+        ? (accentColor || "#06b6d4")
+        : currentAudioEngine.id === "soxr"
+          ? "#3b82f6"
+          : currentAudioEngine.id === "r8brain"
+            ? "#8b5cf6"
+            : currentAudioEngine.id === "zita"
+              ? "#f59e0b"
+              : "#64748b"
   );
   let isEngineActive = $derived(currentAudioEngine.id !== "float32");
 

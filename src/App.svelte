@@ -429,13 +429,17 @@
         <span class="hidden lg:inline-flex self-end mb-[5px] -translate-y-[5px] items-center gap-1.5 whitespace-nowrap text-[10px] font-mono">
           <span
             class="h-1.5 w-1.5 rounded-full"
-            style="background: {$useMusicStore.audioSettings.resamplingQuality === 'symphonia_192k' ? '#a855f7' : $useMusicStore.audioSettings.resamplingQuality === 'symphonia_96k' ? ($useMusicStore.appearance.accentColor || '#06b6d4') : ($useMusicStore.audioSettings.resamplingQuality === 'bit_perfect' || $useMusicStore.telemetry.is_bit_perfect) ? '#10b981' : '#64748b'};"
+            style="background: {$useMusicStore.audioSettings.resamplingQuality === 'rubato' ? ($useMusicStore.appearance.accentColor || '#06b6d4') : $useMusicStore.audioSettings.resamplingQuality === 'soxr' ? '#3b82f6' : $useMusicStore.audioSettings.resamplingQuality === 'r8brain' ? '#8b5cf6' : $useMusicStore.audioSettings.resamplingQuality === 'zita' ? '#f59e0b' : ($useMusicStore.audioSettings.resamplingQuality === 'bit_perfect' || $useMusicStore.telemetry.is_bit_perfect) ? '#10b981' : '#64748b'};"
           ></span>
           <span class="text-slate-400 font-medium">
-            {#if $useMusicStore.audioSettings.resamplingQuality === 'symphonia_192k'}
-              Symphonia 192 kHz
-            {:else if $useMusicStore.audioSettings.resamplingQuality === 'symphonia_96k'}
-              Symphonia 96 kHz
+            {#if $useMusicStore.audioSettings.resamplingQuality === 'rubato'}
+              Rubato Sinc Hi-Fi
+            {:else if $useMusicStore.audioSettings.resamplingQuality === 'soxr'}
+              Libsoxr VHQ
+            {:else if $useMusicStore.audioSettings.resamplingQuality === 'r8brain'}
+              r8brain Free SRC
+            {:else if $useMusicStore.audioSettings.resamplingQuality === 'zita'}
+              Zita Resampler
             {:else if $useMusicStore.audioSettings.resamplingQuality === 'bit_perfect' || $useMusicStore.telemetry.is_bit_perfect}
               {t('bitPerfectAlsa', lang)}
             {:else}

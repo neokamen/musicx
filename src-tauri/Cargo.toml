@@ -1,6 +1,6 @@
 [package]
 name = "musicx"
-version = "0.3.32"
+version = "0.3.33"
 description = "musicx - the audio player (Hi-Fi local & network player)"
 authors = ["musicx team"]
 edition = "2021"
@@ -27,6 +27,7 @@ tokio = { version = "1", features = ["full"] }
 symphonia = { version = "0.5", features = ["all"] }
 cpal = "0.15"
 rustfft = "6.2"
+rubato = "0.16"
 
 # Database & fast multithreaded scanning
 rusqlite = { version = "0.32", features = ["bundled", "bundled-full"] }

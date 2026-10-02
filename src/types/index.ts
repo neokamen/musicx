@@ -40,6 +40,7 @@ export interface AudioTelemetry {
   channels: number;
   volume: number;
   is_bit_perfect: boolean;
+  audio_engine?: string;
   output_device: string;
   track_title: string | null;
   track_artist: string | null;
@@ -63,6 +64,7 @@ export interface BackendTelemetryPayload {
   bitrate_kbps: number;
   volume: number;
   bit_perfect: boolean;
+  audio_engine?: string;
   output_device: string;
   track_title: string | null;
   track_artist: string | null;

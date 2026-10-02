@@ -98,6 +98,7 @@ pub fn run() {
             commands::seek_track,
             commands::set_volume,
             commands::set_output_device,
+            commands::set_audio_engine,
             commands::set_dsp_settings,
             commands::list_audio_devices,
             commands::get_library_tracks,

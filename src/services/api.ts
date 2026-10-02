@@ -21,6 +21,7 @@ export function normalizeTelemetry(payload: BackendTelemetryPayload): AudioTelem
     channels: payload.channels,
     volume: payload.volume,
     is_bit_perfect: payload.bit_perfect,
+    audio_engine: payload.audio_engine,
     output_device: payload.output_device,
     track_title: payload.track_title,
     track_artist: payload.track_artist,
@@ -91,6 +92,10 @@ export async function setBitPerfect(enabled: boolean): Promise<void> {
     deviceName: undefined,
     bitPerfect: enabled,
   });
+}
+
+export async function setAudioEngine(engine: string): Promise<void> {
+  return invoke<void>("set_audio_engine", { engine });
 }
 
 export async function setDspSettings(settings: {

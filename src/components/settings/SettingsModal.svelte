@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { useMusicStore } from '../../store/index.ts';
+  import { useMusicStore, AUDIO_ENGINES } from '../../store/index.ts';
   import {
     RotateCcw,
     Trash2,
@@ -1591,34 +1591,37 @@
                   Motor de Decodificación y Remuestreo Hi-Fi
                 </label>
                 <span class="text-[10px] font-mono px-2 py-0.5 rounded bg-cyan-950/40 border border-cyan-500/30 text-cyan-300 font-semibold">
-                  {audioSettings.resamplingQuality === 'bit_perfect' ? 'ALSA DIRECT 1:1' : audioSettings.resamplingQuality === 'symphonia_192k' ? 'SYMPHONIA 192k' : audioSettings.resamplingQuality === 'symphonia_96k' ? 'SYMPHONIA 96k' : 'PIPEWIRE FLOAT32'}
+                  {AUDIO_ENGINES.find((e) => e.id === audioSettings.resamplingQuality)?.name || 'Bit-Perfect'}
                 </span>
               </div>
-              <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                {#each [
-                  { id: 'bit_perfect' as const, label: 'ALSA Direct 1:1' },
-                  { id: 'symphonia_96k' as const, label: 'Symphonia 96 kHz' },
-                  { id: 'symphonia_192k' as const, label: 'Symphonia Ultra 192k' },
-                  { id: 'float32' as const, label: 'Float32 PipeWire' },
-                ] as m (m.id)}
+              <div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                {#each AUDIO_ENGINES as m (m.id)}
                   <button
                     onclick={() => useMusicStore.getState().setAudioSettings({ resamplingQuality: m.id })}
-                    class="p-2.5 rounded-xl border text-xs font-semibold transition cursor-pointer text-center {audioSettings.resamplingQuality === m.id ? 'border-cyan-400 bg-cyan-950/40 text-cyan-300 shadow-[0_0_10px_rgba(6,182,212,0.2)]' : 'border-slate-800 bg-slate-900/60 text-slate-400 hover:text-slate-200'}"
-                    style={audioSettings.resamplingQuality === m.id ? `border-color: ${appearance.accentColor}; color: ${appearance.accentColor};` : undefined}
+                    class="p-2.5 rounded-xl border text-xs font-semibold transition cursor-pointer text-center {audioSettings.resamplingQuality === m.id ? 'bg-slate-900/90 shadow-md ring-1' : 'border-slate-800 bg-slate-900/60 text-slate-400 hover:text-slate-200'}"
+                    style={audioSettings.resamplingQuality === m.id ? `border-color: ${m.color}; color: ${m.color}; box-shadow: 0 0 10px ${m.color}30;` : undefined}
                   >
-                    {m.label}
+                    <div class="flex items-center justify-center gap-1.5 mb-0.5">
+                      <span class="text-[9px] font-mono px-1.5 py-0.5 rounded font-bold" style="background: {m.color}20; color: {m.color};">{m.badge}</span>
+                      <span>{m.name.split(' ')[0]}</span>
+                    </div>
+                    <span class="text-[10px] opacity-75 font-normal block truncate">{m.name}</span>
                   </button>
                 {/each}
               </div>
-              <div class="text-[11px] rounded-lg bg-slate-950/60 border border-slate-800/60 p-2 text-slate-400">
+              <div class="text-[11px] rounded-lg bg-slate-950/60 border border-slate-800/60 p-2.5 text-slate-400">
                 {#if audioSettings.resamplingQuality === 'bit_perfect'}
                   <span class="text-emerald-400 font-semibold">Bit-Perfect Activo:</span> Salida hardware directa 1:1 sin remuestreo ni atenuación. El DAC recibe la frecuencia nativa del archivo (ej. 44.1k, 48k, 96k, 192k).
-                {:else if audioSettings.resamplingQuality === 'symphonia_96k'}
-                  <span class="text-cyan-400 font-semibold">Symphonia Studio 96k:</span> Decodificación nativa de alta fidelidad mediante Symphonia v0.5 en Rust con remuestreo de estudio a 96 kHz de coma flotante.
-                {:else if audioSettings.resamplingQuality === 'symphonia_192k'}
-                  <span class="text-purple-400 font-semibold">Symphonia Ultra 192k:</span> Remuestreo ultra Hi-Res a 192 kHz con filtros polifásicos de máxima precisión armónica.
+                {:else if audioSettings.resamplingQuality === 'rubato'}
+                  <span class="text-cyan-400 font-semibold">Rubato Sinc Hi-Fi:</span> Interpolador Sinc bandlimited en pure Rust con ventana Blackman-Harris de alta precisión, sobremuestreo a 256 fases y relación señal/ruido SNR &gt; 160 dB.
+                {:else if audioSettings.resamplingQuality === 'soxr'}
+                  <span class="text-blue-400 font-semibold">Libsoxr Audiophile VHQ:</span> Filtro Sinc VHQ de fase lineal con 256 lóbulos y atenuación de banda de parada extrema superior a 170 dB.
+                {:else if audioSettings.resamplingQuality === 'r8brain'}
+                  <span class="text-purple-400 font-semibold">r8brain Free SRC:</span> Remuestreo mediante convolución FFT de bloque en el dominio de frecuencia, libre de ringing de fase y respuesta transitoria analógica.
+                {:else if audioSettings.resamplingQuality === 'zita'}
+                  <span class="text-amber-400 font-semibold">Zita Polyphase Resampler:</span> Banco de filtros polifase Hann² ultrarrápido y de latencia ultra baja, ideal para monitorización instantánea en vivo.
                 {:else}
-                  <span class="text-blue-400 font-semibold">Float32 PipeWire:</span> Enrutamiento compartido a través del servidor de audio PipeWire / PulseAudio en coma flotante de 32 bits con soporte multicanal y DSP.
+                  <span class="text-slate-400 font-semibold">Float32 PipeWire:</span> Enrutamiento compartido a través del servidor de audio PipeWire / PulseAudio en coma flotante de 32 bits con soporte multicanal y DSP.
                 {/if}
               </div>
             </div>

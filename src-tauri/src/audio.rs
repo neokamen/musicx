@@ -18,6 +18,192 @@ use symphonia::core::io::MediaSourceStream;
 use symphonia::core::meta::MetadataOptions;
 use symphonia::core::probe::Hint;
 use symphonia::core::units::Time;
+use rubato::{Resampler, SincFixedIn, SincInterpolationParameters, SincInterpolationType, WindowFunction, FftFixedInOut};
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ResamplingEngine {
+    BitPerfect,
+    Rubato,
+    Soxr,
+    R8brain,
+    Zita,
+    Float32,
+}
+
+impl ResamplingEngine {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            ResamplingEngine::BitPerfect => "bit_perfect",
+            ResamplingEngine::Rubato => "rubato",
+            ResamplingEngine::Soxr => "soxr",
+            ResamplingEngine::R8brain => "r8brain",
+            ResamplingEngine::Zita => "zita",
+            ResamplingEngine::Float32 => "float32",
+        }
+    }
+
+    pub fn from_str(s: &str) -> Self {
+        match s.to_lowercase().as_str() {
+            "rubato" => ResamplingEngine::Rubato,
+            "soxr" => ResamplingEngine::Soxr,
+            "r8brain" => ResamplingEngine::R8brain,
+            "zita" => ResamplingEngine::Zita,
+            "float32" => ResamplingEngine::Float32,
+            _ => ResamplingEngine::BitPerfect,
+        }
+    }
+}
+
+enum ActiveResampler {
+    Sinc(SincFixedIn<f32>),
+    Fft(FftFixedInOut<f32>),
+}
+
+impl ActiveResampler {
+    pub fn process_chunk(&mut self, chunk: &[Vec<f32>]) -> Result<Vec<Vec<f32>>, String> {
+        match self {
+            ActiveResampler::Sinc(r) => r.process(chunk, None).map_err(|e| e.to_string()),
+            ActiveResampler::Fft(r) => r.process(chunk, None).map_err(|e| e.to_string()),
+        }
+    }
+
+    pub fn reset(&mut self) {
+        match self {
+            ActiveResampler::Sinc(r) => r.reset(),
+            ActiveResampler::Fft(r) => r.reset(),
+        }
+    }
+}
+
+pub struct ResamplingPipeline {
+    resampler: ActiveResampler,
+    input_buffers: Vec<Vec<f32>>,
+    chunk_size: usize,
+    channels: usize,
+}
+
+impl ResamplingPipeline {
+    pub fn new(
+        engine: ResamplingEngine,
+        source_sr: usize,
+        target_sr: usize,
+        channels: usize,
+    ) -> Result<Self, String> {
+        let chunk_size = 1024;
+        let ratio = target_sr as f64 / source_sr as f64;
+
+        let resampler = match engine {
+            ResamplingEngine::Rubato => {
+                let params = SincInterpolationParameters {
+                    sinc_len: 128,
+                    f_cutoff: 0.95,
+                    interpolation: SincInterpolationType::Cubic,
+                    oversampling_factor: 256,
+                    window: WindowFunction::BlackmanHarris,
+                };
+                ActiveResampler::Sinc(SincFixedIn::<f32>::new(ratio, 2.0, params, chunk_size, channels).map_err(|e| e.to_string())?)
+            }
+            ResamplingEngine::Soxr => {
+                let params = SincInterpolationParameters {
+                    sinc_len: 256,
+                    f_cutoff: 0.98,
+                    interpolation: SincInterpolationType::Cubic,
+                    oversampling_factor: 512,
+                    window: WindowFunction::BlackmanHarris2,
+                };
+                ActiveResampler::Sinc(SincFixedIn::<f32>::new(ratio, 2.0, params, chunk_size, channels).map_err(|e| e.to_string())?)
+            }
+            ResamplingEngine::R8brain => {
+                ActiveResampler::Fft(FftFixedInOut::<f32>::new(source_sr, target_sr, chunk_size, channels).map_err(|e| e.to_string())?)
+            }
+            ResamplingEngine::Zita => {
+                let params = SincInterpolationParameters {
+                    sinc_len: 64,
+                    f_cutoff: 0.92,
+                    interpolation: SincInterpolationType::Linear,
+                    oversampling_factor: 128,
+                    window: WindowFunction::Hann2,
+                };
+                ActiveResampler::Sinc(SincFixedIn::<f32>::new(ratio, 2.0, params, chunk_size, channels).map_err(|e| e.to_string())?)
+            }
+            _ => return Err("No resampler needed for BitPerfect or Float32".to_string()),
+        };
+
+        Ok(Self {
+            resampler,
+            input_buffers: vec![Vec::with_capacity(chunk_size * 2); channels],
+            chunk_size,
+            channels,
+        })
+    }
+
+    pub fn reset(&mut self) {
+        for buf in self.input_buffers.iter_mut() {
+            buf.clear();
+        }
+        self.resampler.reset();
+    }
+
+    pub fn push_planar_samples(&mut self, planes: &[&[f32]], output_interleaved: &mut Vec<f32>) {
+        let ch = self.channels.min(planes.len());
+        if ch == 0 || planes[0].is_empty() {
+            return;
+        }
+        let frames = planes[0].len();
+
+        for c in 0..ch {
+            self.input_buffers[c].extend_from_slice(&planes[c][..frames]);
+        }
+        if ch == 1 && self.channels == 2 {
+            self.input_buffers[1].extend_from_slice(&planes[0][..frames]);
+        }
+
+        while self.input_buffers[0].len() >= self.chunk_size {
+            let mut chunk = vec![Vec::with_capacity(self.chunk_size); self.channels];
+            for c in 0..self.channels {
+                chunk[c].extend(self.input_buffers[c].drain(..self.chunk_size));
+            }
+
+            if let Ok(resampled) = self.resampler.process_chunk(&chunk) {
+                if !resampled.is_empty() {
+                    let out_frames = resampled[0].len();
+                    for i in 0..out_frames {
+                        output_interleaved.push(resampled[0][i]);
+                        if self.channels > 1 {
+                            output_interleaved.push(resampled[1][i]);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    pub fn flush(&mut self, output_interleaved: &mut Vec<f32>) {
+        if self.input_buffers.is_empty() || self.input_buffers[0].is_empty() {
+            return;
+        }
+        let remaining = self.input_buffers[0].len();
+        for c in 0..self.channels {
+            self.input_buffers[c].resize(self.chunk_size, 0.0);
+        }
+        if let Ok(resampled) = self.resampler.process_chunk(&self.input_buffers) {
+            if !resampled.is_empty() {
+                let ratio = resampled[0].len() as f64 / self.chunk_size as f64;
+                let actual_out_frames = ((remaining as f64 * ratio).round() as usize).min(resampled[0].len());
+                for i in 0..actual_out_frames {
+                    output_interleaved.push(resampled[0][i]);
+                    if self.channels > 1 {
+                        output_interleaved.push(resampled[1][i]);
+                    }
+                }
+            }
+        }
+        for c in 0..self.channels {
+            self.input_buffers[c].clear();
+        }
+    }
+}
 
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub struct DspSettings {
@@ -49,6 +235,7 @@ pub enum AudioCommand {
     Seek(f64),
     SetVolume(f32),
     SetOutputDevice { device_name: Option<String>, bit_perfect: bool },
+    SetAudioEngine(ResamplingEngine),
     SetDspSettings(DspSettings),
     SetBufferSize(u32),
     ResetXruns,
@@ -133,6 +320,10 @@ impl AudioEngineHandle {
 
     pub fn reset_xruns(&self) {
         let _ = self.sender.send(AudioCommand::ResetXruns);
+    }
+
+    pub fn set_audio_engine(&self, engine: ResamplingEngine) {
+        let _ = self.sender.send(AudioCommand::SetAudioEngine(engine));
     }
 }
 
@@ -272,6 +463,8 @@ struct AudioEngineInternal {
     dsp_settings: Arc<Mutex<DspSettings>>,
     spectrum_fft: Arc<dyn Fft<f32>>,
     tempo_detector: TempoDetector,
+    resampling_engine: ResamplingEngine,
+    resampling_pipeline: Option<ResamplingPipeline>,
 }
 
 impl AudioEngineInternal {
@@ -310,6 +503,8 @@ impl AudioEngineInternal {
             dsp_settings: Arc::new(Mutex::new(DspSettings::default())),
             spectrum_fft,
             tempo_detector,
+            resampling_engine: ResamplingEngine::BitPerfect,
+            resampling_pipeline: None,
         }
     }
 
@@ -394,10 +589,49 @@ impl AudioEngineInternal {
                 }
                 self.update_telemetry();
             }
+            AudioCommand::SetAudioEngine(engine) => {
+                self.resampling_engine = engine;
+                self.bit_perfect = engine == ResamplingEngine::BitPerfect;
+                self.reconfigure_resampling_pipeline();
+                self.update_telemetry();
+            }
             AudioCommand::ResetXruns => {
                 self.underruns_count.store(0, Ordering::Relaxed);
                 self.overruns_count.store(0, Ordering::Relaxed);
             }
+        }
+    }
+
+    fn reconfigure_resampling_pipeline(&mut self) {
+        if let Some(ref source) = self.current_source {
+            let sr = source.sample_rate;
+            let ch = source.channels;
+            let target_sr = match self.resampling_engine {
+                ResamplingEngine::BitPerfect => sr,
+                ResamplingEngine::Rubato | ResamplingEngine::Soxr | ResamplingEngine::R8brain | ResamplingEngine::Zita => {
+                    if sr <= 48_000 {
+                        96_000
+                    } else {
+                        sr
+                    }
+                }
+                ResamplingEngine::Float32 => 48_000,
+            };
+
+            if target_sr != sr && self.resampling_engine != ResamplingEngine::BitPerfect && self.resampling_engine != ResamplingEngine::Float32 {
+                self.resampling_pipeline = ResamplingPipeline::new(self.resampling_engine, sr as usize, target_sr as usize, (ch as usize).max(1)).ok();
+            } else {
+                self.resampling_pipeline = None;
+            }
+
+            if self.active_sample_rate != target_sr {
+                self.active_sample_rate = target_sr;
+                if self.cpal_stream.is_some() {
+                    self.setup_cpal_stream();
+                }
+            }
+        } else {
+            self.resampling_pipeline = None;
         }
     }
 
@@ -411,6 +645,24 @@ impl AudioEngineInternal {
                 self.current_pos_secs = 0.0;
                 self.pcm_buffer.lock().unwrap().clear();
                 self.tempo_detector.reset();
+
+                let target_sr = match self.resampling_engine {
+                    ResamplingEngine::BitPerfect => sr,
+                    ResamplingEngine::Rubato | ResamplingEngine::Soxr | ResamplingEngine::R8brain | ResamplingEngine::Zita => {
+                        if sr <= 48_000 {
+                            96_000
+                        } else {
+                            sr
+                        }
+                    }
+                    ResamplingEngine::Float32 => 48_000,
+                };
+
+                if target_sr != sr && self.resampling_engine != ResamplingEngine::BitPerfect && self.resampling_engine != ResamplingEngine::Float32 {
+                    self.resampling_pipeline = ResamplingPipeline::new(self.resampling_engine, sr as usize, target_sr as usize, (ch as usize).max(1)).ok();
+                } else {
+                    self.resampling_pipeline = None;
+                }
 
                 let track_path = path.to_string();
                 {
@@ -433,8 +685,8 @@ impl AudioEngineInternal {
                     });
 
                 // Reconfigure CPAL stream if sample rate or channel configuration changed
-                if self.cpal_stream.is_none() || self.active_sample_rate != sr || self.active_channels != ch {
-                    self.active_sample_rate = sr;
+                if self.cpal_stream.is_none() || self.active_sample_rate != target_sr || self.active_channels != ch {
+                    self.active_sample_rate = target_sr;
                     self.active_channels = ch;
                     self.setup_cpal_stream();
                 }
@@ -459,6 +711,9 @@ impl AudioEngineInternal {
             ) {
                 let _ = source.decoder.reset();
                 self.pcm_buffer.lock().unwrap().clear();
+                if let Some(ref mut pipeline) = self.resampling_pipeline {
+                    pipeline.reset();
+                }
                 self.current_pos_secs = target_secs;
                 self.tempo_detector.reset();
             }
@@ -476,7 +731,12 @@ impl AudioEngineInternal {
                 Ok(packet) => {
                     if packet.track_id() == source.track_id {
                         if let Ok(decoded) = source.decoder.decode(&packet) {
-                            Self::convert_and_push(&decoded, &self.pcm_buffer, &self.overruns_count);
+                            Self::process_decoded_audio(
+                                &mut self.resampling_pipeline,
+                                &self.pcm_buffer,
+                                &self.overruns_count,
+                                &decoded,
+                            );
                         }
                     }
                     (None, false)
@@ -491,6 +751,16 @@ impl AudioEngineInternal {
         };
 
         if finished {
+            if let Some(ref mut pipeline) = self.resampling_pipeline {
+                let mut tail = Vec::new();
+                pipeline.flush(&mut tail);
+                if !tail.is_empty() {
+                    let mut target = self.pcm_buffer.lock().unwrap();
+                    for s in tail {
+                        target.push_back(s);
+                    }
+                }
+            }
             if let Some(next_path) = next_track {
                 // Gapless transition: instantly open next track into the stream
                 let _ = self.start_track(&next_path);
@@ -503,10 +773,12 @@ impl AudioEngineInternal {
         }
     }
 
-    fn convert_and_push(decoded: &AudioBufferRef, buffer: &Arc<Mutex<VecDeque<f32>>>, overruns_counter: &Arc<AtomicU64>) {
-        let mut target = buffer.lock().unwrap();
+    pub(crate) fn convert_and_push(
+        decoded: &AudioBufferRef,
+        buffer: &Arc<Mutex<VecDeque<f32>>>,
+        overruns_counter: &Arc<AtomicU64>,
+    ) {
         let max_capacity = 96_000 * 4; // Max ~2-4s of samples
-
         let mut samples_to_push = Vec::new();
         match decoded {
             AudioBufferRef::F32(buf) => {
@@ -579,15 +851,97 @@ impl AudioEngineInternal {
             _ => {}
         }
 
-        if target.len() + samples_to_push.len() > max_capacity {
-            overruns_counter.fetch_add(1, Ordering::Relaxed);
-            let drop_count = (target.len() + samples_to_push.len()) - max_capacity;
-            for _ in 0..drop_count.min(target.len()) {
-                target.pop_front();
+        if !samples_to_push.is_empty() {
+            let mut target = buffer.lock().unwrap();
+            if target.len() + samples_to_push.len() > max_capacity {
+                overruns_counter.fetch_add(1, Ordering::Relaxed);
+                let drop_count = (target.len() + samples_to_push.len()) - max_capacity;
+                for _ in 0..drop_count.min(target.len()) {
+                    target.pop_front();
+                }
+            }
+            for s in samples_to_push {
+                target.push_back(s);
             }
         }
-        for s in samples_to_push {
-            target.push_back(s);
+    }
+
+    fn process_decoded_audio(
+        pipeline: &mut Option<ResamplingPipeline>,
+        pcm_buffer: &Arc<Mutex<VecDeque<f32>>>,
+        overruns: &Arc<AtomicU64>,
+        decoded: &AudioBufferRef,
+    ) {
+        if let Some(ref mut pipe) = pipeline {
+            let max_capacity = 96_000 * 4;
+            let mut samples_to_push = Vec::new();
+            match decoded {
+                AudioBufferRef::F32(buf) => {
+                    let num_planes = buf.planes().planes().len();
+                    if num_planes == 1 {
+                        pipe.push_planar_samples(&[buf.chan(0)], &mut samples_to_push);
+                    } else if num_planes >= 2 {
+                        pipe.push_planar_samples(&[buf.chan(0), buf.chan(1)], &mut samples_to_push);
+                    }
+                }
+                AudioBufferRef::S16(buf) => {
+                    let num_planes = buf.planes().planes().len();
+                    let frames = buf.frames();
+                    if num_planes == 1 {
+                        let plane0: Vec<f32> = buf.chan(0).iter().map(|&s| f32::from_sample(s)).collect();
+                        pipe.push_planar_samples(&[&plane0], &mut samples_to_push);
+                    } else if num_planes >= 2 {
+                        let plane0: Vec<f32> = buf.chan(0)[..frames].iter().map(|&s| f32::from_sample(s)).collect();
+                        let plane1: Vec<f32> = buf.chan(1)[..frames].iter().map(|&s| f32::from_sample(s)).collect();
+                        pipe.push_planar_samples(&[&plane0, &plane1], &mut samples_to_push);
+                    }
+                }
+                AudioBufferRef::S24(buf) => {
+                    let num_planes = buf.planes().planes().len();
+                    let frames = buf.frames();
+                    if num_planes == 1 {
+                        let plane0: Vec<f32> = buf.chan(0).iter().map(|&s| f32::from_sample(s)).collect();
+                        pipe.push_planar_samples(&[&plane0], &mut samples_to_push);
+                    } else if num_planes >= 2 {
+                        let plane0: Vec<f32> = buf.chan(0)[..frames].iter().map(|&s| f32::from_sample(s)).collect();
+                        let plane1: Vec<f32> = buf.chan(1)[..frames].iter().map(|&s| f32::from_sample(s)).collect();
+                        pipe.push_planar_samples(&[&plane0, &plane1], &mut samples_to_push);
+                    }
+                }
+                AudioBufferRef::S32(buf) => {
+                    let num_planes = buf.planes().planes().len();
+                    let frames = buf.frames();
+                    if num_planes == 1 {
+                        let plane0: Vec<f32> = buf.chan(0).iter().map(|&s| f32::from_sample(s)).collect();
+                        pipe.push_planar_samples(&[&plane0], &mut samples_to_push);
+                    } else if num_planes >= 2 {
+                        let plane0: Vec<f32> = buf.chan(0)[..frames].iter().map(|&s| f32::from_sample(s)).collect();
+                        let plane1: Vec<f32> = buf.chan(1)[..frames].iter().map(|&s| f32::from_sample(s)).collect();
+                        pipe.push_planar_samples(&[&plane0, &plane1], &mut samples_to_push);
+                    }
+                }
+                AudioBufferRef::U8(buf) => {
+                    let plane0: Vec<f32> = buf.chan(0).iter().map(|&s| f32::from_sample(s)).collect();
+                    pipe.push_planar_samples(&[&plane0], &mut samples_to_push);
+                }
+                _ => {}
+            }
+
+            if !samples_to_push.is_empty() {
+                let mut target = pcm_buffer.lock().unwrap();
+                if target.len() + samples_to_push.len() > max_capacity {
+                    overruns.fetch_add(1, Ordering::Relaxed);
+                    let drop_count = (target.len() + samples_to_push.len()) - max_capacity;
+                    for _ in 0..drop_count.min(target.len()) {
+                        target.pop_front();
+                    }
+                }
+                for s in samples_to_push {
+                    target.push_back(s);
+                }
+            }
+        } else {
+            Self::convert_and_push(decoded, pcm_buffer, overruns);
         }
     }
 
@@ -720,6 +1074,7 @@ impl AudioEngineInternal {
         tele.current_position_secs = self.current_pos_secs;
         tele.volume = *self.volume.lock().unwrap();
         tele.bit_perfect = self.bit_perfect;
+        tele.audio_engine = self.resampling_engine.as_str().to_string();
         tele.output_device = self
             .output_device_name
             .clone()
@@ -1122,7 +1477,7 @@ mod spectrum_tests {
 
         let waveform = normalize_waveform_bins(&energy, &counts);
 
-        assert_eq!(waveform.len(), 192);
+        assert_eq!(waveform.len(), SEEKBAR_SPECTRUM_BINS);
         assert!(waveform[20] > 0.0 && waveform[20] < waveform[100]);
         assert_eq!(waveform[100], 1.0);
     }

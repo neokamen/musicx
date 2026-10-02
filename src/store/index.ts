@@ -57,13 +57,15 @@ export interface AppearanceState {
   marqueeDelay: number;
 }
 
-export type ResamplingQuality = "bit_perfect" | "symphonia_96k" | "symphonia_192k" | "float32";
+export type ResamplingQuality = "bit_perfect" | "rubato" | "soxr" | "r8brain" | "zita" | "float32";
 
 export const AUDIO_ENGINES = [
-  { id: "bit_perfect" as const, name: "Bit-Perfect (ALSA Direct 1:1)", badge: "1:1", description: "Salida hardware directa 1:1 sin remuestreo ni atenuación" },
-  { id: "symphonia_96k" as const, name: "Symphonia Studio 96 kHz", badge: "96k", description: "Decodificación nativa Symphonia a 96 kHz con coma flotante" },
-  { id: "symphonia_192k" as const, name: "Symphonia Ultra 192 kHz", badge: "192k", description: "Decodificación ultra Hi-Res Symphonia a 192 kHz" },
-  { id: "float32" as const, name: "PipeWire Float32 HD", badge: "FP32", description: "Enrutamiento compartido PipeWire en 32-bit float con DSP" },
+  { id: "bit_perfect" as const, name: "Bit-Perfect (ALSA Direct 1:1)", badge: "1:1", color: "#10b981", description: "Salida hardware directa 1:1 bit a bit sin remuestreo ni DSP" },
+  { id: "rubato" as const, name: "Rubato Sinc Hi-Fi", badge: "RUBA", color: "#06b6d4", description: "Interpolador Sinc Blackman-Harris de alta precisión (SNR > 160 dB)" },
+  { id: "soxr" as const, name: "Libsoxr Audiophile VHQ", badge: "SOXR", color: "#3b82f6", description: "Filtro VHQ de fase lineal con 256 lóbulos y corte empinado" },
+  { id: "r8brain" as const, name: "r8brain Free SRC", badge: "R8B", color: "#8b5cf6", description: "Remuestreo por convolución FFT de bloque en frecuencia" },
+  { id: "zita" as const, name: "Zita Polyphase Resampler", badge: "ZITA", color: "#f59e0b", description: "Banco de filtros polifase Hann² ultrarrápido y latencia ultra baja" },
+  { id: "float32" as const, name: "PipeWire Float32 HD", badge: "FP32", color: "#64748b", description: "Enrutamiento compartido PipeWire en coma flotante de 32 bits con DSP" },
 ] as const;
 
 export interface AudioSettingsState {
@@ -466,9 +468,14 @@ function loadStoredSettings(): {
         if (!savedAudio.bufferVersion || (bufferLatency === "ultra_low" && savedAudio.bufferVersion < 2)) {
           bufferLatency = "medium";
         }
+        const validEngines: ResamplingQuality[] = ["bit_perfect", "rubato", "soxr", "r8brain", "zita", "float32"];
+        let resamplingQuality: ResamplingQuality = savedAudio.resamplingQuality && validEngines.includes(savedAudio.resamplingQuality as ResamplingQuality)
+          ? (savedAudio.resamplingQuality as ResamplingQuality)
+          : "bit_perfect";
         const audioSettings: AudioSettingsState = {
           ...defaultAudioSettings,
           ...savedAudio,
+          resamplingQuality,
           bufferLatency,
           bufferVersion: 2,
         };
@@ -1187,6 +1194,7 @@ export const useMusicStore = create<MusicPlayerStore>((set, get) => ({
       if (patch.resamplingQuality !== undefined) {
         const isBp = patch.resamplingQuality === "bit_perfect";
         api.setBitPerfect(isBp).catch(() => {});
+        api.setAudioEngine(patch.resamplingQuality).catch(() => {});
       }
       if (patch.bufferLatency !== undefined) {
         const frameMap: Record<string, number> = {
@@ -1583,6 +1591,7 @@ export const useMusicStore = create<MusicPlayerStore>((set, get) => ({
     api.setAudioBufferSize(initialBufferFrames).catch(() => {});
     if (audio?.resamplingQuality) {
       api.setBitPerfect(audio.resamplingQuality === "bit_perfect").catch(() => {});
+      api.setAudioEngine(audio.resamplingQuality).catch(() => {});
     }
 
     radioAudioService.setVolume(get().volume);
