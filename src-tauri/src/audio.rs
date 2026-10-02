@@ -68,8 +68,8 @@ impl AudioEngineHandle {
         let (sender, receiver) = channel();
         let telemetry = Arc::new(Mutex::new(AudioTelemetry::default()));
         let buffer_telemetry = Arc::new(Mutex::new(BufferTelemetry::default()));
-        let requested_buffer_frames = Arc::new(AtomicU32::new(512));
-        let actual_buffer_frames = Arc::new(AtomicU32::new(512));
+        let requested_buffer_frames = Arc::new(AtomicU32::new(256));
+        let actual_buffer_frames = Arc::new(AtomicU32::new(256));
 
         let telemetry_clone = Arc::clone(&telemetry);
         let buffer_telemetry_clone = Arc::clone(&buffer_telemetry);
@@ -120,6 +120,13 @@ impl AudioEngineHandle {
             _ => 1024,
         };
         self.requested_buffer_frames.store(clamped, Ordering::Relaxed);
+        self.actual_buffer_frames.store(clamped, Ordering::Relaxed);
+        {
+            let mut bt = self.buffer_telemetry.lock().unwrap();
+            bt.hardware_buffer_frames = clamped;
+            let sr = bt.sample_rate.max(44100);
+            bt.latency_ms = ((clamped as f64 / sr as f64) * 1000.0 * 100.0).round() / 100.0;
+        }
         let _ = self.sender.send(AudioCommand::SetBufferSize(clamped));
         Ok(clamped)
     }
@@ -381,9 +388,11 @@ impl AudioEngineInternal {
             }
             AudioCommand::SetBufferSize(frames) => {
                 self.requested_buffer_frames.store(frames, Ordering::Relaxed);
+                self.actual_buffer_frames.store(frames, Ordering::Relaxed);
                 if self.cpal_stream.is_some() {
                     self.setup_cpal_stream();
                 }
+                self.update_telemetry();
             }
             AudioCommand::ResetXruns => {
                 self.underruns_count.store(0, Ordering::Relaxed);
@@ -615,15 +624,10 @@ impl AudioEngineInternal {
         let samples_counter = Arc::clone(&self.samples_rendered);
         let dsp_settings_clone = Arc::clone(&self.dsp_settings);
         let underruns_counter = Arc::clone(&self.underruns_count);
-        let actual_bf_clone = Arc::clone(&self.actual_buffer_frames);
-        let channels_count = self.active_channels.max(1) as usize;
 
         let err_fn = |err| eprintln!("[musicx cpal stream error]: {}", err);
 
         let callback = move |data: &mut [f32], _: &cpal::OutputCallbackInfo| {
-            let frames_in_buf = (data.len() / channels_count) as u32;
-            actual_bf_clone.store(frames_in_buf, Ordering::Relaxed);
-
             let playing = is_playing_clone.load(Ordering::Relaxed);
             let vol = *volume_clone.lock().unwrap();
             let dsp = dsp_settings_clone.lock().unwrap().clone();
@@ -692,6 +696,8 @@ impl AudioEngineInternal {
             Ok(stream) => {
                 let _ = stream.play();
                 self.cpal_stream = Some(stream);
+                self.actual_buffer_frames.store(req_frames, Ordering::Relaxed);
+                self.update_telemetry();
             }
             Err(e) => {
                 eprintln!("[musicx audio core] Fallo al crear stream CPAL: {}", e);
@@ -787,7 +793,7 @@ impl AudioEngineInternal {
             let cap_frames = buf_lock.capacity() / ch;
             (frames, cap_frames.max(1))
         };
-        let hw_frames = self.actual_buffer_frames.load(Ordering::Relaxed);
+        let hw_frames = self.actual_buffer_frames.load(Ordering::Relaxed).max(self.requested_buffer_frames.load(Ordering::Relaxed));
         let sr = self.active_sample_rate.max(1);
         let latency_ms = (hw_frames as f64 / sr as f64) * 1000.0;
         let underruns = self.underruns_count.load(Ordering::Relaxed);

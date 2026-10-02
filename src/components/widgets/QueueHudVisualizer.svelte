@@ -89,28 +89,25 @@
 
           if (isPlayed) {
             const grad = ctx.createLinearGradient(0, centerY - barH, 0, centerY + barH);
-            grad.addColorStop(0, accentColor);
-            grad.addColorStop(0.5, "#ffffff");
-            grad.addColorStop(1, accentColor);
+            grad.addColorStop(0, `${accentColor}99`);
+            grad.addColorStop(0.5, `${accentColor}dd`);
+            grad.addColorStop(1, `${accentColor}99`);
             ctx.fillStyle = grad;
           } else {
-            ctx.fillStyle = `${accentColor}25`;
+            ctx.fillStyle = `${accentColor}38`;
           }
 
           ctx.fillRect(x, centerY - barH, barW, barH * 2);
         }
 
-        // Center horizon line
-        ctx.fillStyle = `${accentColor}25`;
+        // Center horizon line (subtle)
+        ctx.fillStyle = `${accentColor}18`;
         ctx.fillRect(0, centerY - 0.5, width, 1);
 
-        // Playhead indicator
+        // Playhead indicator (subtle 1px needle without harsh glow)
         if (duration > 0 || isPlaying) {
-          ctx.fillStyle = "#ffffff";
-          ctx.shadowColor = accentColor;
-          ctx.shadowBlur = 6;
-          ctx.fillRect(Math.max(0, cursorX - 0.75), 0, 1.5, height);
-          ctx.shadowBlur = 0;
+          ctx.fillStyle = `${accentColor}bb`;
+          ctx.fillRect(Math.max(0, cursorX - 0.5), centerY - maxH * 1.02, 1, maxH * 2.04);
         }
       }
 

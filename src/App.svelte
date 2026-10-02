@@ -426,8 +426,20 @@
           <span style="color: {$useMusicStore.appearance.accentColor || '#06b6d4'};">{t('inPlay', lang)}</span>
           <span>{listenedDuration}</span>
         </span>
-        <span class="hidden lg:inline-flex self-end mb-[5px] -translate-y-[5px] items-center whitespace-nowrap text-[10px] text-slate-500">
-          {$useMusicStore.telemetry.is_bit_perfect ? t('bitPerfectAlsa', lang) : t('sharedPipewire', lang)}
+        <span class="hidden lg:inline-flex self-end mb-[5px] -translate-y-[5px] items-center gap-1.5 whitespace-nowrap text-[10px] font-mono">
+          <span
+            class="h-1.5 w-1.5 rounded-full"
+            style="background: {$useMusicStore.audioSettings.resamplingQuality === 'symphonia_96k' ? ($useMusicStore.appearance.accentColor || '#06b6d4') : ($useMusicStore.audioSettings.resamplingQuality === 'bit_perfect' || $useMusicStore.telemetry.is_bit_perfect) ? '#10b981' : '#64748b'};"
+          ></span>
+          <span style={$useMusicStore.audioSettings.resamplingQuality === 'symphonia_96k' ? `color: ${$useMusicStore.appearance.accentColor || '#06b6d4'}; font-weight: 600;` : 'color: #94a3b8;'}>
+            {#if $useMusicStore.audioSettings.resamplingQuality === 'symphonia_96k'}
+              Symphonia 96 kHz
+            {:else if $useMusicStore.audioSettings.resamplingQuality === 'bit_perfect' || $useMusicStore.telemetry.is_bit_perfect}
+              {t('bitPerfectAlsa', lang)}
+            {:else}
+              {t('sharedPipewire', lang)}
+            {/if}
+          </span>
         </span>
       </div>
 

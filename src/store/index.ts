@@ -60,7 +60,7 @@ export interface AppearanceState {
 export interface AudioSettingsState {
   allowExtraVolumeBoost: boolean;
   resamplingQuality: "bit_perfect" | "symphonia_96k" | "float32";
-  bufferLatency: "ultra_low" | "low" | "stable";
+  bufferLatency: "ultra_low" | "low" | "medium" | "stable";
   crossfadeMs: number;
   ditherEngine: "tpdf" | "none";
   isEqEnabled: boolean;
@@ -282,7 +282,7 @@ const defaultAppearance: AppearanceState = {
 const defaultAudioSettings: AudioSettingsState = {
   allowExtraVolumeBoost: true,
   resamplingQuality: "bit_perfect",
-  bufferLatency: "ultra_low",
+  bufferLatency: "low",
   crossfadeMs: 0,
   ditherEngine: "tpdf",
   isEqEnabled: false,
@@ -1169,9 +1169,10 @@ export const useMusicStore = create<MusicPlayerStore>((set, get) => ({
         const frameMap: Record<string, number> = {
           ultra_low: 64,
           low: 256,
+          medium: 512,
           stable: 1024,
         };
-        const frames = frameMap[patch.bufferLatency] || 512;
+        const frames = frameMap[patch.bufferLatency] || 256;
         api.setAudioBufferSize(frames).catch(() => {});
       }
       radioAudioService.setDspSettings({

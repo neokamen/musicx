@@ -44,22 +44,24 @@
     if (isStream) {
       if (track.bitrate_kbps > 0) {
         const sr = track.sample_rate > 0 ? Math.round(track.sample_rate / 1000) : 48;
-        return `${track.bitrate_kbps}k / ${sr}z`;
+        const brStr = String(track.bitrate_kbps).padStart(4, "\u00A0");
+        return `${brStr}k / ${sr}z`;
       }
-      return "Live";
+      return "  Stream   ";
     }
 
     const isCurrent = telemetry.filepath && track.filepath === telemetry.filepath;
     const bitrate = isCurrent && telemetry.bitrate ? telemetry.bitrate : track.bitrate_kbps;
     const sampleRate = isCurrent && telemetry.sample_rate ? telemetry.sample_rate : track.sample_rate;
 
-    const br = bitrate > 0 ? `${bitrate}k` : "";
-    const hz = sampleRate > 0 ? `${Math.round(sampleRate / 1000)}z` : "";
+    const hzNum = sampleRate > 0 ? Math.round(sampleRate / 1000) : 44;
+    const brNum = bitrate > 0 ? bitrate : 0;
 
-    if (br && hz) return `${br} / ${hz}`;
-    if (br) return br;
-    if (hz) return hz;
-    return "—";
+    if (brNum > 0) {
+      const brStr = String(brNum).padStart(4, "\u00A0");
+      return `${brStr}k / ${hzNum}z`;
+    }
+    return "   — / —   ";
   }
 
   let queue = $derived($useMusicStore.queue);
@@ -73,6 +75,7 @@
   let volume = $derived($useMusicStore.volume);
   let lang = $derived($useMusicStore.language);
   let bitPerfectMode = $derived($useMusicStore.bitPerfectMode);
+  let audioSettings = $derived($useMusicStore.audioSettings);
 
   let showRadio = $state(false);
   let queueHudMode = $state(0);
@@ -196,8 +199,8 @@
         type: "cells" as const,
         cells: [
           { k: "Driver", v: (telemetry.output_device || "ALSA").split(" ")[0] },
-          { k: "Stream", v: bitPerfectMode ? "Bit-Perfect" : "PipeWire" },
-          { k: "Buffer", v: "1024 spls" },
+          { k: "Stream", v: audioSettings.resamplingQuality === "symphonia_96k" ? "Symphonia 96k" : bitPerfectMode ? "Bit-Perfect" : "PipeWire" },
+          { k: "Buffer", v: `${audioSettings.bufferLatency === "ultra_low" ? 64 : audioSettings.bufferLatency === "low" ? 256 : audioSettings.bufferLatency === "medium" ? 512 : 1024} spls` },
           { k: "Volumen", v: `${Math.round(volume * 100)}%` },
         ],
       },
@@ -467,7 +470,7 @@
               </span>
             {/if}
             {#if visibleCols.bitrate}
-              <span class="truncate text-[10px] font-mono text-audiophile-muted tabular-nums">
+              <span class="truncate text-[10px] font-mono text-audiophile-muted tabular-nums whitespace-pre">
                 {queueQualityLabel(track)}
               </span>
             {/if}
@@ -511,7 +514,7 @@
     >
       <div class="flex items-center gap-2.5 w-full h-full">
         <!-- Vertical Pagination Dots at the extreme left (100% round dots, illuminated point) -->
-        <div class="flex flex-col items-center justify-center gap-1 shrink-0 py-0.5" role="tablist">
+        <div class="flex flex-col items-center justify-center shrink-0 h-full gap-0.5" role="tablist">
           {#each hudPanels as panel, index}
             <button
               type="button"
@@ -519,15 +522,15 @@
                 e.stopPropagation();
                 queueHudMode = index;
               }}
-              class="group relative flex items-center justify-center p-0.5 cursor-pointer focus:outline-none"
+              class="group relative flex items-center justify-center w-3 h-[5px] p-0 cursor-pointer focus:outline-none"
               title={`${index + 1}/${hudPanels.length} · ${panel.label}`}
               aria-label={panel.label}
             >
               <span
-                class="transition-all duration-200 rounded-full block"
+                class="transition-all duration-200 rounded-full block shrink-0"
                 style={index === queueHudMode
-                  ? `width: 5px; height: 5px; background: #ffffff; box-shadow: 0 0 8px ${appearance.accentColor}, 0 0 2px ${appearance.accentColor}; outline: 1.5px solid ${appearance.accentColor};`
-                  : `width: 3.5px; height: 3.5px; background: ${appearance.accentColor}35;`}
+                  ? `width: 4.5px; height: 4.5px; background: #ffffff; box-shadow: 0 0 6px ${appearance.accentColor}, 0 0 2px ${appearance.accentColor}; outline: 1px solid ${appearance.accentColor};`
+                  : `width: 3px; height: 3px; background: ${appearance.accentColor}35;`}
               ></span>
             </button>
           {/each}

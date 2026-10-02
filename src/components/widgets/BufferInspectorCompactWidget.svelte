@@ -21,10 +21,10 @@
     buffer_capacity_frames: 88200,
     buffer_fill_frames: 0,
     buffer_fill_percent: 0,
-    hardware_buffer_frames: 512,
+    hardware_buffer_frames: 256,
     sample_rate: 44100,
     channels: 2,
-    latency_ms: 11.61,
+    latency_ms: 5.80,
     underruns: 0,
     overruns: 0,
     total_xruns: 0,
@@ -33,7 +33,7 @@
     is_active: false,
   });
 
-  let selectedBufferSize = $state<number>(512);
+  let selectedBufferSize = $state<number>(256);
   let isChangingBuffer = $state(false);
 
   let isRadioMode = $derived(Boolean(isRadioPlaying && activeRadioStation));
@@ -83,6 +83,17 @@
     try {
       const confirmed = await setAudioBufferSize(newSize);
       selectedBufferSize = confirmed;
+      telemetry.hardware_buffer_frames = confirmed;
+      telemetry.latency_ms = (confirmed / (telemetry.sample_rate || 44100)) * 1000;
+      const latMap: Record<number, "ultra_low" | "low" | "medium" | "stable"> = {
+        64: "ultra_low",
+        256: "low",
+        512: "medium",
+        1024: "stable",
+      };
+      if (latMap[confirmed]) {
+        useMusicStore.getState().setAudioSettings({ bufferLatency: latMap[confirmed] });
+      }
     } catch (e) {
       console.error("Failed to change buffer size:", e);
     } finally {
