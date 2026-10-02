@@ -4,7 +4,7 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import type { AudioTelemetry, FileNode, PlaybackState, RepeatMode, ScanStatus, Track } from "../types/index.ts";
 import * as api from "../services/api.ts";
 import type { Language } from "../i18n/translations.ts";
-import type { SpectrumStyle } from "../components/widgets/SpectrumVisualizer.tsx";
+import type { SpectrumStyle } from "../types/spectrum.ts";
 import type { TransportStyle } from "../lib/transportStyles.ts";
 import type { RadioStation } from "../types/radio.ts";
 import { radioAudioService } from "../services/radioAudioService.ts";

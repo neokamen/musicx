@@ -1,7 +1,7 @@
 {
   "name": "musicx-theaudioplayer",
   "private": true,
-  "version": "0.3.19",
+  "version": "0.3.20",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -11,23 +11,20 @@
     "tauri": "tauri"
   },
   "dependencies": {
-    "@tanstack/react-virtual": "^3.14.13",
+    "@lucide/svelte": "^1.50.0",
     "@tauri-apps/api": "^2",
     "@tauri-apps/plugin-dialog": "^2",
     "@tauri-apps/plugin-opener": "^2",
-    "lucide-react": "^1.48.0",
-    "react": "^19.1.0",
-    "react-dom": "^19.1.0",
-    "react-resizable-panels": "^4.13.3",
+    "lucide-svelte": "^1.0.1",
+    "svelte": "^5.57.1",
     "zustand": "^5.0.15"
   },
   "devDependencies": {
+    "@sveltejs/vite-plugin-svelte": "^7.3.1",
     "@tauri-apps/cli": "^2",
-    "@types/react": "^19.1.8",
-    "@types/react-dom": "^19.1.6",
-    "@vitejs/plugin-react": "^6.0.2",
     "autoprefixer": "^10.4.21",
     "postcss": "^8.5.3",
+    "svelte-check": "^4.7.6",
     "tailwindcss": "^3.4.17",
     "typescript": "~6.0.3",
     "vite": "^8.0.16"
