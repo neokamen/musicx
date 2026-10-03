@@ -89,6 +89,9 @@
     { id: 'aurora', label: 'Aurora' },
     { id: 'segments', label: 'Segmentos' },
     { id: 'ribbon', label: 'Ribbon' },
+    { id: 'waveform_bars', label: 'Onda Barras HD' },
+    { id: 'waveform_envelope', label: 'Onda Silueta Neón' },
+    { id: 'waveform_matrix', label: 'Onda Matriz LED' },
   ] as const;
 
   let isSettingsOpen = $derived($isSettingsOpenStore);
@@ -1559,6 +1562,30 @@
                           <span class="absolute inset-y-0 left-0 w-3/5" style="background: repeating-linear-gradient(135deg,#22d3ee 0px,#22d3ee 3px,#67e8f9 3px,#67e8f9 7px);"></span>
                           <span class="absolute inset-y-0 left-3/5 w-0.5 bg-white shadow-[0_0_8px_2px_white]"></span>
                         </span>
+                      {:else if style.id === 'waveform_bars'}
+                        <div class="flex h-full w-full items-center gap-[1px]">
+                          {#each [18, 35, 62, 85, 48, 70, 95, 40, 25, 60, 80, 50, 30, 75, 45, 20] as h, index}
+                            <span class="flex-1 rounded-[0.5px]" style="height: {h}%; background: {index < 10 ? 'var(--app-accent, #22d3ee)' : '#334155'};"></span>
+                          {/each}
+                        </div>
+                      {:else if style.id === 'waveform_envelope'}
+                        <svg viewBox="0 0 160 28" preserveAspectRatio="none" class="h-full w-full">
+                          <path d="M0 14 Q20 2 40 14 T80 14 T120 4 T160 14 Q140 24 120 14 T80 14 T40 24 T0 14" fill="var(--app-accent, #22d3ee)33" stroke="var(--app-accent, #22d3ee)" stroke-width="1.5" />
+                          <line x1="0" y1="14" x2="160" y2="14" stroke="rgba(255,255,255,0.2)" stroke-width="1" />
+                        </svg>
+                      {:else if style.id === 'waveform_matrix'}
+                        <div class="flex h-full w-full items-center justify-between gap-[2px] py-1">
+                          {#each [2, 4, 6, 7, 5, 8, 4, 3, 6, 5, 7, 3] as cells, col}
+                            <div class="flex flex-col-reverse justify-between flex-1 h-full gap-px">
+                              {#each Array.from({ length: 6 }) as _, row}
+                                <span
+                                  class="w-full rounded-[0.5px]"
+                                  style="height: 12%; background: {row < cells ? (row >= 5 ? '#ef4444' : row >= 4 ? '#f59e0b' : (col < 7 ? 'var(--app-accent, #22d3ee)' : '#475569')) : 'rgba(255,255,255,0.05)'};"
+                                ></span>
+                              {/each}
+                            </div>
+                          {/each}
+                        </div>
                       {/if}
                     </span>
                   </button>

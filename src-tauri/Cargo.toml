@@ -1,6 +1,6 @@
 [package]
 name = "musicx"
-version = "0.3.49"
+version = "0.3.50"
 description = "musicx - the audio player (Hi-Fi local & network player)"
 authors = ["musicx team"]
 edition = "2021"
@@ -43,6 +43,12 @@ ureq = { version = "2", features = ["tls"] }
 [target.'cfg(target_os = "linux")'.dependencies]
 mpris-player = "0.6"
 glib = "0.15"
+
+[profile.dev]
+opt-level = 1
+
+[profile.dev.package."*"]
+opt-level = 3
 
 [profile.release]
 codegen-units = 1

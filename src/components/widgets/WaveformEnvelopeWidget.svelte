@@ -4,7 +4,6 @@
 
   const musicStore = useMusicStore;
   let telemetry = $derived($musicStore.telemetry);
-  let currentTrack = $derived($musicStore.currentTrack);
   let appearance = $derived($musicStore.appearance);
   let accentColor = $derived(appearance.accentColor || "#06b6d4");
 
@@ -13,22 +12,13 @@
 
   let isHovering = $state(false);
   let hoverX = $state(0);
-  let hoverRatio = $state(0);
   let isDragging = $state(false);
-
-  function formatTime(sec: number): string {
-    if (!Number.isFinite(sec) || sec <= 0) return "00:00";
-    const m = Math.floor(sec / 60);
-    const s = Math.floor(sec % 60);
-    return `${m < 10 ? "0" : ""}${m}:${s < 10 ? "0" : ""}${s}`;
-  }
 
   let duration = $derived(
     telemetry.duration > 0
       ? telemetry.duration
-      : currentTrack?.duration_seconds || 0
+      : $musicStore.currentTrack?.duration_seconds || 0
   );
-  let currentTime = $derived(telemetry.current_time || 0);
 
   function handlePointerDown(e: PointerEvent) {
     if (!containerRef) return;
@@ -41,7 +31,6 @@
     if (!containerRef) return;
     const rect = containerRef.getBoundingClientRect();
     hoverX = Math.max(0, Math.min(rect.width, e.clientX - rect.left));
-    hoverRatio = rect.width > 0 ? hoverX / rect.width : 0;
     isHovering = true;
     if (isDragging) {
       updateSeekFromEvent(e);
@@ -275,7 +264,7 @@
   onpointermove={handlePointerMove}
   onpointerup={handlePointerUp}
   onpointerleave={handlePointerLeave}
-  class="relative w-full h-full min-h-[60px] flex flex-col justify-between p-2.5 rounded-xl border border-slate-800/80 bg-slate-950/90 shadow-inner select-none cursor-pointer overflow-hidden group"
+  class="relative w-full h-full min-h-[40px] rounded-xl border border-slate-800/80 bg-slate-950/90 shadow-inner select-none cursor-pointer overflow-hidden group p-2"
   title="Haz clic o arrastra para mover la pista"
 >
   <!-- Background Glow on Hover -->
@@ -284,44 +273,16 @@
     style="background: radial-gradient(circle at 50% 50%, {accentColor}, transparent 60%);"
   ></div>
 
-  <!-- Header: Track info -->
-  <div class="relative z-10 flex items-center justify-between text-xs font-mono pointer-events-none">
-    <div class="flex items-center gap-1.5 min-w-0">
-      <span class="w-1.5 h-1.5 rounded-full shrink-0 animate-pulse" style="background-color: {accentColor};"></span>
-      <span class="truncate font-semibold text-slate-200">
-        {currentTrack ? currentTrack.title : "Sin pista"}
-      </span>
-      {#if currentTrack?.artist}
-        <span class="truncate text-slate-500">&bull; {currentTrack.artist}</span>
-      {/if}
-    </div>
-    <span class="text-[10px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wider bg-slate-900 border border-slate-800 text-cyan-400">
-      Silueta Neón
-    </span>
-  </div>
-
   <!-- Waveform Canvas -->
-  <div class="relative flex-1 w-full my-1 overflow-hidden">
+  <div class="relative w-full h-full overflow-hidden">
     <canvas bind:this={canvasRef} class="w-full h-full block rounded"></canvas>
 
-    <!-- Interactive Hover Needle & Tooltip -->
+    <!-- Interactive Hover Needle -->
     {#if isHovering}
       <div
         class="pointer-events-none absolute top-0 bottom-0 w-px bg-white/70 shadow-[0_0_8px_#fff]"
         style="left: {hoverX}px;"
       ></div>
-      <div
-        class="pointer-events-none absolute -top-1 px-1.5 py-0.5 -translate-x-1/2 -translate-y-full rounded bg-slate-900/95 border border-slate-700 text-[10px] font-mono font-bold text-white shadow-lg whitespace-nowrap z-20"
-        style="left: {hoverX}px;"
-      >
-        {formatTime(hoverRatio * duration)}
-      </div>
     {/if}
-  </div>
-
-  <!-- Footer: Timers -->
-  <div class="relative z-10 flex items-center justify-between text-[11px] font-mono font-semibold pointer-events-none">
-    <span style="color: {accentColor};">{formatTime(currentTime)}</span>
-    <span class="text-slate-500">{formatTime(duration)}</span>
   </div>
 </div>

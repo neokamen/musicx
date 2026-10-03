@@ -104,7 +104,7 @@ export interface PlaybackSettingsState {
   gaplessPlayback: boolean;
   replayGainMode: "track" | "album" | "off";
   autoPlayOnDrop: boolean;
-  playerBarStyle: "classic" | "spectrum" | "hybrid" | "aurora" | "segments" | "ribbon";
+  playerBarStyle: "classic" | "spectrum" | "hybrid" | "aurora" | "segments" | "ribbon" | "waveform_bars" | "waveform_envelope" | "waveform_matrix";
   transportStyle: TransportStyle;
   showBpmInPlayer: boolean;
   playerBarWidth: number;

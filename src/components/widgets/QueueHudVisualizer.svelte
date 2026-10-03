@@ -24,55 +24,6 @@
 
   let canvasRef = $state<HTMLCanvasElement | null>(null);
 
-  let isHovering = $state(false);
-  let hoverX = $state(0);
-  let isDragging = $state(false);
-
-  function handlePointerDown(e: PointerEvent) {
-    if (mode !== "waveform") return;
-    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
-    isDragging = true;
-    updateSeek(e);
-  }
-
-  function handlePointerMove(e: PointerEvent) {
-    if (mode !== "waveform" || !canvasRef) return;
-    const rect = canvasRef.getBoundingClientRect();
-    hoverX = Math.max(0, Math.min(rect.width, e.clientX - rect.left));
-    isHovering = true;
-    if (isDragging) {
-      updateSeek(e);
-    }
-  }
-
-  function handlePointerUp(e: PointerEvent) {
-    if (isDragging) {
-      isDragging = false;
-      try {
-        (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
-      } catch {
-        // Ignore
-      }
-    }
-  }
-
-  function handlePointerLeave() {
-    if (!isDragging) {
-      isHovering = false;
-    }
-  }
-
-  function updateSeek(e: PointerEvent) {
-    if (!canvasRef) return;
-    const rect = canvasRef.getBoundingClientRect();
-    const ratio = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
-    const store = useMusicStore.getState();
-    const dur = store.telemetry.duration > 0 ? store.telemetry.duration : (store.currentTrack?.duration_seconds || 0);
-    if (dur > 0) {
-      store.seek(ratio * dur);
-    }
-  }
-
   onMount(() => {
     const canvas = canvasRef;
     if (!canvas) return;
@@ -565,23 +516,9 @@
   });
 </script>
 
-<!-- svelte-ignore a11y_no_static_element_interactions -->
-<div
-  class="relative w-full h-full overflow-hidden {mode === 'waveform' ? 'cursor-pointer' : ''}"
-  onpointerdown={handlePointerDown}
-  onpointermove={handlePointerMove}
-  onpointerup={handlePointerUp}
-  onpointerleave={handlePointerLeave}
->
+<div class="relative w-full h-full overflow-hidden select-none pointer-events-none">
   <canvas
     bind:this={canvasRef}
     class="w-full h-full block rounded"
   ></canvas>
-
-  {#if mode === "waveform" && isHovering}
-    <div
-      class="pointer-events-none absolute top-0 bottom-0 w-px bg-white/70 shadow-[0_0_6px_#fff]"
-      style="left: {hoverX}px;"
-    ></div>
-  {/if}
 </div>

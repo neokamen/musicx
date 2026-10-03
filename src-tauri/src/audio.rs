@@ -561,12 +561,15 @@ impl AudioEngineInternal {
             let playing = self.is_playing.load(Ordering::Relaxed);
 
             if playing {
-                // Keep PCM buffer filled (aim for at least 1-2 seconds of decoded audio)
-                let buffer_len = self.pcm_buffer.lock().unwrap().len();
                 let target_capacity = (self.active_sample_rate as usize * self.active_channels as usize) * 2;
 
-                if buffer_len < target_capacity {
+                let mut decode_iterations = 0;
+                while self.pcm_buffer.lock().unwrap().len() < target_capacity
+                    && self.current_source.is_some()
+                    && decode_iterations < 16
+                {
                     self.decode_next_packet();
+                    decode_iterations += 1;
                 }
 
                 // Update playhead telemetry
@@ -752,6 +755,17 @@ impl AudioEngineInternal {
                     self.setup_cpal_stream();
                 }
 
+                // Pre-decode initial packets so playback starts with a comfortable buffer cushion
+                let target_capacity = (self.active_sample_rate as usize * self.active_channels as usize) * 2;
+                let mut prefill = 0;
+                while self.pcm_buffer.lock().unwrap().len() < target_capacity
+                    && self.current_source.is_some()
+                    && prefill < 24
+                {
+                    self.decode_next_packet();
+                    prefill += 1;
+                }
+
                 self.is_playing.store(true, Ordering::Relaxed);
             }
             Err(e) => {
@@ -777,6 +791,17 @@ impl AudioEngineInternal {
                 }
                 self.current_pos_secs = target_secs;
                 self.tempo_detector.reset();
+
+                // Pre-decode initial packets after seeking
+                let target_capacity = (self.active_sample_rate as usize * self.active_channels as usize) * 2;
+                let mut prefill = 0;
+                while self.pcm_buffer.lock().unwrap().len() < target_capacity
+                    && self.current_source.is_some()
+                    && prefill < 24
+                {
+                    self.decode_next_packet();
+                    prefill += 1;
+                }
             }
         }
     }

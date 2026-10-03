@@ -178,7 +178,18 @@
   let liveSpectrum = $derived(progressData.spectrum || []);
 
   let seekbarStyle = $derived(playbackSettings?.playerBarStyle || "spectrum");
-  let isWaveSeekbar = $derived(seekbarStyle === "aurora" || (seekbarStyle as string) === "wave" || seekbarStyle === "hybrid");
+  let isTallerWaveform = $derived(
+    seekbarStyle === "waveform_bars" ||
+    seekbarStyle === "waveform_envelope" ||
+    seekbarStyle === "waveform_matrix"
+  );
+  let isWaveSeekbar = $derived(
+    seekbarStyle === "aurora" ||
+    (seekbarStyle as string) === "wave" ||
+    seekbarStyle === "hybrid" ||
+    seekbarStyle === "waveform_envelope"
+  );
+  let scrubberHoverX = $state<number | null>(null);
 
   let waveformSamples = $derived(
     isWaveSeekbar
@@ -394,7 +405,7 @@
     </div>
 
     <!-- Center block: Controls & Symmetrical Adaptive Seekbar -->
-    <div class="relative z-10 flex h-full w-full min-w-0 -translate-y-[6px] flex-col items-center justify-center gap-[6px]">
+    <div class="relative z-10 flex h-full w-full min-w-0 {isTallerWaveform ? '-translate-y-[2px] gap-[3px]' : '-translate-y-[6px] gap-[6px]'} flex-col items-center justify-center">
       <div class="flex shrink-0 items-center gap-2">
         <button
           onclick={() => useMusicStore.getState().toggleShuffle()}
@@ -448,7 +459,7 @@
         </button>
       </div>
 
-      <div bind:this={seekbarAreaRef} class="relative flex h-7 w-full min-w-0 items-center justify-center">
+      <div bind:this={seekbarAreaRef} class="relative flex {isTallerWaveform ? 'h-14' : 'h-7'} w-full min-w-0 items-center justify-center transition-[height] duration-200">
         <div
           class="relative flex h-full shrink-0 items-center justify-center"
           style="width: {playerBarWidth}%; flex: 0 0 {playerBarWidth}%;"
@@ -501,9 +512,23 @@
               <div
                 bind:this={scrubberRef}
                 onmousedown={handleMouseDownSeek}
-                class="flex-1 h-7 bg-slate-900/90 hover:bg-slate-900 border border-slate-800 rounded-lg px-2 flex items-center justify-between gap-[2px] cursor-pointer select-none relative overflow-hidden group shadow-inner transition-colors"
+                onmousemove={(e) => {
+                  const rect = e.currentTarget.getBoundingClientRect();
+                  scrubberHoverX = Math.max(0, Math.min(rect.width, e.clientX - rect.left));
+                }}
+                onmouseleave={() => {
+                  scrubberHoverX = null;
+                }}
+                class="flex-1 {isTallerWaveform ? 'h-14' : 'h-7'} bg-slate-900/90 hover:bg-slate-900 border border-slate-800 rounded-lg px-2 flex items-center justify-between gap-[2px] cursor-pointer select-none relative overflow-hidden group shadow-inner transition-[height,background-color] duration-200"
                 aria-label="Barra de reproducción; haz clic o arrastra para desplazarte"
               >
+                {#if scrubberHoverX !== null}
+                  <div
+                    class="pointer-events-none absolute top-0 bottom-0 w-px bg-white/70 shadow-[0_0_6px_#fff] z-30"
+                    style="left: {scrubberHoverX}px;"
+                  ></div>
+                {/if}
+
                 {#if seekbarStyle === "spectrum"}
                   {#each songPeaks as p, i (i)}
                     {@const isPassed = i <= activeBarIdx}
@@ -568,6 +593,54 @@
                       <div class="absolute inset-0 opacity-70" style="background: repeating-linear-gradient(135deg, rgba(255,255,255,0.72) 0px, rgba(255,255,255,0.72) 2px, transparent 2px, transparent 7px);"></div>
                     </div>
                     <div class="absolute inset-y-0 w-[2px] bg-white shadow-[0_0_10px_2px_white]" style="left: {progress * 100}%;"></div>
+                  </div>
+                {:else if seekbarStyle === "waveform_bars"}
+                  <div class="flex h-full w-full items-center gap-[1.5px] px-1 pointer-events-none">
+                    {#each songPeaks as p, i (i)}
+                      {@const isPassed = i <= activeBarIdx}
+                      {@const heightPct = Math.max(12, Math.floor(p * 94))}
+                      <div
+                        class="flex-1 rounded-[1px] transition-[height] duration-75"
+                        style="height: {heightPct}%; background-color: {isPassed ? accentColor : 'rgba(255, 255, 255, 0.16)'}; {isPassed ? `box-shadow: 0 0 6px ${accentColor}80;` : ''}"
+                      ></div>
+                    {/each}
+                  </div>
+                {:else if seekbarStyle === "waveform_envelope"}
+                  <div class="pointer-events-none absolute inset-0 overflow-hidden">
+                    <div class="absolute inset-0 opacity-25" style="background: radial-gradient(ellipse at center, {accentColor}55 0%, transparent 80%);"></div>
+                    <svg viewBox="0 0 1000 100" preserveAspectRatio="none" class="absolute inset-0 h-full w-full">
+                      <defs>
+                        <clipPath id="seek-envelope-progress">
+                          <rect x="0" y="0" width={progress * 1000} height="100" />
+                        </clipPath>
+                        <linearGradient id="seek-envelope-fill" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stop-color={accentColor} stop-opacity="0.85" />
+                          <stop offset="50%" stop-color={accentColor} stop-opacity="0.2" />
+                          <stop offset="100%" stop-color={accentColor} stop-opacity="0.85" />
+                        </linearGradient>
+                      </defs>
+                      <path d={waveformPath} fill="rgba(255,255,255,0.08)" stroke="rgba(255,255,255,0.3)" stroke-width="1.2" vector-effect="non-scaling-stroke" />
+                      <path d={waveformPath} fill="url(#seek-envelope-fill)" stroke={accentColor} stroke-width="2" vector-effect="non-scaling-stroke" clip-path="url(#seek-envelope-progress)" filter="drop-shadow(0 0 4px {accentColor})" />
+                      <line x1="0" y1="50" x2="1000" y2="50" stroke="{accentColor}44" stroke-width="1" vector-effect="non-scaling-stroke" />
+                    </svg>
+                    <div class="absolute inset-y-0 w-[2px] bg-white shadow-[0_0_10px_2px_white]" style="left: {progress * 100}%;"></div>
+                  </div>
+                {:else if seekbarStyle === "waveform_matrix"}
+                  <div class="flex h-full w-full items-center justify-between gap-[2px] px-1 pointer-events-none py-1.5">
+                    {#each songPeaks.slice(0, 72) as peak, colIdx}
+                      {@const isPassed = (colIdx / 72) <= progress}
+                      {@const litCells = Math.max(1, Math.round(peak * 8))}
+                      <div class="flex flex-col-reverse justify-between flex-1 h-full gap-[1.5px]">
+                        {#each Array.from({ length: 8 }) as _, rowIdx}
+                          {@const isLit = rowIdx < litCells}
+                          {@const cellColor = rowIdx >= 7 ? '#ef4444' : rowIdx >= 5 ? '#f59e0b' : accentColor}
+                          <span
+                            class="w-full rounded-[0.5px]"
+                            style="height: 10%; background-color: {isLit ? (isPassed ? cellColor : `${cellColor}40`) : 'rgba(255,255,255,0.04)'}; {isLit && isPassed ? `box-shadow: 0 0 3px ${cellColor};` : ''}"
+                          ></span>
+                        {/each}
+                      </div>
+                    {/each}
                   </div>
                 {/if}
               </div>
