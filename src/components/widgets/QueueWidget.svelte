@@ -547,9 +547,11 @@
       </div>
     {/if}
 
+    <!-- svelte-ignore a11y_no_static_element_interactions -->
     <div
-      class="border-t shrink-0 select-none transition-colors h-[50px] px-1.5 py-0.5 flex items-center bg-audiophile-surface"
+      class="border-t shrink-0 select-none transition-colors h-[50px] px-1.5 py-0.5 flex items-center bg-audiophile-surface cursor-pointer"
       style="border-color: {appearance.accentColor}25;"
+      ondblclick={() => { queueHudMode = (queueHudMode + 1) % hudPanels.length; }}
     >
       <div class="flex items-center gap-1.5 w-full h-full">
         <!-- Two columns/rows of 6 pagination dots (squeezed, minimal margins) -->

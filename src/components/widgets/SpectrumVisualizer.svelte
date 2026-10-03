@@ -57,6 +57,12 @@
     }
   }
 
+  function handleDoubleClick() {
+    const currentIndex = SPECTRUM_STYLES.findIndex((s) => s.id === visualStyle);
+    const nextIndex = (currentIndex + 1) % SPECTRUM_STYLES.length;
+    setStyleAndSave(SPECTRUM_STYLES[nextIndex].id);
+  }
+
   onMount(() => {
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
@@ -861,7 +867,8 @@
 
 <!-- svelte-ignore a11y_no_static_element_interactions -->
 <div
-  class="w-full h-full min-h-[30px] relative rounded-lg overflow-hidden border border-slate-800/80 bg-slate-950/90 shadow-inner group"
+  ondblclick={handleDoubleClick}
+  class="w-full h-full min-h-[30px] relative rounded-lg overflow-hidden border border-slate-800/80 bg-slate-950/90 shadow-inner group cursor-pointer"
   style:height={height ? `${height}px` : undefined}
   style={visualStyle === "retro_needle" || visualStyle === "retro_scope_meter"
     ? "background-color: var(--app-bg); border-color: var(--app-border)"
