@@ -1,8 +1,17 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { useMusicStore } from "../../store/index.ts";
+  import { useMusicStore, appearanceStore } from "../../store/index.ts";
   import type { SpectrumStyle } from "../../types/spectrum.ts";
   import { SPECTRUM_STYLES } from "../../types/spectrum.ts";
+
+  function toSafeHex(color: string | undefined, fallback: string = "#06b6d4"): string {
+    if (!color || typeof color !== "string") return fallback;
+    const trimmed = color.trim();
+    if (/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/.test(trimmed)) {
+      return trimmed;
+    }
+    return fallback;
+  }
 
   interface Props {
     height?: number;
@@ -13,7 +22,7 @@
   let { height, nodeKey, isEditing = false }: Props = $props();
 
   const musicStore = useMusicStore;
-  let appearance = $derived($musicStore.appearance);
+  let appearance = $derived($appearanceStore);
 
   let canvas = $state<HTMLCanvasElement | null>(null);
 
@@ -76,8 +85,8 @@
 
       const store = musicStore.getState();
       const currentTelemetry = store.telemetry;
-      const currentIsPlaying = (store.isPlaying || currentTelemetry.state === "Playing") &&
-        currentTelemetry.state !== "Stopped" && currentTelemetry.state !== "Paused";
+      const currentIsPlaying = Boolean(store.isPlaying || currentTelemetry.state === "Playing") &&
+        currentTelemetry.state !== "Paused";
       const currentVol = currentTelemetry.volume ?? store.volume ?? 1;
       const currentApp = store.appearance;
 
@@ -102,7 +111,7 @@
 
       if (w === 0 || h === 0) return;
 
-      const accent = currentApp.accentColor || "#06b6d4";
+      const accent = toSafeHex(currentApp.accentColor, "#06b6d4");
       const timeSec = now / 1000;
 
       const targetBands = currentTelemetry.spectrum && currentTelemetry.spectrum.length > 0
@@ -857,7 +866,7 @@
 <!-- svelte-ignore a11y_no_static_element_interactions -->
 <div
   ondblclick={handleDoubleClick}
-  class="w-full h-full relative rounded-lg overflow-hidden border border-slate-800/80 bg-slate-950/90 shadow-inner cursor-pointer group"
+  class="w-full h-full min-h-[30px] relative rounded-lg overflow-hidden border border-slate-800/80 bg-slate-950/90 shadow-inner cursor-pointer group"
   style:height={height ? `${height}px` : undefined}
   style={visualStyle === "retro_needle" || visualStyle === "retro_scope_meter"
     ? "background-color: var(--app-bg); border-color: var(--app-border)"

@@ -23,7 +23,7 @@
         return;
       }
     }
-    visualStyle = $useMusicStore.appearance.cavaStyle || "fluid";
+    visualStyle = useMusicStore.getState().appearance.cavaStyle || "fluid";
   });
 
   const setStyleAndSave = (newStyle: AppearanceState["cavaStyle"]) => {
@@ -51,7 +51,7 @@
     let canvasWidth = 0;
     let canvasHeight = 0;
 
-    const count = Math.max(16, Math.min(128, $useMusicStore.appearance.cavaBars || 64));
+    const count = Math.max(16, Math.min(128, useMusicStore.getState().appearance.cavaBars || 64));
     const levels = new Float32Array(count);
     const peaks = new Float32Array(count);
 
@@ -129,14 +129,14 @@
       const height = bounds.height;
       const spectrum = liveTelemetry.spectrum || [];
       const sensitivity = (liveAppearance.cavaSensitivity || 100) / 100;
-      const hasSignal = playing && (spectrum.some((value) => value > 0.002) || liveAppearance.cavaOfflineFallback);
+      const hasSignal = liveIsPlaying && (spectrum.some((value) => value > 0.002) || liveAppearance.cavaOfflineFallback);
       const smoothing = (liveAppearance.cavaSmoothing || 0) / 100;
 
       for (let index = 0; index < count; index++) {
         const sourceIndex = spectrum.length
           ? Math.min(spectrum.length - 1, Math.floor(index / count * spectrum.length))
           : -1;
-        const synthetic = liveAppearance.cavaOfflineFallback && playing
+        const synthetic = liveAppearance.cavaOfflineFallback && liveIsPlaying
           ? (0.08 + (Math.sin(elapsed * 4.1 + index * 0.21) + 1) * 0.16 + Math.sin(elapsed * 1.7 - index * 0.09) * 0.06)
           : 0;
         const target = sourceIndex >= 0
@@ -145,7 +145,7 @@
         const attackRate = liveAppearance.cavaGravity === "instant" ? 30 : 12 - smoothing * 8;
         const attack = Math.min(1, delta * attackRate);
         const release = (liveAppearance.cavaGravity === "studio" ? 1.8 : 3.2) * (1 - smoothing * 0.82);
-        if (playing && target > levels[index]) levels[index] += (target - levels[index]) * attack;
+        if (liveIsPlaying && target > levels[index]) levels[index] += (target - levels[index]) * attack;
         else levels[index] = Math.max(target, levels[index] - delta * release);
         peaks[index] = liveAppearance.cavaPeakHold
           ? Math.max(levels[index], peaks[index] - delta * release * 0.28)

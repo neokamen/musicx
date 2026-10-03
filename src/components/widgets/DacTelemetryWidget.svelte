@@ -1,32 +1,33 @@
 <script lang="ts">
   import { ShieldCheck, Cpu, Volume2 } from "@lucide/svelte";
-  import { useMusicStore } from "../../store/index.ts";
+  import {
+    audioFormatStore,
+    selectedDeviceStore,
+    appearanceStore,
+  } from "../../store/index.ts";
 
-  const musicStore = useMusicStore;
-  let telemetry = $derived($musicStore.telemetry);
-  let currentTrack = $derived($musicStore.currentTrack);
-  let bitPerfectMode = $derived($musicStore.bitPerfectMode);
-  let selectedDevice = $derived($musicStore.selectedDevice);
-  let appearance = $derived($musicStore.appearance);
+  let audioFormat = $derived($audioFormatStore);
+  let selectedDevice = $derived($selectedDeviceStore);
+  let appearance = $derived($appearanceStore);
 
-  let isBitPerfect = $derived(bitPerfectMode || telemetry.is_bit_perfect);
+  let isBitPerfect = $derived(audioFormat.is_bit_perfect);
   let sampleRateKhz = $derived(
-    telemetry.sample_rate > 0
-      ? (telemetry.sample_rate / 1000).toFixed(1)
+    audioFormat.sample_rate > 0
+      ? (audioFormat.sample_rate / 1000).toFixed(1)
       : "44.1"
   );
   let bitDepth = $derived(
-    telemetry.bits_per_sample > 0
-      ? `${telemetry.bits_per_sample}-bit`
+    audioFormat.bits_per_sample > 0
+      ? `${audioFormat.bits_per_sample}-bit`
       : "16-bit"
   );
-  let bitrate = $derived(telemetry.bitrate || currentTrack?.bitrate_kbps || 1411);
+  let bitrate = $derived(audioFormat.bitrate || 1411);
   let channels = $derived(
-    telemetry.channels === 1
+    audioFormat.channels === 1
       ? "1.0 Mono"
-      : telemetry.channels === 2
+      : audioFormat.channels === 2
         ? "2.0 Stereo"
-        : `${telemetry.channels || 2} ch`
+        : `${audioFormat.channels || 2} ch`
   );
 </script>
 

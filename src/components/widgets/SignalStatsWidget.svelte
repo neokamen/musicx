@@ -3,14 +3,15 @@
   import { Activity, Radio, Waves } from "@lucide/svelte";
   import type { BufferTelemetry } from "../../types/index.ts";
   import { getBufferTelemetry, onBufferTelemetry } from "../../services/api.ts";
-  import { useMusicStore } from "../../store/index.ts";
+  import {
+    audioFormatStore,
+    selectedDeviceStore,
+    appearanceStore,
+  } from "../../store/index.ts";
 
-  const musicStore = useMusicStore;
-  let audioTelemetry = $derived($musicStore.telemetry);
-  let currentTrack = $derived($musicStore.currentTrack);
-  let selectedDevice = $derived($musicStore.selectedDevice);
-  let bitPerfectMode = $derived($musicStore.bitPerfectMode);
-  let appearance = $derived($musicStore.appearance);
+  let audioFormat = $derived($audioFormatStore);
+  let selectedDevice = $derived($selectedDeviceStore);
+  let appearance = $derived($appearanceStore);
 
   let bufferTelemetry = $state<BufferTelemetry>({
     buffer_capacity_frames: 0,
@@ -49,11 +50,11 @@
     };
   });
 
-  let sampleRate = $derived(audioTelemetry.sample_rate || currentTrack?.sample_rate || 44100);
-  let bitDepth = $derived(audioTelemetry.bits_per_sample || currentTrack?.bit_depth || 16);
-  let bitrate = $derived(audioTelemetry.bitrate || currentTrack?.bitrate_kbps || 0);
-  let channelCount = $derived(audioTelemetry.channels || 2);
-  let output = $derived(audioTelemetry.output_device || selectedDevice || "Dispositivo predeterminado");
+  let sampleRate = $derived(audioFormat.sample_rate || 44100);
+  let bitDepth = $derived(audioFormat.bits_per_sample || 16);
+  let bitrate = $derived(audioFormat.bitrate || 0);
+  let channelCount = $derived(audioFormat.channels || 2);
+  let output = $derived(selectedDevice || "Dispositivo predeterminado");
 
   let statCells = $derived([
     { label: "Sample rate", value: `${(sampleRate / 1000).toFixed(1)} kHz` },

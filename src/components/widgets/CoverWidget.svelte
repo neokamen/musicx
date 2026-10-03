@@ -1,17 +1,21 @@
 <script lang="ts">
   import { Disc3, Music2 } from "@lucide/svelte";
-  import { useMusicStore } from "../../store/index.ts";
+  import {
+    useMusicStore,
+    currentTrackStore,
+    currentCoverArtStore,
+    appearanceStore,
+    isPlayingStore,
+  } from "../../store/index.ts";
 
-  const musicStore = useMusicStore;
-  let currentTrack = $derived($musicStore.currentTrack);
-  let telemetry = $derived($musicStore.telemetry);
-  let currentCoverArt = $derived($musicStore.currentCoverArt);
-  let appearance = $derived($musicStore.appearance);
+  let currentTrack = $derived($currentTrackStore);
+  let currentCoverArt = $derived($currentCoverArtStore);
+  let appearance = $derived($appearanceStore);
+  let isPlaying = $derived($isPlayingStore);
 
-  let title = $derived(telemetry.track_title || currentTrack?.title || "Musicx Hi-Fi");
-  let artist = $derived(telemetry.track_artist || currentTrack?.artist || "Listo para reproducir");
-  let album = $derived(telemetry.track_album || currentTrack?.album || "Sin Álbum");
-  let isPlaying = $derived(telemetry.state === "Playing");
+  let title = $derived(currentTrack?.title || "Musicx Hi-Fi");
+  let artist = $derived(currentTrack?.artist || "Listo para reproducir");
+  let album = $derived(currentTrack?.album || "Sin Álbum");
 </script>
 
 <div class="flex flex-col h-full w-full bg-audiophile-surface select-none font-sans overflow-hidden text-xs justify-center items-center p-3">

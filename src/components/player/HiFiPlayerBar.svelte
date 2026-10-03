@@ -1,6 +1,24 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { useMusicStore, AUDIO_ENGINES } from "../../store/index.ts";
+  import {
+    useMusicStore,
+    AUDIO_ENGINES,
+    isPlayingStore,
+    activeRadioStationStore,
+    volumeStore,
+    currentTrackStore,
+    currentCoverArtStore,
+    shuffleStore,
+    repeatStore,
+    audioSettingsStore,
+    playbackSettingsStore,
+    bitPerfectModeStore,
+    availableDevicesStore,
+    selectedDeviceStore,
+    appearanceStore,
+    languageStore,
+    playbackProgressStore,
+  } from "../../store/index.ts";
   import { TRANSPORT_STYLES } from "../../lib/transportStyles.ts";
   import { SOUNDIX_PRESETS } from "../../types/eq.ts";
   import {
@@ -58,21 +76,21 @@
 
   let { height, isEditing, onHeightChange }: Props = $props();
 
-  let isPlaying = $derived($useMusicStore.isPlaying);
-  let activeRadioStation = $derived($useMusicStore.activeRadioStation);
-  let volume = $derived($useMusicStore.volume);
-  let currentTrack = $derived($useMusicStore.currentTrack);
-  let telemetry = $derived($useMusicStore.telemetry);
-  let currentCoverArt = $derived($useMusicStore.currentCoverArt);
-  let shuffle = $derived($useMusicStore.shuffle);
-  let repeat = $derived($useMusicStore.repeat);
-  let audioSettings = $derived($useMusicStore.audioSettings);
-  let playbackSettings = $derived($useMusicStore.playbackSettings);
-  let bitPerfectMode = $derived($useMusicStore.bitPerfectMode);
-  let availableDevices = $derived($useMusicStore.availableDevices);
-  let selectedDevice = $derived($useMusicStore.selectedDevice);
-  let appearance = $derived($useMusicStore.appearance);
-  let lang = $derived($useMusicStore.language);
+  let isPlaying = $derived($isPlayingStore);
+  let activeRadioStation = $derived($activeRadioStationStore);
+  let volume = $derived($volumeStore);
+  let currentTrack = $derived($currentTrackStore);
+  let currentCoverArt = $derived($currentCoverArtStore);
+  let shuffle = $derived($shuffleStore);
+  let repeat = $derived($repeatStore);
+  let audioSettings = $derived($audioSettingsStore);
+  let playbackSettings = $derived($playbackSettingsStore);
+  let bitPerfectMode = $derived($bitPerfectModeStore);
+  let availableDevices = $derived($availableDevicesStore);
+  let selectedDevice = $derived($selectedDeviceStore);
+  let appearance = $derived($appearanceStore);
+  let lang = $derived($languageStore);
+  let progressData = $derived($playbackProgressStore);
 
   let isDeviceMenuOpen = $state(false);
   let isEqPopupOpen = $state(false);
@@ -88,19 +106,19 @@
   let seekbarAreaRef: HTMLDivElement | null = $state(null);
   let scrubberRef: HTMLDivElement | null = $state(null);
 
-  let currentTime = $derived(telemetry.current_time || 0);
-  let duration = $derived(telemetry.duration || currentTrack?.duration_seconds || 0);
+  let currentTime = $derived(progressData.current_time);
+  let duration = $derived(progressData.duration);
 
-  let title = $derived(telemetry.track_title || currentTrack?.title || "Musicx Hi-Fi Player");
-  let artist = $derived(telemetry.track_artist || currentTrack?.artist || t("readyToPlay", lang));
+  let title = $derived(currentTrack?.title || "Musicx Hi-Fi Player");
+  let artist = $derived(currentTrack?.artist || t("readyToPlay", lang));
   let format = $derived(
     currentTrack?.format ||
-      (telemetry.filepath ? telemetry.filepath.split(".").pop()?.toUpperCase() : "PCM")
+      (currentTrack?.filepath ? currentTrack.filepath.split(".").pop()?.toUpperCase() : "PCM")
   );
   let normalizedFormat = $derived((format || "PCM").toUpperCase());
   let isRadio = $derived(Boolean(activeRadioStation || currentTrack?.format === "RADIO"));
 
-  let channels = $derived(telemetry.channels || 2);
+  let channels = $derived(useMusicStore.getState().telemetry.channels || 2);
   let isMono = $derived(channels === 1);
 
   let isEqActive = $derived(audioSettings?.isEqEnabled ?? false);
@@ -116,8 +134,8 @@
   let volPct = $derived(Math.min(100, Math.max(0, (volume / maxVolumeLimit) * 100)));
   let volColor = $derived(isBoosted ? "#ef4444" : accentColor);
   let formatColor = $derived(FORMAT_COLORS[normalizedFormat] || accentColor);
-  let sampleRate = $derived(telemetry.sample_rate || currentTrack?.sample_rate || 0);
-  let bitrate = $derived(telemetry.bitrate || currentTrack?.bitrate_kbps || 0);
+  let sampleRate = $derived(currentTrack?.sample_rate || 0);
+  let bitrate = $derived(currentTrack?.bitrate_kbps || 0);
   let playerBarWidth = $derived(playerBarWidthPreview ?? playbackSettings?.playerBarWidth ?? 100);
   let maxPlayerInfoWidth = $derived(Math.max(204, Math.min(420, (typeof window !== "undefined" ? window.innerWidth - 32 - 200 : 800) / 2)));
   let storedPlayerInfoWidth = $derived(playbackSettings?.playerInfoWidth ?? 204);
@@ -142,22 +160,22 @@
   });
 
   let detectedBpm = $derived(
-    telemetry.tempo_bpm && telemetry.tempo_confidence >= 0.12
-      ? Math.round(telemetry.tempo_bpm)
+    progressData.tempo_bpm && progressData.tempo_confidence >= 0.12
+      ? Math.round(progressData.tempo_bpm)
       : null
   );
   let currentBpm = $derived(detectedBpm ?? 120);
   let beatPeriod = $derived(60 / currentBpm);
 
   let songPeaks = $derived(
-    telemetry.seekbar_spectrum.length === 192
-      ? telemetry.seekbar_spectrum
+    progressData.seekbar_spectrum && progressData.seekbar_spectrum.length === 192
+      ? progressData.seekbar_spectrum
       : EMPTY_SEEKBAR_SPECTRUM
   );
 
   let progress = $derived(duration > 0 ? Math.min(1, Math.max(0, currentTime / duration)) : 0);
   let activeBarIdx = $derived(Math.floor(progress * songPeaks.length));
-  let liveSpectrum = $derived(telemetry.spectrum || []);
+  let liveSpectrum = $derived(progressData.spectrum || []);
 
   let seekbarStyle = $derived(playbackSettings?.playerBarStyle || "spectrum");
   let isWaveSeekbar = $derived(seekbarStyle === "wave" || seekbarStyle === "aurora");
@@ -487,11 +505,11 @@
                 aria-label="Barra de reproducción; haz clic o arrastra para desplazarte"
               >
                 {#if seekbarStyle === "spectrum"}
-                  {#each songPeaks as p, i}
+                  {#each songPeaks as p, i (i)}
                     {@const isPassed = i <= activeBarIdx}
                     {@const heightPct = Math.max(18, Math.floor(p * 90))}
                     <div
-                      class="flex-1 rounded-full transition-all duration-75"
+                      class="flex-1 rounded-full"
                       style="height: {heightPct}%; background-color: {isPassed ? accentColor : 'rgba(255, 255, 255, 0.14)'}; box-shadow: {isPassed ? `0 0 5px ${accentColor}60` : 'none'};"
                     ></div>
                   {/each}

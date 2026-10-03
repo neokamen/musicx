@@ -3,14 +3,21 @@
   import { AudioLines, HardDrive, Radio, Timer, Waves } from "@lucide/svelte";
   import type { BufferTelemetry } from "../../types/index.ts";
   import { getBufferTelemetry, onBufferTelemetry } from "../../services/api.ts";
-  import { useMusicStore } from "../../store/index.ts";
+  import {
+    audioFormatStore,
+    currentTrackStore,
+    activeRadioStationStore,
+    isRadioPlayingStore,
+    isPlayingStore,
+    appearanceStore,
+  } from "../../store/index.ts";
 
-  const musicStore = useMusicStore;
-  let telemetry = $derived($musicStore.telemetry);
-  let currentTrack = $derived($musicStore.currentTrack);
-  let activeRadioStation = $derived($musicStore.activeRadioStation);
-  let isRadioPlaying = $derived($musicStore.isRadioPlaying);
-  let appearance = $derived($musicStore.appearance);
+  let audioFormat = $derived($audioFormatStore);
+  let currentTrack = $derived($currentTrackStore);
+  let activeRadioStation = $derived($activeRadioStationStore);
+  let isRadioPlaying = $derived($isRadioPlayingStore);
+  let isPlaying = $derived($isPlayingStore);
+  let appearance = $derived($appearanceStore);
 
   let buffer = $state<BufferTelemetry>({
     buffer_capacity_frames: 0,
@@ -52,22 +59,22 @@
   let source = $derived(
     isRadioPlaying
       ? activeRadioStation?.name || "Radio online"
-      : telemetry.filepath || currentTrack?.filepath || "Sin fuente"
+      : currentTrack?.filepath || "Sin fuente"
   );
 
   let detailRows = $derived([
-    { label: "Estado", value: telemetry.state },
+    { label: "Estado", value: isPlaying ? "Playing" : "Stopped" },
     {
       label: "Formato",
-      value: `${currentTrack?.format || (isRadioPlaying ? activeRadioStation?.codec?.toUpperCase() : "PCM") || "PCM"} · ${telemetry.channels || 2} canales`,
+      value: `${currentTrack?.format || (isRadioPlaying ? activeRadioStation?.codec?.toUpperCase() : "PCM") || "PCM"} · ${audioFormat.channels || 2} canales`,
     },
     {
       label: "Reloj",
-      value: `${((telemetry.sample_rate || buffer.sample_rate || 44100) / 1000).toFixed(1)} kHz / ${telemetry.bits_per_sample || currentTrack?.bit_depth || 16} bit`,
+      value: `${((audioFormat.sample_rate || buffer.sample_rate || 44100) / 1000).toFixed(1)} kHz / ${audioFormat.bits_per_sample || 16} bit`,
     },
     {
       label: "Bitrate",
-      value: `${telemetry.bitrate || currentTrack?.bitrate_kbps || activeRadioStation?.bitrate || 0} kb/s`,
+      value: `${audioFormat.bitrate || activeRadioStation?.bitrate || 0} kb/s`,
     },
     {
       label: "Buffer hardware",

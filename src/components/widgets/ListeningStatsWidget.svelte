@@ -1,12 +1,16 @@
 <script lang="ts">
   import { Clock3, Disc3, Headphones } from "@lucide/svelte";
-  import { useMusicStore } from "../../store/index.ts";
+  import {
+    listeningStatsStore,
+    isPlayingStore,
+    currentTrackStore,
+    appearanceStore,
+  } from "../../store/index.ts";
 
-  const musicStore = useMusicStore;
-  let listeningStats = $derived($musicStore.listeningStats);
-  let telemetry = $derived($musicStore.telemetry);
-  let currentTrack = $derived($musicStore.currentTrack);
-  let appearance = $derived($musicStore.appearance);
+  let listeningStats = $derived($listeningStatsStore);
+  let isPlaying = $derived($isPlayingStore);
+  let currentTrack = $derived($currentTrackStore);
+  let appearance = $derived($appearanceStore);
 
   let totalSeconds = $derived(Math.max(0, Math.floor(listeningStats.totalSecondsListened)));
   let hours = $derived(Math.floor(totalSeconds / 3600));
@@ -21,7 +25,7 @@
 <div class="flex h-full min-h-0 flex-col overflow-hidden bg-audiophile-surface p-3 font-mono text-xs">
   <header class="flex shrink-0 items-center justify-between border-b border-audiophile-border pb-2">
     <span class="text-[10px] uppercase tracking-widest text-audiophile-muted">Listening log</span>
-    <span class="size-1.5 rounded-full {telemetry.state === 'Playing' ? 'bg-emerald-400' : 'bg-slate-600'}"></span>
+    <span class="size-1.5 rounded-full {isPlaying ? 'bg-emerald-400' : 'bg-slate-600'}"></span>
   </header>
   <div class="grid min-h-0 flex-1 grid-cols-3 gap-2 py-3">
     <div class="flex min-w-0 flex-col justify-center border-l-2 border-cyan-500/70 bg-audiophile-surface2/50 px-2">
@@ -41,6 +45,6 @@
     </div>
   </div>
   <footer class="shrink-0 truncate border-t border-audiophile-border pt-2 text-[10px] text-slate-400" title={trackName}>
-    {telemetry.state === "Playing" ? trackName : "Reproducción en pausa"}
+    {isPlaying ? trackName : "Reproducción en pausa"}
   </footer>
 </div>

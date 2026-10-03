@@ -1,5 +1,14 @@
 <script lang="ts">
-  import { useMusicStore } from "../../store/index.ts";
+  import {
+    useMusicStore,
+    libraryTracksStore,
+    currentTrackStore,
+    currentCoverArtStore,
+    playbackSettingsStore,
+    isPlayingStore,
+    scanStatusStore,
+    languageStore,
+  } from "../../store/index.ts";
   import {
     Search,
     RefreshCw,
@@ -33,13 +42,13 @@
 
   type SortDirection = "asc" | "desc";
 
-  let libraryTracks = $derived($useMusicStore.libraryTracks);
-  let currentTrack = $derived($useMusicStore.currentTrack);
-  let currentCoverArt = $derived($useMusicStore.currentCoverArt);
-  let playbackSettings = $derived($useMusicStore.playbackSettings);
-  let isPlaying = $derived($useMusicStore.isPlaying);
-  let scanStatus = $derived($useMusicStore.scanStatus);
-  let lang = $derived($useMusicStore.language);
+  let libraryTracks = $derived($libraryTracksStore);
+  let currentTrack = $derived($currentTrackStore);
+  let currentCoverArt = $derived($currentCoverArtStore);
+  let playbackSettings = $derived($playbackSettingsStore);
+  let isPlaying = $derived($isPlayingStore);
+  let scanStatus = $derived($scanStatusStore);
+  let lang = $derived($languageStore);
 
   let search = $state("");
   let sortField = $state<SortField>("artist");
@@ -102,8 +111,23 @@
     }
   };
 
+  let cachedLibrary: Track[] | null = null;
+  let cachedSortField: SortField | null = null;
+  let cachedSortDirection: SortDirection | null = null;
+  let cachedSortedTracks: Track[] = [];
+
   let sortedTracks = $derived.by(() => {
-    return [...libraryTracks].sort((a, b) => {
+    if (
+      cachedLibrary === libraryTracks &&
+      cachedSortField === sortField &&
+      cachedSortDirection === sortDirection
+    ) {
+      return cachedSortedTracks;
+    }
+    cachedLibrary = libraryTracks;
+    cachedSortField = sortField;
+    cachedSortDirection = sortDirection;
+    cachedSortedTracks = [...libraryTracks].sort((a, b) => {
       let valA = a[sortField];
       let valB = b[sortField];
       if (valA === null || valA === undefined) valA = "" as never;
@@ -116,6 +140,7 @@
       }
       return sortDirection === "asc" ? comp : -comp;
     });
+    return cachedSortedTracks;
   });
 
   let visibleDurationSeconds = $derived(

@@ -1,11 +1,9 @@
 <script lang="ts">
   import { AudioLines, Power, ShieldCheck } from "@lucide/svelte";
-  import { useMusicStore } from "../../store/index.ts";
+  import { useMusicStore, audioSettingsStore, appearanceStore } from "../../store/index.ts";
 
-  const musicStore = useMusicStore;
-  let audioSettings = $derived($musicStore.audioSettings);
-  let telemetry = $derived($musicStore.telemetry);
-  let appearance = $derived($musicStore.appearance);
+  let audioSettings = $derived($audioSettingsStore);
+  let appearance = $derived($appearanceStore);
   let enabled = $derived(audioSettings.isNormalizerEnabled);
   let accentColor = $derived(appearance.accentColor || "#06b6d4");
 

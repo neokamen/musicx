@@ -1,5 +1,19 @@
 <script lang="ts">
-  import { useMusicStore, AUDIO_ENGINES } from "../../store/index.ts";
+  import {
+    useMusicStore,
+    AUDIO_ENGINES,
+    queueStore,
+    queueIndexStore,
+    currentTrackStore,
+    isPlayingStore,
+    appearanceStore,
+    playbackSettingsStore,
+    listeningStatsStore,
+    volumeStore,
+    languageStore,
+    bitPerfectModeStore,
+    audioSettingsStore,
+  } from "../../store/index.ts";
   import { ListMusic, Play, Trash2, X, Radio as RadioIcon, Globe, Volume2, Download, SlidersHorizontal } from "@lucide/svelte";
   import RadioHubModal from "../radio/RadioHubModal.svelte";
   import StreamMusicModal from "./StreamMusicModal.svelte";
@@ -64,18 +78,17 @@
     return "   — / —   ";
   }
 
-  let queue = $derived($useMusicStore.queue);
-  let queueIndex = $derived($useMusicStore.queueIndex);
-  let currentTrack = $derived($useMusicStore.currentTrack);
-  let isPlaying = $derived($useMusicStore.isPlaying);
-  let appearance = $derived($useMusicStore.appearance);
-  let playbackSettings = $derived($useMusicStore.playbackSettings);
-  let listeningStats = $derived($useMusicStore.listeningStats);
-  let telemetry = $derived($useMusicStore.telemetry);
-  let volume = $derived($useMusicStore.volume);
-  let lang = $derived($useMusicStore.language);
-  let bitPerfectMode = $derived($useMusicStore.bitPerfectMode);
-  let audioSettings = $derived($useMusicStore.audioSettings);
+  let queue = $derived($queueStore);
+  let queueIndex = $derived($queueIndexStore);
+  let currentTrack = $derived($currentTrackStore);
+  let isPlaying = $derived($isPlayingStore);
+  let appearance = $derived($appearanceStore);
+  let playbackSettings = $derived($playbackSettingsStore);
+  let listeningStats = $derived($listeningStatsStore);
+  let volume = $derived($volumeStore);
+  let lang = $derived($languageStore);
+  let bitPerfectMode = $derived($bitPerfectModeStore);
+  let audioSettings = $derived($audioSettingsStore);
 
   let showRadio = $state(false);
   let queueHudMode = $state(0);
@@ -101,8 +114,23 @@
     download: true,
   });
 
-  let totalDuration = $derived(queue.reduce((acc, t) => acc + (t.duration_seconds || 0), 0));
-  let remaining = $derived(queue.slice(Math.max(queueIndex, 0)).reduce((acc, t) => acc + (t.duration_seconds || 0), 0));
+  let cachedQueue: Track[] | null = null;
+  let cachedTotalDuration = 0;
+  let totalDuration = $derived.by(() => {
+    if (cachedQueue === queue) return cachedTotalDuration;
+    cachedQueue = queue;
+    cachedTotalDuration = queue.reduce((acc, t) => acc + (t.duration_seconds || 0), 0);
+    return cachedTotalDuration;
+  });
+
+  let cachedQueueIdx = -1;
+  let cachedRemaining = 0;
+  let remaining = $derived.by(() => {
+    if (cachedQueue === queue && cachedQueueIdx === queueIndex) return cachedRemaining;
+    cachedQueueIdx = queueIndex;
+    cachedRemaining = queue.slice(Math.max(queueIndex, 0)).reduce((acc, t) => acc + (t.duration_seconds || 0), 0);
+    return cachedRemaining;
+  });
 
   const handleDownload = (track: Track, event: MouseEvent) => {
     event.stopPropagation();
@@ -176,10 +204,11 @@
     const labelFluidWave = lang === "ca" ? "Ona Fluida Contínua" : lang === "en" ? "Fluid Continuous Wave" : "Onda Fluida Continua";
     const labelBlank = lang === "ca" ? "En Blanc" : lang === "en" ? "Blank" : "En Blanco";
 
-    const isCurrent = currentTrack && telemetry.filepath && currentTrack.filepath === telemetry.filepath;
-    const curDur = isCurrent && telemetry.duration > 0 ? telemetry.duration : (currentTrack?.duration_seconds || 0);
-    const curSr = isCurrent && telemetry.sample_rate > 0 ? telemetry.sample_rate : (currentTrack?.sample_rate || 0);
-    const curBr = isCurrent && telemetry.bitrate > 0 ? telemetry.bitrate : (currentTrack?.bitrate_kbps || 0);
+    const liveTelemetry = useMusicStore.getState().telemetry;
+    const isCurrent = currentTrack && liveTelemetry.filepath && currentTrack.filepath === liveTelemetry.filepath;
+    const curDur = isCurrent && liveTelemetry.duration > 0 ? liveTelemetry.duration : (currentTrack?.duration_seconds || 0);
+    const curSr = isCurrent && liveTelemetry.sample_rate > 0 ? liveTelemetry.sample_rate : (currentTrack?.sample_rate || 0);
+    const curBr = isCurrent && liveTelemetry.bitrate > 0 ? liveTelemetry.bitrate : (currentTrack?.bitrate_kbps || 0);
 
     return [
       {
@@ -190,7 +219,7 @@
           { k: lang === "ca" ? "Pistes" : "Pistas", v: String(listeningStats.totalTracksPlayed) },
           { k: lang === "ca" ? "Sessions" : "Sesiones", v: String(listeningStats.totalSessions) },
           { k: lang === "ca" ? "Temps Total" : "Tiempo Total", v: listenedLabel },
-          { k: "Tempo", v: telemetry.tempo_bpm ? `${Math.round(telemetry.tempo_bpm)} BPM` : "—" },
+          { k: "Tempo", v: liveTelemetry.tempo_bpm ? `${Math.round(liveTelemetry.tempo_bpm)} BPM` : "—" },
         ],
       },
       {
@@ -198,7 +227,7 @@
         label: labelHardware,
         type: "cells" as const,
         cells: [
-          { k: "Driver", v: (telemetry.output_device || "ALSA").split(" ")[0] },
+          { k: "Driver", v: (liveTelemetry.output_device || "ALSA").split(" ")[0] },
           { k: "Stream", v: (AUDIO_ENGINES.find((e) => e.id === audioSettings.resamplingQuality) || AUDIO_ENGINES[0]).name.split(' (')[0] },
           { k: "Buffer", v: `${audioSettings.bufferLatency === "ultra_low" ? 64 : audioSettings.bufferLatency === "very_low" ? 128 : audioSettings.bufferLatency === "low" ? 256 : audioSettings.bufferLatency === "medium" ? 512 : 1024} spls` },
           { k: "Volumen", v: `${Math.round(volume * 100)}%` },
@@ -210,7 +239,7 @@
         type: "cells" as const,
         cells: [
           { k: "Posición", v: queue.length ? `${Math.min(queue.length, queueIndex + 1)} / ${queue.length}` : "0 / 0" },
-          { k: "Resto Pista", v: curDur > 0 ? formatDuration(Math.max(0, curDur - (telemetry.current_time || 0))) : "—" },
+          { k: "Resto Pista", v: curDur > 0 ? formatDuration(Math.max(0, curDur - (liveTelemetry.current_time || 0))) : "—" },
           { k: "Resto Cola", v: remainingSec ? formatDuration(remainingSec) : "—" },
           { k: "Total Cola", v: `${queue.length} pistas` },
         ],

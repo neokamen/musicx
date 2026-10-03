@@ -1,5 +1,14 @@
 <script lang="ts">
-  import { useMusicStore } from "../../store/index.ts";
+  import {
+    useMusicStore,
+    isPlayingStore,
+    volumeStore,
+    currentTrackStore,
+    shuffleStore,
+    repeatStore,
+    bitPerfectModeStore,
+    playbackProgressStore,
+  } from "../../store/index.ts";
   import {
     Play,
     Pause,
@@ -19,16 +28,16 @@
     return `${mins}:${secs.toString().padStart(2, "0")}`;
   }
 
-  let isPlaying = $derived($useMusicStore.isPlaying);
-  let volume = $derived($useMusicStore.volume);
-  let currentTrack = $derived($useMusicStore.currentTrack);
-  let telemetry = $derived($useMusicStore.telemetry);
-  let shuffle = $derived($useMusicStore.shuffle);
-  let repeat = $derived($useMusicStore.repeat);
-  let bitPerfectMode = $derived($useMusicStore.bitPerfectMode);
+  let isPlaying = $derived($isPlayingStore);
+  let volume = $derived($volumeStore);
+  let currentTrack = $derived($currentTrackStore);
+  let shuffle = $derived($shuffleStore);
+  let repeat = $derived($repeatStore);
+  let bitPerfectMode = $derived($bitPerfectModeStore);
+  let progressData = $derived($playbackProgressStore);
 
-  let currentTime = $derived(telemetry.current_time || 0);
-  let duration = $derived(telemetry.duration || currentTrack?.duration_seconds || 0);
+  let currentTime = $derived(progressData.current_time || 0);
+  let duration = $derived(progressData.duration || currentTrack?.duration_seconds || 0);
 
   const handleSeek = (e: Event) => {
     const val = parseFloat((e.target as HTMLInputElement).value);

@@ -1856,4 +1856,81 @@ const originalSubscribe = useMusicStore.subscribe.bind(useMusicStore);
   });
 };
 
+// Svelte selector helper that memoizes by equalityFn to prevent cascading updates
+export function select<T>(
+  selector: (state: MusicPlayerStore) => T,
+  equalityFn: (a: T, b: T) => boolean = (a, b) => a === b
+) {
+  let currentValue = selector(useMusicStore.getState());
+  return {
+    subscribe(run: (val: T) => void) {
+      run(currentValue);
+      return originalSubscribe((state: MusicPlayerStore) => {
+        const nextValue = selector(state);
+        if (!equalityFn(currentValue, nextValue)) {
+          currentValue = nextValue;
+          run(nextValue);
+        }
+      });
+    },
+  };
+}
+
+export const libraryTracksStore = select((s) => s.libraryTracks);
+export const currentTrackStore = select((s) => s.currentTrack);
+export const isPlayingStore = select((s) => s.isPlaying);
+export const appearanceStore = select((s) => s.appearance);
+export const audioSettingsStore = select((s) => s.audioSettings);
+export const playbackSettingsStore = select((s) => s.playbackSettings);
+export const queueStore = select((s) => s.queue);
+export const queueIndexStore = select((s) => s.queueIndex);
+export const languageStore = select((s) => s.language);
+export const scanStatusStore = select((s) => s.scanStatus);
+export const listeningStatsStore = select((s) => s.listeningStats);
+export const currentCoverArtStore = select((s) => s.currentCoverArt);
+export const activeRadioStationStore = select((s) => s.activeRadioStation);
+export const isRadioPlayingStore = select((s) => s.isRadioPlaying);
+export const volumeStore = select((s) => s.volume);
+export const bitPerfectModeStore = select((s) => s.bitPerfectMode);
+export const selectedDeviceStore = select((s) => s.selectedDevice);
+export const explorerStore = select((s) => s.explorer);
+export const librarySettingsStore = select((s) => s.librarySettings);
+export const isStreamMusicOpenStore = select((s) => s.isStreamMusicOpen);
+export const isRadioHubOpenStore = select((s) => s.isRadioHubOpen);
+export const isSettingsOpenStore = select((s) => s.isSettingsOpen);
+export const audioFormatStore = select(
+  (s) => ({
+    sample_rate: s.telemetry.sample_rate || s.currentTrack?.sample_rate || 44100,
+    bits_per_sample: s.telemetry.bits_per_sample || s.currentTrack?.bit_depth || 16,
+    bitrate: s.telemetry.bitrate || s.currentTrack?.bitrate_kbps || 1411,
+    channels: s.telemetry.channels || 2,
+    is_bit_perfect: Boolean(s.bitPerfectMode || s.telemetry.is_bit_perfect),
+  }),
+  (a, b) =>
+    a.sample_rate === b.sample_rate &&
+    a.bits_per_sample === b.bits_per_sample &&
+    a.bitrate === b.bitrate &&
+    a.channels === b.channels &&
+    a.is_bit_perfect === b.is_bit_perfect
+);
+export const shuffleStore = select((s) => s.shuffle);
+export const repeatStore = select((s) => s.repeat);
+export const availableDevicesStore = select((s) => s.availableDevices);
+export const playbackProgressStore = select(
+  (s) => ({
+    current_time: s.telemetry.current_time || 0,
+    duration: s.telemetry.duration || s.currentTrack?.duration_seconds || 0,
+    seekbar_spectrum: s.telemetry.seekbar_spectrum,
+    spectrum: s.telemetry.spectrum,
+    tempo_bpm: s.telemetry.tempo_bpm,
+    tempo_confidence: s.telemetry.tempo_confidence,
+  }),
+  (a, b) =>
+    a.current_time === b.current_time &&
+    a.duration === b.duration &&
+    a.seekbar_spectrum === b.seekbar_spectrum &&
+    a.spectrum === b.spectrum &&
+    a.tempo_bpm === b.tempo_bpm
+);
+
 export const useAppStore = useMusicStore;

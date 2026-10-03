@@ -5,8 +5,15 @@
   import type { RadioPlaybackState } from "../../types/radio.ts";
   import { getBufferTelemetry, onBufferTelemetry } from "../../services/api.ts";
   import { radioAudioService } from "../../services/radioAudioService.ts";
-  import { formatDataSize } from "../../lib/formatBytes.ts";
-  import { useMusicStore } from "../../store/index.ts";
+  import {
+    useMusicStore,
+    audioFormatStore,
+    currentTrackStore,
+    selectedDeviceStore,
+    appearanceStore,
+    activeRadioStationStore,
+    isRadioPlayingStore,
+  } from "../../store/index.ts";
   import SpectrumVisualizer from "./SpectrumVisualizer.svelte";
 
   const formatTime = (seconds: number) => {
@@ -40,26 +47,25 @@
     };
   });
 
-  let telemetry = $derived($useMusicStore.telemetry);
-  let currentTrack = $derived($useMusicStore.currentTrack);
-  let selectedDevice = $derived($useMusicStore.selectedDevice);
-  let bitPerfectMode = $derived($useMusicStore.bitPerfectMode);
-  let appearance = $derived($useMusicStore.appearance);
-  let activeRadioStation = $derived($useMusicStore.activeRadioStation);
-  let isRadioPlaying = $derived($useMusicStore.isRadioPlaying);
+  let audioFormat = $derived($audioFormatStore);
+  let currentTrack = $derived($currentTrackStore);
+  let selectedDevice = $derived($selectedDeviceStore);
+  let appearance = $derived($appearanceStore);
+  let activeRadioStation = $derived($activeRadioStationStore);
+  let isRadioPlaying = $derived($isRadioPlayingStore);
 
   let isRadioActive = $derived(Boolean(activeRadioStation) && (isRadioPlaying || radioState.status !== "stopped"));
-  let sampleRate = $derived(telemetry.sample_rate || currentTrack?.sample_rate || buffer.sample_rate);
-  let bitDepth = $derived(telemetry.bits_per_sample || currentTrack?.bit_depth || 16);
+  let sampleRate = $derived(audioFormat.sample_rate || buffer.sample_rate);
+  let bitDepth = $derived(audioFormat.bits_per_sample || 16);
   let bitrate = $derived(
     isRadioActive
       ? radioState.bitrateKbps || activeRadioStation?.bitrate || 0
-      : telemetry.bitrate || currentTrack?.bitrate_kbps || 0
+      : audioFormat.bitrate || 0
   );
   let source = $derived(
     isRadioActive
       ? activeRadioStation?.name || "Radio online"
-      : telemetry.filepath || currentTrack?.filepath || "Sin fuente activa"
+      : currentTrack?.filepath || "Sin fuente activa"
   );
 
   let values = $derived([

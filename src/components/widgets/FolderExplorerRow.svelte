@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { useMusicStore } from "../../store/index.ts";
+  import { appearanceStore } from "../../store/index.ts";
   import { Folder, Music, Play, Plus, FolderPlus } from "@lucide/svelte";
   import type { FileNode } from "../../types/index.ts";
 
@@ -34,7 +34,7 @@
     onNavigate,
   }: Props = $props();
 
-  let appearance = $derived($useMusicStore.appearance);
+  let appearance = $derived($appearanceStore);
   let isHoveredLong = $state(false);
   let hoverTimer: ReturnType<typeof setTimeout> | null = null;
 

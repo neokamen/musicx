@@ -1,6 +1,17 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
-  import { useMusicStore, AUDIO_ENGINES } from '../../store/index.ts';
+  import {
+    useMusicStore,
+    AUDIO_ENGINES,
+    isSettingsOpenStore,
+    languageStore,
+    appearanceStore,
+    audioSettingsStore,
+    playbackSettingsStore,
+    listeningStatsStore,
+    librarySettingsStore,
+    scanStatusStore,
+    libraryTracksStore,
+  } from '../../store/index.ts';
   import {
     RotateCcw,
     Trash2,
@@ -74,15 +85,15 @@
     { id: 'ribbon', label: 'Ribbon' },
   ] as const;
 
-  let isSettingsOpen = $derived($useMusicStore.isSettingsOpen);
-  let language = $derived($useMusicStore.language);
-  let appearance = $derived($useMusicStore.appearance);
-  let audioSettings = $derived($useMusicStore.audioSettings);
-  let playbackSettings = $derived($useMusicStore.playbackSettings);
-  let listeningStats = $derived($useMusicStore.listeningStats);
-  let librarySettings = $derived($useMusicStore.librarySettings);
-  let scanStatus = $derived($useMusicStore.scanStatus);
-  let libraryTracks = $derived($useMusicStore.libraryTracks);
+  let isSettingsOpen = $derived($isSettingsOpenStore);
+  let language = $derived($languageStore);
+  let appearance = $derived($appearanceStore);
+  let audioSettings = $derived($audioSettingsStore);
+  let playbackSettings = $derived($playbackSettingsStore);
+  let listeningStats = $derived($listeningStatsStore);
+  let librarySettings = $derived($librarySettingsStore);
+  let scanStatus = $derived($scanStatusStore);
+  let libraryTracks = $derived($libraryTracksStore);
 
   let activeTab = $state<SettingsTab>('general');
   let activeVisualizerPanel = $state<VisualizerSettingsPanel>('cava');
@@ -127,11 +138,11 @@
     };
   });
 
-  let totalTracks = $derived(libraryTracks.length);
-  let totalLibrarySeconds = $derived(libraryTracks.reduce((acc, trk) => acc + (trk.duration_seconds || 0), 0));
+  let totalTracks = $derived(isSettingsOpen ? libraryTracks.length : 0);
+  let totalLibrarySeconds = $derived(isSettingsOpen ? libraryTracks.reduce((acc, trk) => acc + (trk.duration_seconds || 0), 0) : 0);
   let totalLibraryHours = $derived((totalLibrarySeconds / 3600).toFixed(1));
-  let listenedHours = $derived(Math.floor(listeningStats.totalSecondsListened / 3600));
-  let listenedMinutes = $derived(Math.floor((listeningStats.totalSecondsListened % 3600) / 60));
+  let listenedHours = $derived(isSettingsOpen ? Math.floor(listeningStats.totalSecondsListened / 3600) : 0);
+  let listenedMinutes = $derived(isSettingsOpen ? Math.floor((listeningStats.totalSecondsListened % 3600) / 60) : 0);
 
   const triggerApplyTheme = (
     newAccent = accent,

@@ -9,7 +9,21 @@
   import AudioEQModal from "./components/audio/AudioEQModal.svelte";
   import RadioHubModal from "./components/radio/RadioHubModal.svelte";
   import StreamMusicModal from "./components/widgets/StreamMusicModal.svelte";
-  import { useMusicStore, AUDIO_ENGINES } from "./store/index";
+  import {
+    useMusicStore,
+    AUDIO_ENGINES,
+    appearanceStore,
+    audioSettingsStore,
+    playbackSettingsStore,
+    listeningStatsStore,
+    isPlayingStore,
+    activeRadioStationStore,
+    isRadioPlayingStore,
+    languageStore,
+    isStreamMusicOpenStore,
+    isRadioHubOpenStore,
+    bitPerfectModeStore,
+  } from "./store/index";
   import { initTheme } from "./lib/theme";
   import { FIRST_RUN_PROFILE } from "./components/layout/defaultLayout";
   import whiteLogo from "../simple-white-logo.png";
@@ -199,7 +213,19 @@
       .catch((error) => console.error("No se pudo aplicar el tamaño de la plantilla mini:", error));
   }
 
-  const totalListenedSeconds = $derived(Math.max(0, Math.floor($useMusicStore.listeningStats.totalSecondsListened)));
+  let appearance = $derived($appearanceStore);
+  let audioSettings = $derived($audioSettingsStore);
+  let playbackSettings = $derived($playbackSettingsStore);
+  let listeningStats = $derived($listeningStatsStore);
+  let isPlaying = $derived($isPlayingStore);
+  let activeRadioStation = $derived($activeRadioStationStore);
+  let isRadioPlaying = $derived($isRadioPlayingStore);
+  let lang = $derived($languageStore);
+  let isStreamMusicOpen = $derived($isStreamMusicOpenStore);
+  let isRadioHubOpen = $derived($isRadioHubOpenStore);
+  let bitPerfectMode = $derived($bitPerfectModeStore);
+
+  const totalListenedSeconds = $derived(Math.max(0, Math.floor(listeningStats.totalSecondsListened)));
   const listenedYears = $derived(Math.floor(totalListenedSeconds / 31_536_000));
   const listenedMonths = $derived(Math.floor((totalListenedSeconds % 31_536_000) / 2_592_000));
   const listenedDays = $derived(Math.floor((totalListenedSeconds % 2_592_000) / 86_400));
@@ -220,7 +246,7 @@
     ].filter(Boolean).join(" ")
   );
 
-  const backgroundHex = $derived($useMusicStore.appearance.bgColor.replace("#", ""));
+  const backgroundHex = $derived((appearance.bgColor || "#000000").replace("#", ""));
   const normalizedBackgroundHex = $derived(
     backgroundHex.length === 3
       ? [...backgroundHex].map((digit) => `${digit}${digit}`).join("")
@@ -243,8 +269,8 @@
       ? automaticLogo === "white" ? "black" : "white"
       : automaticLogo
   );
-  const bpm = $derived($useMusicStore.telemetry.tempo_bpm || 120);
-  const isRadioActive = $derived(Boolean($useMusicStore.activeRadioStation && $useMusicStore.isRadioPlaying));
+  const bpm = $derived(useMusicStore.getState().telemetry.tempo_bpm || 120);
+  const isRadioActive = $derived(Boolean(activeRadioStation && isRadioPlaying));
 
   onMount(() => {
     initTheme();
@@ -350,16 +376,15 @@
         mtime: Date.now(),
       }));
       useMusicStore.getState().addToQueue(newTracks);
-      if ($useMusicStore.playbackSettings?.autoPlayOnDrop && newTracks.length > 0) {
+      if (playbackSettings?.autoPlayOnDrop && newTracks.length > 0) {
         useMusicStore.getState().play(newTracks[0]);
       }
     }
   }
 
   const customStyles = $derived(
-    `background-color: var(--app-bg); color: var(--app-text); backdrop-filter: ${$useMusicStore.appearance.glassmorphism ? `blur(${$useMusicStore.appearance.glassBlur}px)` : "none"};`
+    `background-color: var(--app-bg); color: var(--app-text); backdrop-filter: ${appearance.glassmorphism ? `blur(${appearance.glassBlur}px)` : "none"};`
   );
-  let lang = $derived($useMusicStore.language);
 </script>
 
 <div
@@ -400,13 +425,13 @@
           </button>
           <div class="flex flex-col leading-none">
             <span class="text-[15px] font-bold font-mono text-white">
-              Music<span style="color: {$useMusicStore.appearance.accentColor || '#06b6d4'};">x</span>
+              Music<span style="color: {appearance.accentColor || '#06b6d4'};">x</span>
             </span>
             <div class="mt-0.5 flex items-center gap-1.5 font-mono text-[8px] text-slate-500">
               <span>{t('theAudioPlayer', lang)}</span>
               <span
                 class="font-mono text-[8px] font-light tracking-widest select-none opacity-85"
-                style="color: {$useMusicStore.appearance.accentColor || '#06b6d4'};"
+                style="color: {appearance.accentColor || '#06b6d4'};"
                 title={`Versión actual: v${packageInfo.version}`}
               >
                 v{packageInfo.version}
@@ -417,24 +442,24 @@
 
         <span class="hidden lg:inline-flex self-end mb-[5px] -translate-y-[5px] items-center gap-1.5 whitespace-nowrap font-mono text-[10px] text-slate-400" title="Tiempo total de reproducción acumulado">
           <span
-            class="h-1.5 w-1.5 rounded-full {$useMusicStore.isPlaying ? 'bg-emerald-400' : 'bg-slate-500'}"
-            style={$useMusicStore.isPlaying && $useMusicStore.appearance.inPlayBpmPulseEnabled && $useMusicStore.telemetry.tempo_bpm ? `animation: bpm-beat-glow ${60 / bpm}s ease-in-out infinite` : undefined}
+            class="h-1.5 w-1.5 rounded-full {isPlaying ? 'bg-emerald-400' : 'bg-slate-500'}"
+            style={isPlaying && appearance.inPlayBpmPulseEnabled ? `animation: bpm-beat-glow ${60 / bpm}s ease-in-out infinite` : undefined}
           ></span>
-          <span style="color: {$useMusicStore.appearance.accentColor || '#06b6d4'};">{t('inPlay', lang)}</span>
+          <span style="color: {appearance.accentColor || '#06b6d4'};">{t('inPlay', lang)}</span>
           <span>{listenedDuration}</span>
         </span>
         <span class="hidden lg:inline-flex self-end mb-[5px] -translate-y-[5px] items-center gap-1.5 whitespace-nowrap text-[10px] font-mono">
           <span
             class="h-1.5 w-1.5 rounded-full transition-all duration-300"
-            style="background: {(AUDIO_ENGINES.find((e) => e.id === $useMusicStore.audioSettings.resamplingQuality) || AUDIO_ENGINES[0]).color}; {$useMusicStore.audioSettings.resamplingQuality === 'float32' ? '' : `box-shadow: 0 0 8px ${(AUDIO_ENGINES.find((e) => e.id === $useMusicStore.audioSettings.resamplingQuality) || AUDIO_ENGINES[0]).color};`}"
+            style="background: {(AUDIO_ENGINES.find((e) => e.id === audioSettings.resamplingQuality) || AUDIO_ENGINES[0]).color}; {audioSettings.resamplingQuality === 'float32' ? '' : `box-shadow: 0 0 8px ${(AUDIO_ENGINES.find((e) => e.id === audioSettings.resamplingQuality) || AUDIO_ENGINES[0]).color};`}"
           ></span>
           <span class="text-slate-400 font-medium">
-            {#if $useMusicStore.audioSettings.resamplingQuality === 'bit_perfect' || $useMusicStore.telemetry.is_bit_perfect}
+            {#if audioSettings.resamplingQuality === 'bit_perfect' || bitPerfectMode}
               {t('bitPerfectAlsa', lang)}
-            {:else if $useMusicStore.audioSettings.resamplingQuality === 'float32'}
+            {:else if audioSettings.resamplingQuality === 'float32'}
               {t('sharedPipewire', lang)}
             {:else}
-              {(AUDIO_ENGINES.find((e) => e.id === $useMusicStore.audioSettings.resamplingQuality) || AUDIO_ENGINES[0]).name.split(' (')[0]}
+              {(AUDIO_ENGINES.find((e) => e.id === audioSettings.resamplingQuality) || AUDIO_ENGINES[0]).name.split(' (')[0]}
             {/if}
           </span>
         </span>
@@ -444,7 +469,7 @@
         <button
           onclick={() => useMusicStore.getState().setStreamMusicOpen(true)}
           class="flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-lg border font-sans font-semibold transition cursor-pointer relative"
-          style="border-color: {$useMusicStore.appearance.accentColor || '#06b6d4'}50; background-color: {$useMusicStore.appearance.accentColor || '#06b6d4'}15; color: {$useMusicStore.appearance.accentColor || '#06b6d4'};"
+          style="border-color: {appearance.accentColor || '#06b6d4'}50; background-color: {appearance.accentColor || '#06b6d4'}15; color: {appearance.accentColor || '#06b6d4'};"
           title="Stream Music"
         >
           <Globe size={13} />
@@ -454,7 +479,7 @@
         <button
           onclick={() => useMusicStore.getState().setRadioHubOpen(true)}
           class="flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-lg border font-sans font-semibold transition cursor-pointer relative"
-          style="border-color: {isRadioActive ? `${$useMusicStore.appearance.accentColor || '#06b6d4'}90` : `${$useMusicStore.appearance.accentColor || '#06b6d4'}50`}; background-color: {isRadioActive ? `${$useMusicStore.appearance.accentColor || '#06b6d4'}25` : `${$useMusicStore.appearance.accentColor || '#06b6d4'}15`}; color: {$useMusicStore.appearance.accentColor || '#06b6d4'}; {isRadioActive ? `box-shadow: 0 0 12px ${$useMusicStore.appearance.accentColor || '#06b6d4'}40;` : ''}"
+          style="border-color: {isRadioActive ? `${appearance.accentColor || '#06b6d4'}90` : `${appearance.accentColor || '#06b6d4'}50`}; background-color: {isRadioActive ? `${appearance.accentColor || '#06b6d4'}25` : `${appearance.accentColor || '#06b6d4'}15`}; color: {appearance.accentColor || '#06b6d4'}; {isRadioActive ? `box-shadow: 0 0 12px ${appearance.accentColor || '#06b6d4'}40;` : ''}"
           title="Radio Online (Neowave)"
         >
           <RadioIcon size={13} class={isRadioActive ? "animate-pulse" : ""} />
@@ -467,7 +492,7 @@
         <button
           onclick={() => { isAudioEqOpen = true; }}
           class="flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-lg border font-sans font-semibold transition cursor-pointer"
-          style="border-color: {$useMusicStore.appearance.accentColor || '#06b6d4'}50; background-color: {$useMusicStore.appearance.accentColor || '#06b6d4'}15; color: {$useMusicStore.appearance.accentColor || '#06b6d4'};"
+          style="border-color: {appearance.accentColor || '#06b6d4'}50; background-color: {appearance.accentColor || '#06b6d4'}15; color: {appearance.accentColor || '#06b6d4'};"
           title="Audio EQ PRO"
         >
           <SlidersHorizontal size={13} />
@@ -477,7 +502,7 @@
         <button
           onclick={() => { isLayoutEditing = !isLayoutEditing; }}
           class="flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-lg border transition cursor-pointer font-sans"
-          style="border-color: {$useMusicStore.appearance.accentColor || '#06b6d4'}50; background-color: {isLayoutEditing ? `${$useMusicStore.appearance.accentColor || '#06b6d4'}25` : 'transparent'}; color: {$useMusicStore.appearance.accentColor || '#06b6d4'};"
+          style="border-color: {appearance.accentColor || '#06b6d4'}50; background-color: {isLayoutEditing ? `${appearance.accentColor || '#06b6d4'}25` : 'transparent'}; color: {appearance.accentColor || '#06b6d4'};"
           title={isLayoutEditing ? t('saveLayout', lang) : t('editLayout', lang)}
         >
           {#if isLayoutEditing}
@@ -519,7 +544,7 @@
   {/if}
 
   <AudioEQModal isOpen={isAudioEqOpen} onClose={() => { isAudioEqOpen = false; }} />
-  <StreamMusicModal isOpen={$useMusicStore.isStreamMusicOpen} onClose={() => useMusicStore.getState().setStreamMusicOpen(false)} />
-  <RadioHubModal isOpen={$useMusicStore.isRadioHubOpen} onClose={() => useMusicStore.getState().setRadioHubOpen(false)} />
+  <StreamMusicModal isOpen={isStreamMusicOpen} onClose={() => useMusicStore.getState().setStreamMusicOpen(false)} />
+  <RadioHubModal isOpen={isRadioHubOpen} onClose={() => useMusicStore.getState().setRadioHubOpen(false)} />
   <SettingsModal />
 </div>

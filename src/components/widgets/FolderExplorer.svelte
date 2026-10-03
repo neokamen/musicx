@@ -1,5 +1,12 @@
 <script lang="ts">
-  import { useMusicStore } from "../../store/index.ts";
+  import {
+    useMusicStore,
+    explorerStore,
+    appearanceStore,
+    scanStatusStore,
+    librarySettingsStore,
+    languageStore,
+  } from "../../store/index.ts";
   import {
     Folder,
     ChevronLeft,
@@ -23,11 +30,11 @@
 
   type ExplorerViewMode = "compact" | "details" | "grid";
 
-  let explorer = $derived($useMusicStore.explorer);
-  let appearance = $derived($useMusicStore.appearance);
-  let scanStatus = $derived($useMusicStore.scanStatus);
-  let librarySettings = $derived($useMusicStore.librarySettings);
-  let lang = $derived($useMusicStore.language);
+  let explorer = $derived($explorerStore);
+  let appearance = $derived($appearanceStore);
+  let scanStatus = $derived($scanStatusStore);
+  let librarySettings = $derived($librarySettingsStore);
+  let lang = $derived($languageStore);
 
   let filterQuery = $state("");
   let isEditingPath = $state(false);

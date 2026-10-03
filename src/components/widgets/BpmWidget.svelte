@@ -1,26 +1,31 @@
 <script lang="ts">
   import { Activity, Music2 } from "@lucide/svelte";
-  import { useMusicStore } from "../../store/index.ts";
+  import {
+    useMusicStore,
+    currentTrackStore,
+    appearanceStore,
+    isPlayingStore,
+    select,
+  } from "../../store/index.ts";
 
-  const musicStore = useMusicStore;
-  let telemetry = $derived($musicStore.telemetry);
-  let isPlaying = $derived($musicStore.isPlaying);
-  let appearance = $derived($musicStore.appearance);
+  const tempoStore = select(
+    (s) => (s.telemetry.tempo_bpm && s.telemetry.tempo_confidence >= 0.12 ? Math.round(s.telemetry.tempo_bpm) : null),
+    (a, b) => a === b
+  );
+
+  let detectedBpm = $derived($tempoStore);
+  let currentTrack = $derived($currentTrackStore);
+  let isPlaying = $derived($isPlayingStore);
+  let appearance = $derived($appearanceStore);
 
   let manualBpm = $state<number | null>(null);
   let tapTimes: number[] = [];
-
-  let detectedBpm = $derived(
-    telemetry.tempo_bpm && telemetry.tempo_confidence >= 0.12
-      ? Math.round(telemetry.tempo_bpm)
-      : null
-  );
   let bpm = $derived(manualBpm ?? detectedBpm);
 
   let lastTrackFilepath = "";
   $effect(() => {
     // Reset only when track actually changes
-    const current = telemetry.filepath || "";
+    const current = currentTrack?.filepath || "";
     if (current && current !== lastTrackFilepath) {
       lastTrackFilepath = current;
       tapTimes = [];

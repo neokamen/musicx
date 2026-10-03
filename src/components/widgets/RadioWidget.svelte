@@ -19,7 +19,13 @@
     Trash2,
     Check,
   } from "@lucide/svelte";
-  import { useMusicStore } from "../../store/index.ts";
+  import {
+    useMusicStore,
+    activeRadioStationStore,
+    isRadioPlayingStore,
+    appearanceStore,
+    librarySettingsStore,
+  } from "../../store/index.ts";
   import {
     getFavoriteStations,
     getRecentStations,
@@ -37,10 +43,10 @@
 
   let { onBackToLibrary = undefined }: Props = $props();
 
-  let activeRadioStation = $derived($useMusicStore.activeRadioStation);
-  let isRadioPlaying = $derived($useMusicStore.isRadioPlaying);
-  let appearance = $derived($useMusicStore.appearance);
-  let librarySettings = $derived($useMusicStore.librarySettings);
+  let activeRadioStation = $derived($activeRadioStationStore);
+  let isRadioPlaying = $derived($isRadioPlayingStore);
+  let appearance = $derived($appearanceStore);
+  let librarySettings = $derived($librarySettingsStore);
 
   let favorites = $state<RadioStation[]>(getFavoriteStations());
   let recents = $state<RadioStation[]>(getRecentStations());

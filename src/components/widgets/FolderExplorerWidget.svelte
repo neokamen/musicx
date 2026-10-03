@@ -1,5 +1,11 @@
 <script lang="ts">
-  import { useMusicStore } from "../../store/index.ts";
+  import {
+    useMusicStore,
+    explorerStore,
+    librarySettingsStore,
+    libraryTracksStore,
+    appearanceStore,
+  } from "../../store/index.ts";
 import * as api from "../../services/api.ts";
   import {
     ChevronLeft,
@@ -23,10 +29,10 @@ import * as api from "../../services/api.ts";
   type FolderSortField = "name" | "extension" | "size" | "duration" | "bitrate";
   type FolderSortDir = "asc" | "desc";
 
-  let explorer = $derived($useMusicStore.explorer);
-  let librarySettings = $derived($useMusicStore.librarySettings);
-  let libraryTracks = $derived($useMusicStore.libraryTracks);
-  let appearance = $derived($useMusicStore.appearance);
+  let explorer = $derived($explorerStore);
+  let librarySettings = $derived($librarySettingsStore);
+  let libraryTracks = $derived($libraryTracksStore);
+  let appearance = $derived($appearanceStore);
 
   let inputPath = $state("");
   $effect(() => {

@@ -19,7 +19,15 @@
     VolumeX,
     X,
   } from "@lucide/svelte";
-  import { useMusicStore } from "../../store/index.ts";
+  import {
+    useMusicStore,
+    isPlayingStore,
+    volumeStore,
+    currentTrackStore,
+    currentCoverArtStore,
+    appearanceStore,
+    playbackProgressStore,
+  } from "../../store/index.ts";
   import {
     type MiniPlayerTemplate,
     type MiniPlayerFavorite,
@@ -163,21 +171,21 @@
 
   let foobarWidgets = $derived(getFoobarWidgets(foobarLayout));
 
-  let isPlaying = $derived($useMusicStore.isPlaying);
-  let volume = $derived($useMusicStore.volume);
-  let currentTrack = $derived($useMusicStore.currentTrack);
-  let currentCoverArt = $derived($useMusicStore.currentCoverArt);
-  let telemetry = $derived($useMusicStore.telemetry);
-  let appearance = $derived($useMusicStore.appearance);
+  let isPlaying = $derived($isPlayingStore);
+  let volume = $derived($volumeStore);
+  let currentTrack = $derived($currentTrackStore);
+  let currentCoverArt = $derived($currentCoverArtStore);
+  let appearance = $derived($appearanceStore);
+  let progressData = $derived($playbackProgressStore);
 
-  let currentTime = $derived(telemetry.current_time || 0);
-  let duration = $derived(telemetry.duration || currentTrack?.duration_seconds || 0);
-  let title = $derived(telemetry.track_title || currentTrack?.title || "Musicx Hi-Fi Player");
-  let artist = $derived(telemetry.track_artist || currentTrack?.artist || "Listo para reproducir");
-  let audioFormat = $derived(currentTrack?.format || telemetry.filepath?.split(".").pop()?.toUpperCase() || "PCM");
-  let bitrate = $derived(telemetry.bitrate || currentTrack?.bitrate_kbps || 0);
+  let currentTime = $derived(progressData.current_time);
+  let duration = $derived(progressData.duration);
+  let title = $derived(currentTrack?.title || "Musicx Hi-Fi Player");
+  let artist = $derived(currentTrack?.artist || "Listo para reproducir");
+  let audioFormat = $derived(currentTrack?.format || currentTrack?.filepath?.split(".").pop()?.toUpperCase() || "PCM");
+  let bitrate = $derived(currentTrack?.bitrate_kbps || 0);
   let accent = $derived(template === "winamp" ? "#a3e635" : appearance.accentColor || "#06b6d4");
-  let spectrum = $derived(telemetry.spectrum.slice(0, 36));
+  let spectrum = $derived(progressData.spectrum.slice(0, 36));
 
   let templateSurface = $derived(
     template === "winamp"

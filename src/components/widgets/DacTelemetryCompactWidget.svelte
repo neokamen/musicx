@@ -2,7 +2,11 @@
   import { onMount } from "svelte";
   import { Cpu, Radio, Volume2 } from "@lucide/svelte";
   import { getBufferTelemetry, onBufferTelemetry } from "../../services/api.ts";
-  import { useMusicStore } from "../../store/index.ts";
+  import {
+    audioFormatStore,
+    selectedDeviceStore,
+    appearanceStore,
+  } from "../../store/index.ts";
   import type { BufferTelemetry } from "../../types/index.ts";
 
   const INITIAL_BUFFER: BufferTelemetry = {
@@ -21,12 +25,9 @@
     is_active: false,
   };
 
-  const musicStore = useMusicStore;
-  let telemetry = $derived($musicStore.telemetry);
-  let currentTrack = $derived($musicStore.currentTrack);
-  let bitPerfectMode = $derived($musicStore.bitPerfectMode);
-  let selectedDevice = $derived($musicStore.selectedDevice);
-  let appearance = $derived($musicStore.appearance);
+  let audioFormat = $derived($audioFormatStore);
+  let selectedDevice = $derived($selectedDeviceStore);
+  let appearance = $derived($appearanceStore);
 
   let buffer = $state(INITIAL_BUFFER);
 
@@ -51,12 +52,12 @@
     };
   });
 
-  let sampleRate = $derived(telemetry.sample_rate || currentTrack?.sample_rate || 44100);
-  let bitDepth = $derived(telemetry.bits_per_sample || currentTrack?.bit_depth || 16);
-  let bitrate = $derived(telemetry.bitrate || currentTrack?.bitrate_kbps || 1411);
-  let channels = $derived(telemetry.channels === 1 ? "1.0 Mono" : `${telemetry.channels || 2}.0 Stereo`);
-  let device = $derived(telemetry.output_device || selectedDevice || "Dispositivo predeterminado");
-  let clock = $derived(bitPerfectMode || telemetry.is_bit_perfect);
+  let sampleRate = $derived(audioFormat.sample_rate || 44100);
+  let bitDepth = $derived(audioFormat.bits_per_sample || 16);
+  let bitrate = $derived(audioFormat.bitrate || 1411);
+  let channels = $derived(audioFormat.channels === 1 ? "1.0 Mono" : `${audioFormat.channels || 2}.0 Stereo`);
+  let device = $derived(selectedDevice || "Dispositivo predeterminado");
+  let clock = $derived(audioFormat.is_bit_perfect);
 </script>
 
 <div class="flex h-full min-h-0 w-full items-center justify-center overflow-hidden bg-audiophile-surface p-2 font-mono text-xs">

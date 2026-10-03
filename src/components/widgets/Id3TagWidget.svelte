@@ -1,16 +1,14 @@
 <script lang="ts">
   import { Tag } from "@lucide/svelte";
-  import { useMusicStore } from "../../store/index.ts";
+  import { currentTrackStore, appearanceStore } from "../../store/index.ts";
 
-  const musicStore = useMusicStore;
-  let currentTrack = $derived($musicStore.currentTrack);
-  let telemetry = $derived($musicStore.telemetry);
-  let appearance = $derived($musicStore.appearance);
+  let currentTrack = $derived($currentTrackStore);
+  let appearance = $derived($appearanceStore);
 
   let fields = $derived([
-    { label: "Título", value: telemetry.track_title || currentTrack?.title },
-    { label: "Artista", value: telemetry.track_artist || currentTrack?.artist },
-    { label: "Álbum", value: telemetry.track_album || currentTrack?.album },
+    { label: "Título", value: currentTrack?.title },
+    { label: "Artista", value: currentTrack?.artist },
+    { label: "Álbum", value: currentTrack?.album },
     { label: "Pista", value: currentTrack?.track_number ? String(currentTrack.track_number) : undefined },
   ]);
 </script>
