@@ -480,7 +480,7 @@
         }
       }
       useMusicStore.getState().setLibrarySettings({ fullBackupFilePath: path });
-      triggerFullBackupSync();
+      triggerFullBackupSync(true);
       savedMessage = 'Archivo vinculado como copia de seguridad activa.';
       setTimeout(() => { savedMessage = null; }, 2500);
     } catch {
@@ -491,7 +491,7 @@
 
   const unlinkFullBackupFile = () => {
     useMusicStore.getState().setLibrarySettings({ fullBackupFilePath: '' });
-    triggerFullBackupSync();
+    triggerFullBackupSync(true);
     savedMessage = 'Ruta personalizada eliminada. Se usará la ruta por defecto.';
     setTimeout(() => { savedMessage = null; }, 2500);
   };
@@ -730,6 +730,48 @@
                     <Unlink size={13} />
                     <span>Quitar ruta</span>
                   </button>
+                {/if}
+              </div>
+
+              <div class="space-y-2 pt-2 border-t border-slate-800/60">
+                <div class="text-[11px] font-bold text-slate-400 uppercase tracking-wide">Frecuencia de guardado</div>
+                <div class="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onclick={() => useMusicStore.getState().setLibrarySettings({ fullBackupFrequency: 'onChange' })}
+                    class="px-3 py-1.5 rounded-lg border text-xs font-semibold transition cursor-pointer {librarySettings.fullBackupFrequency === 'onChange' ? 'border-cyan-500/60 bg-cyan-950/40 text-cyan-300' : 'border-slate-700 bg-slate-800 text-slate-300 hover:bg-slate-700'}"
+                    style={librarySettings.fullBackupFrequency === 'onChange' && appearance.accentColor ? `border-color: ${appearance.accentColor}; color: ${appearance.accentColor};` : undefined}
+                  >
+                    A cada cambio
+                  </button>
+                  <button
+                    type="button"
+                    onclick={() => useMusicStore.getState().setLibrarySettings({ fullBackupFrequency: 'intervalMinutes' })}
+                    class="px-3 py-1.5 rounded-lg border text-xs font-semibold transition cursor-pointer {librarySettings.fullBackupFrequency === 'intervalMinutes' ? 'border-cyan-500/60 bg-cyan-950/40 text-cyan-300' : 'border-slate-700 bg-slate-800 text-slate-300 hover:bg-slate-700'}"
+                    style={librarySettings.fullBackupFrequency === 'intervalMinutes' && appearance.accentColor ? `border-color: ${appearance.accentColor}; color: ${appearance.accentColor};` : undefined}
+                  >
+                    Cada X minutos
+                  </button>
+                  <button
+                    type="button"
+                    onclick={() => useMusicStore.getState().setLibrarySettings({ fullBackupFrequency: 'onClose' })}
+                    class="px-3 py-1.5 rounded-lg border text-xs font-semibold transition cursor-pointer {librarySettings.fullBackupFrequency === 'onClose' ? 'border-cyan-500/60 bg-cyan-950/40 text-cyan-300' : 'border-slate-700 bg-slate-800 text-slate-300 hover:bg-slate-700'}"
+                    style={librarySettings.fullBackupFrequency === 'onClose' && appearance.accentColor ? `border-color: ${appearance.accentColor}; color: ${appearance.accentColor};` : undefined}
+                  >
+                    Al cerrar la app
+                  </button>
+                </div>
+                {#if librarySettings.fullBackupFrequency === 'intervalMinutes'}
+                  <div class="flex items-center gap-2 pt-1">
+                    <span class="text-xs text-slate-300">Minutos entre cada guardado:</span>
+                    <input
+                      type="number"
+                      min="1"
+                      value={librarySettings.fullBackupIntervalMinutes || 5}
+                      oninput={(e) => useMusicStore.getState().setLibrarySettings({ fullBackupIntervalMinutes: Math.max(1, parseInt((e.target as HTMLInputElement).value) || 1) })}
+                      class="w-20 px-2 py-1 bg-slate-950 border border-slate-700 rounded-lg text-xs font-mono text-slate-100"
+                    />
+                  </div>
                 {/if}
               </div>
             </div>
@@ -1856,6 +1898,48 @@
                     <Unlink size={13} />
                     <span>Quitar ruta</span>
                   </button>
+                {/if}
+              </div>
+
+              <div class="space-y-2 pt-2 border-t border-slate-800/60">
+                <div class="text-[11px] font-bold text-slate-400 uppercase tracking-wide">Frecuencia de guardado</div>
+                <div class="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onclick={() => useMusicStore.getState().setLibrarySettings({ statsSyncFrequency: 'onChange' })}
+                    class="px-3 py-1.5 rounded-lg border text-xs font-semibold transition cursor-pointer {librarySettings.statsSyncFrequency === 'onChange' ? 'border-cyan-500/60 bg-cyan-950/40 text-cyan-300' : 'border-slate-700 bg-slate-800 text-slate-300 hover:bg-slate-700'}"
+                    style={librarySettings.statsSyncFrequency === 'onChange' && appearance.accentColor ? `border-color: ${appearance.accentColor}; color: ${appearance.accentColor};` : undefined}
+                  >
+                    A cada cambio
+                  </button>
+                  <button
+                    type="button"
+                    onclick={() => useMusicStore.getState().setLibrarySettings({ statsSyncFrequency: 'intervalMinutes' })}
+                    class="px-3 py-1.5 rounded-lg border text-xs font-semibold transition cursor-pointer {librarySettings.statsSyncFrequency === 'intervalMinutes' ? 'border-cyan-500/60 bg-cyan-950/40 text-cyan-300' : 'border-slate-700 bg-slate-800 text-slate-300 hover:bg-slate-700'}"
+                    style={librarySettings.statsSyncFrequency === 'intervalMinutes' && appearance.accentColor ? `border-color: ${appearance.accentColor}; color: ${appearance.accentColor};` : undefined}
+                  >
+                    Cada X minutos
+                  </button>
+                  <button
+                    type="button"
+                    onclick={() => useMusicStore.getState().setLibrarySettings({ statsSyncFrequency: 'onClose' })}
+                    class="px-3 py-1.5 rounded-lg border text-xs font-semibold transition cursor-pointer {librarySettings.statsSyncFrequency === 'onClose' ? 'border-cyan-500/60 bg-cyan-950/40 text-cyan-300' : 'border-slate-700 bg-slate-800 text-slate-300 hover:bg-slate-700'}"
+                    style={librarySettings.statsSyncFrequency === 'onClose' && appearance.accentColor ? `border-color: ${appearance.accentColor}; color: ${appearance.accentColor};` : undefined}
+                  >
+                    Al cerrar la app
+                  </button>
+                </div>
+                {#if librarySettings.statsSyncFrequency === 'intervalMinutes'}
+                  <div class="flex items-center gap-2 pt-1">
+                    <span class="text-xs text-slate-300">Minutos entre cada guardado:</span>
+                    <input
+                      type="number"
+                      min="1"
+                      value={librarySettings.statsSyncIntervalMinutes || 5}
+                      oninput={(e) => useMusicStore.getState().setLibrarySettings({ statsSyncIntervalMinutes: Math.max(1, parseInt((e.target as HTMLInputElement).value) || 1) })}
+                      class="w-20 px-2 py-1 bg-slate-950 border border-slate-700 rounded-lg text-xs font-mono text-slate-100"
+                    />
+                  </div>
                 {/if}
               </div>
             </div>

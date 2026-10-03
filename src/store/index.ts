@@ -121,6 +121,8 @@ export interface ListeningStatsState {
   totalSessions: number;
 }
 
+export type BackupFrequency = "onChange" | "intervalMinutes" | "onClose";
+
 export interface LibrarySettings {
   musicFolder: string;
   explorerHomeFolder: string;
@@ -133,10 +135,13 @@ export interface LibrarySettings {
   // "manual" = export/import JSON on demand; "sync" = auto read/write a chosen file (e.g. a cloud-synced folder)
   statsBackupMode: "manual" | "sync";
   statsSyncFilePath: string;
-  // How often the sync file gets written: every 10s of playback (current default), every X minutes, or only on app close
-  statsSyncFrequency: "interval10s" | "intervalMinutes" | "onClose";
+  // Frequency of writing to the active stats file: "onChange", "intervalMinutes", or "onClose"
+  statsSyncFrequency: BackupFrequency;
   statsSyncIntervalMinutes: number;
   fullBackupFilePath: string;
+  // Frequency of writing to the active full backup file: "onChange", "intervalMinutes", or "onClose"
+  fullBackupFrequency: BackupFrequency;
+  fullBackupIntervalMinutes: number;
 }
 
 export interface MusicPlayerStore {
@@ -276,7 +281,22 @@ export async function getEffectiveStatsBackupPath(userPath?: string): Promise<st
   return await getDefaultStatsBackupPath();
 }
 
+let lastFullBackupTime = Date.now();
+let lastStatsBackupTime = Date.now();
+let fullBackupDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+
+export function scheduleDebouncedFullBackup(path?: string): void {
+  if (fullBackupDebounceTimer) {
+    clearTimeout(fullBackupDebounceTimer);
+  }
+  fullBackupDebounceTimer = setTimeout(() => {
+    fullBackupDebounceTimer = null;
+    void flushFullBackupToFile(path);
+  }, 1000);
+}
+
 async function flushFullBackupToFile(path?: string): Promise<void> {
+  lastFullBackupTime = Date.now();
   const targetPath = await getEffectiveFullBackupPath(path);
   if (!targetPath) return;
   const data: Record<string, string> = {};
@@ -318,10 +338,17 @@ async function flushFullBackupToFile(path?: string): Promise<void> {
   }
 }
 
-export function triggerFullBackupSync(): void {
+export function triggerFullBackupSync(forceImmediate = false): void {
   try {
-    const path = useMusicStore.getState().librarySettings.fullBackupFilePath || localStorage.getItem(FULL_BACKUP_PATH_KEY) || "";
-    void flushFullBackupToFile(path);
+    const lib = useMusicStore.getState().librarySettings;
+    const path = lib.fullBackupFilePath || localStorage.getItem(FULL_BACKUP_PATH_KEY) || "";
+    if (forceImmediate) {
+      void flushFullBackupToFile(path);
+      return;
+    }
+    if (lib.fullBackupFrequency === "onChange") {
+      scheduleDebouncedFullBackup(path);
+    }
   } catch {
     // Ignore
   }
@@ -412,9 +439,11 @@ const defaultLibrarySettings: LibrarySettings = {
   radioAutoRecordEnabled: false,
   statsBackupMode: "manual",
   statsSyncFilePath: "",
-  statsSyncFrequency: "interval10s",
+  statsSyncFrequency: "onChange",
   statsSyncIntervalMinutes: 5,
   fullBackupFilePath: "",
+  fullBackupFrequency: "onChange",
+  fullBackupIntervalMinutes: 5,
 };
 
 async function loadLiveFullBackupIntoStore(
@@ -437,10 +466,27 @@ async function loadLiveFullBackupIntoStore(
     const settingsRaw = (backup.data as Record<string, string>)[SETTINGS_STORAGE_KEY];
     if (!settingsRaw) return;
     const parsed = JSON.parse(settingsRaw);
-    const librarySettings = {
+    const rawLib = (parsed.librarySettings || {}) as Partial<LibrarySettings>;
+    const validFrequencies: BackupFrequency[] = ["onChange", "intervalMinutes", "onClose"];
+    const statsSyncFrequency: BackupFrequency =
+      validFrequencies.includes(rawLib.statsSyncFrequency as BackupFrequency)
+        ? (rawLib.statsSyncFrequency as BackupFrequency)
+        : (rawLib.statsSyncFrequency as string) === "interval10s"
+        ? "onChange"
+        : defaultLibrarySettings.statsSyncFrequency;
+    const fullBackupFrequency: BackupFrequency =
+      validFrequencies.includes(rawLib.fullBackupFrequency as BackupFrequency)
+        ? (rawLib.fullBackupFrequency as BackupFrequency)
+        : defaultLibrarySettings.fullBackupFrequency;
+
+    const librarySettings: LibrarySettings = {
       ...defaultLibrarySettings,
-      ...(parsed.librarySettings || {}),
+      ...rawLib,
       fullBackupFilePath: userPath,
+      statsSyncFrequency,
+      statsSyncIntervalMinutes: Math.max(1, Number(rawLib.statsSyncIntervalMinutes) || defaultLibrarySettings.statsSyncIntervalMinutes),
+      fullBackupFrequency,
+      fullBackupIntervalMinutes: Math.max(1, Number(rawLib.fullBackupIntervalMinutes) || defaultLibrarySettings.fullBackupIntervalMinutes),
     };
     const persisted = {
       language: parsed.language || get().language,
@@ -595,7 +641,28 @@ function loadStoredSettings(): {
           audioSettings,
           playbackSettings: { ...defaultPlaybackSettings, ...savedPlaybackSettings },
           listeningStats,
-          librarySettings: { ...defaultLibrarySettings, ...(parsed.librarySettings || {}) },
+          librarySettings: (() => {
+            const parsedLib = (parsed.librarySettings || {}) as Partial<LibrarySettings>;
+            const validFrequencies: BackupFrequency[] = ["onChange", "intervalMinutes", "onClose"];
+            const statsSyncFrequency: BackupFrequency =
+              validFrequencies.includes(parsedLib.statsSyncFrequency as BackupFrequency)
+                ? (parsedLib.statsSyncFrequency as BackupFrequency)
+                : (parsedLib.statsSyncFrequency as string) === "interval10s"
+                ? "onChange"
+                : defaultLibrarySettings.statsSyncFrequency;
+            const fullBackupFrequency: BackupFrequency =
+              validFrequencies.includes(parsedLib.fullBackupFrequency as BackupFrequency)
+                ? (parsedLib.fullBackupFrequency as BackupFrequency)
+                : defaultLibrarySettings.fullBackupFrequency;
+            return {
+              ...defaultLibrarySettings,
+              ...parsedLib,
+              statsSyncFrequency,
+              statsSyncIntervalMinutes: Math.max(1, Number(parsedLib.statsSyncIntervalMinutes) || defaultLibrarySettings.statsSyncIntervalMinutes),
+              fullBackupFrequency,
+              fullBackupIntervalMinutes: Math.max(1, Number(parsedLib.fullBackupIntervalMinutes) || defaultLibrarySettings.fullBackupIntervalMinutes),
+            };
+          })(),
         };
     }
   } catch {
@@ -620,7 +687,7 @@ function saveStoredSettings(
     listeningStats: ListeningStatsState;
     librarySettings: LibrarySettings;
   },
-  options: { syncFile?: boolean } = {}
+  options: { syncFile?: boolean; isTelemetryTick?: boolean } = {}
 ) {
   try {
     localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(state));
@@ -629,10 +696,11 @@ function saveStoredSettings(
   }
   if (state.librarySettings.fullBackupFilePath) {
     localStorage.setItem(FULL_BACKUP_PATH_KEY, state.librarySettings.fullBackupFilePath);
-    void flushFullBackupToFile(state.librarySettings.fullBackupFilePath);
   } else {
     localStorage.removeItem(FULL_BACKUP_PATH_KEY);
-    void flushFullBackupToFile("");
+  }
+  if (state.librarySettings.fullBackupFrequency === "onChange" && !options.isTelemetryTick) {
+    scheduleDebouncedFullBackup(state.librarySettings.fullBackupFilePath);
   }
   if (options.syncFile !== false) {
     syncListeningStatsToFile(state.librarySettings, state.listeningStats);
@@ -644,14 +712,15 @@ function shouldSyncStatsNow(librarySettings: LibrarySettings, accumulatedSeconds
   if (librarySettings.statsSyncFrequency === "onClose") {
     return false;
   }
-  const intervalSeconds =
-    librarySettings.statsSyncFrequency === "intervalMinutes"
-      ? Math.max(1, librarySettings.statsSyncIntervalMinutes) * 60
-      : 10;
+  if (librarySettings.statsSyncFrequency === "onChange") {
+    return true;
+  }
+  const intervalSeconds = Math.max(1, librarySettings.statsSyncIntervalMinutes) * 60;
   return Math.floor(accumulatedSeconds) % intervalSeconds === 0;
 }
 
 async function flushListeningStatsToFile(librarySettings: LibrarySettings, listeningStats: ListeningStatsState): Promise<void> {
+  lastStatsBackupTime = Date.now();
   const targetPath = await getEffectiveStatsBackupPath(librarySettings.statsSyncFilePath);
   if (!targetPath) {
     return;
@@ -1362,14 +1431,18 @@ export const useMusicStore = create<MusicPlayerStore>((set, get) => ({
   setListeningStats: (patch: Partial<ListeningStatsState>, options: { syncFile?: boolean } = {}) => {
     set((state) => {
       const next = { ...state.listeningStats, ...patch };
-      saveStoredSettings({
-        language: state.language,
-        appearance: state.appearance,
-        audioSettings: state.audioSettings,
-        playbackSettings: state.playbackSettings,
-        listeningStats: next,
-        librarySettings: state.librarySettings,
-      }, options);
+      const syncFile = options.syncFile ?? (state.librarySettings.statsSyncFrequency === "onChange");
+      saveStoredSettings(
+        {
+          language: state.language,
+          appearance: state.appearance,
+          audioSettings: state.audioSettings,
+          playbackSettings: state.playbackSettings,
+          listeningStats: next,
+          librarySettings: state.librarySettings,
+        },
+        { syncFile, isTelemetryTick: false }
+      );
       return { listeningStats: next };
     });
   },
@@ -1565,7 +1638,10 @@ export const useMusicStore = create<MusicPlayerStore>((set, get) => ({
                 listeningStats: updatedStats,
                 librarySettings: state.librarySettings,
               },
-              { syncFile: shouldSyncStatsNow(state.librarySettings, nextSecs) }
+              {
+                syncFile: shouldSyncStatsNow(state.librarySettings, nextSecs),
+                isTelemetryTick: true,
+              }
             );
           }
         }
@@ -1841,7 +1917,10 @@ export const useMusicStore = create<MusicPlayerStore>((set, get) => ({
                 listeningStats: updatedStats,
                 librarySettings: current.librarySettings,
               },
-              { syncFile: shouldSyncStatsNow(current.librarySettings, nextSecs) }
+              {
+                syncFile: shouldSyncStatsNow(current.librarySettings, nextSecs),
+                isTelemetryTick: true,
+              }
             );
           }
         }
@@ -1901,7 +1980,31 @@ export const useMusicStore = create<MusicPlayerStore>((set, get) => ({
       void get().startDirectoryScan(librarySettings.musicFolder);
     }
 
+    // Periodic interval backup timer for intervalMinutes modes
+    const backupIntervalTimer = window.setInterval(() => {
+      const state = get();
+      const lib = state.librarySettings;
+      const now = Date.now();
+
+      if (lib.fullBackupFrequency === "intervalMinutes") {
+        const intervalMs = Math.max(1, lib.fullBackupIntervalMinutes) * 60 * 1000;
+        if (now - lastFullBackupTime >= intervalMs) {
+          lastFullBackupTime = now;
+          void flushFullBackupToFile(lib.fullBackupFilePath);
+        }
+      }
+
+      if (lib.statsSyncFrequency === "intervalMinutes") {
+        const intervalMs = Math.max(1, lib.statsSyncIntervalMinutes) * 60 * 1000;
+        if (now - lastStatsBackupTime >= intervalMs) {
+          lastStatsBackupTime = now;
+          void flushListeningStatsToFile(lib, state.listeningStats);
+        }
+      }
+    }, 30000);
+
     return () => {
+      window.clearInterval(backupIntervalTimer);
       if (typeof window !== "undefined") {
         window.removeEventListener("beforeunload", handleExitSave);
       }
