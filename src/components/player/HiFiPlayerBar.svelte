@@ -282,7 +282,7 @@
 
 <footer
   style="height: {height}px; --player-side-width: {playerInfoWidth}px;"
-  class="grid grid-cols-[var(--player-side-width)_minmax(0,1fr)_var(--player-side-width)] items-center gap-0 border-t border-slate-800/80 bg-slate-950/95 backdrop-blur-md px-4 z-40 select-none shrink-0 relative overflow-hidden isolate"
+  class="grid grid-cols-[var(--player-side-width)_minmax(0,1fr)_var(--player-side-width)] items-center gap-0 border-t border-slate-800/80 bg-slate-950/95 px-4 z-40 select-none shrink-0 relative overflow-hidden isolate"
 >
   {#if playbackSettings?.diffusePlayerBar && currentCoverArt}
     <div

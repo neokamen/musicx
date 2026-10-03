@@ -45,6 +45,7 @@
 
     const render = (time: number) => {
       animId = requestAnimationFrame(render);
+      if (document.hidden) return;
 
       const store = useMusicStore.getState();
       const tele = store.telemetry;

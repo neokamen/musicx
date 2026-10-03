@@ -100,13 +100,33 @@
       }
     };
 
+    let idleCleared = false;
+
     const render = (time: number) => {
       frameId = requestAnimationFrame(render);
+      if (document.hidden) return;
       const storeState = useMusicStore.getState();
       const liveTelemetry = storeState.telemetry;
       const liveIsPlaying = storeState.isPlaying;
       const liveAppearance = storeState.appearance;
       const liveStyle = visualStyle;
+
+      // Reposo: sin reproducción y barras ya a cero => nada que dibujar (evita relayout + raster a 60 fps)
+      if (!liveIsPlaying) {
+        let settled = true;
+        for (let index = 0; index < count; index++) {
+          if (levels[index] > 0.002) { settled = false; break; }
+        }
+        if (settled) {
+          if (!idleCleared) {
+            context.setTransform(1, 0, 0, 1, 0, 0);
+            context.clearRect(0, 0, canvas.width, canvas.height);
+            idleCleared = true;
+          }
+          return;
+        }
+      }
+      idleCleared = false;
 
       const fps = Math.max(30, liveAppearance.cavaFps || 60);
       if (time - previousFrame < 1000 / fps) return;
@@ -185,7 +205,7 @@
 
       context.save();
       context.shadowColor = palette[1];
-      context.shadowBlur = 22;
+      context.shadowBlur = 8;
       const baseline = liveAppearance.cavaMirrored ? height * 0.5 : height * 0.84;
       const scale = liveAppearance.cavaMirrored ? 0.62 : 0.88;
 

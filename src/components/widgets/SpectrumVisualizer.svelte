@@ -90,7 +90,9 @@
       const currentVol = currentTelemetry.volume ?? store.volume ?? 1;
       const currentApp = store.appearance;
 
-      const frameInterval = 1000 / Math.max(30, currentApp.spectrumFps || 60);
+      if (document.hidden) return;
+      const requestedFps = Math.max(30, currentApp.spectrumFps || 60);
+      const frameInterval = 1000 / (currentIsPlaying ? requestedFps : 30);
       if (now - lastTime < frameInterval) return;
       const dt = Math.min((now - lastTime) / 1000, 0.1);
       lastTime = now;

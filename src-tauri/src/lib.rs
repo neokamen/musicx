@@ -18,13 +18,16 @@ use tauri::{Emitter, Manager};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    // WebKitGTK puede renderizar una ventana en blanco (AppImage / Wayland / drivers Mesa recientes)
-    // cuando usa el renderer DMABUF. Se desactiva DMABUF salvo que el usuario ya lo defina.
+    // WebKitGTK puede renderizar una ventana en blanco dentro de AppImage (libs Mesa/WebKit empaquetadas)
+    // cuando usa el renderer DMABUF. Solo se desactiva en AppImage (o si MUSICX_DISABLE_DMABUF=1):
+    // fuera de AppImage forzarlo obliga a copiar cada fotograma por CPU (calentamiento y lag).
     // NOTA: WEBKIT_DISABLE_COMPOSITING_MODE NO se debe activar porque desactiva la aceleración GPU
     // obligando a la CPU a renderizar todo por software (causando 100% CPU y calentamiento).
     #[cfg(target_os = "linux")]
     {
-        if std::env::var_os("WEBKIT_DISABLE_DMABUF_RENDERER").is_none() {
+        let in_appimage = std::env::var_os("APPIMAGE").is_some();
+        let forced = std::env::var_os("MUSICX_DISABLE_DMABUF").is_some();
+        if (in_appimage || forced) && std::env::var_os("WEBKIT_DISABLE_DMABUF_RENDERER").is_none() {
             std::env::set_var("WEBKIT_DISABLE_DMABUF_RENDERER", "1");
         }
     }
@@ -70,9 +73,11 @@ pub fn run() {
                 std::thread::Builder::new()
                     .name("musicx-telemetry-broadcaster".to_string())
                     .spawn(move || loop {
-                        std::thread::sleep(std::time::Duration::from_millis(30));
                         let tele = audio_for_telemetry.get_telemetry();
+                        let playing = matches!(tele.state, models::PlaybackState::Playing);
                         let _ = app_handle.emit("audio-telemetry", &tele);
+                        // 33 Hz reproduciendo; 4 Hz en reposo para no despertar el WebView sin motivo
+                        std::thread::sleep(std::time::Duration::from_millis(if playing { 30 } else { 250 }));
                     })
                     .expect("Failed to spawn telemetry broadcaster thread");
 
