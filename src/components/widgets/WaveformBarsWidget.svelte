@@ -177,11 +177,6 @@
   onpointerleave={handlePointerLeave}
   class="relative w-full h-full min-h-[40px] rounded-xl border border-slate-800/80 bg-slate-950/90 shadow-inner select-none cursor-pointer overflow-hidden group p-2"
 >
-  <!-- Background Glow on Hover -->
-  <div
-    class="pointer-events-none absolute inset-0 opacity-10 transition-opacity duration-300 group-hover:opacity-20"
-    style="background: radial-gradient(circle at 50% 50%, {accentColor}, transparent 70%);"
-  ></div>
 
   <!-- Waveform Canvas -->
   <div class="relative w-full h-full overflow-hidden">
