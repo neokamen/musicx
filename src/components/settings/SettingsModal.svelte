@@ -12,6 +12,9 @@
     librarySettingsStore,
     scanStatusStore,
     libraryTracksStore,
+    triggerFullBackupSync,
+    getDefaultFullBackupPath,
+    getDefaultStatsBackupPath,
   } from '../../store/index.ts';
   import {
     RotateCcw,
@@ -39,6 +42,8 @@
     SkipForward,
     Repeat,
     Radio,
+    Link,
+    Unlink,
   } from '@lucide/svelte';
   import { open, save } from '@tauri-apps/plugin-dialog';
   import { readTextFile, writeTextFile, getRuntimeDepsStatus, installOrUpdateRuntimeDeps, type RuntimeDepsStatus } from '../../services/api.ts';
@@ -118,10 +123,14 @@
   let minimalScrollbars = $state<boolean>(getSavedMinimalScrollbars());
   let marqueeSpeed = $state<number>(getSavedMarqueeSpeed());
   let marqueeDelay = $state<number>(getSavedMarqueeDelay());
+  let defaultFullBackupPath = $state<string>('');
+  let defaultStatsBackupPath = $state<string>('');
 
   onMount(() => {
     marqueeSpeed = appearance.marqueeSpeed || getSavedMarqueeSpeed();
     marqueeDelay = appearance.marqueeDelay || getSavedMarqueeDelay();
+    getDefaultFullBackupPath().then((p) => { defaultFullBackupPath = p; });
+    getDefaultStatsBackupPath().then((p) => { defaultStatsBackupPath = p; });
   });
 
   $effect(() => {
@@ -301,7 +310,7 @@
         defaultPath: defaultName,
         filters: [{ name: 'JSON', extensions: ['json'] }],
       });
-      if (typeof selected !== 'string') return;
+      if (typeof selected !== 'string' || !selected.trim()) return;
 
       const currentStoreState = {
         language,
@@ -339,12 +348,80 @@
         data,
       };
 
-      await writeTextFile(selected, JSON.stringify(backup, null, 2));
+      await writeTextFile(selected.trim(), JSON.stringify(backup, null, 2));
       savedMessage = 'Copia de seguridad guardada con éxito.';
-      setTimeout(() => { savedMessage = null; }, 3000);
+      setTimeout(() => { savedMessage = null; }, 2500);
     } catch {
       savedMessage = 'No se pudo guardar la copia de seguridad.';
-      setTimeout(() => { savedMessage = null; }, 3000);
+      setTimeout(() => { savedMessage = null; }, 2500);
+    }
+  };
+
+  const restoreFullBackupData = async (backupData: Record<string, unknown>, userPath?: string) => {
+    const EXCLUDED_KEYS = ['musicx_listening_stats', 'musicx_stats_backup'];
+
+    const preservedStats: Record<string, string | null> = {};
+    for (const k of EXCLUDED_KEYS) {
+      preservedStats[k] = localStorage.getItem(k);
+    }
+
+    for (let i = localStorage.length - 1; i >= 0; i--) {
+      const key = localStorage.key(i);
+      if (key && !EXCLUDED_KEYS.includes(key)) {
+        localStorage.removeItem(key);
+      }
+    }
+
+    for (const [key, value] of Object.entries<unknown>(backupData)) {
+      if (typeof value === 'string' && !EXCLUDED_KEYS.includes(key)) {
+        localStorage.setItem(key, value);
+      }
+    }
+
+    for (const [k, v] of Object.entries(preservedStats)) {
+      if (v !== null) localStorage.setItem(k, v);
+    }
+
+    if (userPath !== undefined) {
+      if (userPath.trim()) {
+        localStorage.setItem('musicx_full_backup_path', userPath.trim());
+      } else {
+        localStorage.removeItem('musicx_full_backup_path');
+      }
+    }
+
+    const settingsRaw = localStorage.getItem('musicx_settings_v5');
+    if (settingsRaw) {
+      try {
+        const parsed = JSON.parse(settingsRaw);
+        if (userPath !== undefined) {
+          parsed.librarySettings = { ...(parsed.librarySettings || {}), fullBackupFilePath: userPath.trim() };
+          localStorage.setItem('musicx_settings_v5', JSON.stringify(parsed));
+        }
+        if (parsed.appearance) {
+          const app = parsed.appearance;
+          if (app.accentPreset) localStorage.setItem('musicx_accent_preset', app.accentPreset);
+          if (app.accentColor) localStorage.setItem('musicx_accent_color', app.accentColor);
+          if (app.bgPreset) localStorage.setItem('musicx_theme_preset', app.bgPreset);
+          if (app.bgColor) localStorage.setItem('musicx_theme_color', app.bgColor);
+          if (app.bgOpacity !== undefined) localStorage.setItem('musicx_bg_opacity', String(app.bgOpacity));
+          if (app.neonGlow !== undefined) localStorage.setItem('musicx_neon_glow', String(app.neonGlow));
+          if (app.neonIntensity !== undefined) localStorage.setItem('musicx_neon_glow_intensity', String(app.neonIntensity));
+          if (app.borderRadius !== undefined) localStorage.setItem('musicx_corner_radius', String(app.borderRadius));
+
+          applyTheme(
+            app.accentPreset || 'cyan',
+            app.bgPreset || 'dark_slate',
+            app.accentColor || '#06b6d4',
+            app.bgColor || '#0f172a',
+            app.bgOpacity ?? 0.85,
+            app.neonGlow ?? true,
+            app.neonIntensity ?? 0.5,
+          );
+        }
+      } catch {
+        // Ignore
+      }
     }
   };
 
@@ -355,70 +432,17 @@
         title: 'Restaurar copia de seguridad completa',
         filters: [{ name: 'JSON', extensions: ['json'] }],
       });
-      if (typeof selected !== 'string') return;
+      if (typeof selected !== 'string' || !selected.trim()) return;
 
-      const content = await readTextFile(selected);
+      const content = await readTextFile(selected.trim());
       if (!content) throw new Error('El archivo está vacío');
 
       const backup = JSON.parse(content);
       if (backup?.format !== 'musicx-full-backup-v1' || typeof backup?.data !== 'object' || backup.data === null) {
-        throw new Error('Formato de backup no válido');
+        throw new Error('Formato de copia de seguridad no válido');
       }
 
-      const EXCLUDED_KEYS = ['musicx_listening_stats', 'musicx_stats_backup'];
-
-      const preservedStats: Record<string, string | null> = {};
-      for (const k of EXCLUDED_KEYS) {
-        preservedStats[k] = localStorage.getItem(k);
-      }
-
-      for (let i = localStorage.length - 1; i >= 0; i--) {
-        const key = localStorage.key(i);
-        if (key && !EXCLUDED_KEYS.includes(key)) {
-          localStorage.removeItem(key);
-        }
-      }
-
-      for (const [key, value] of Object.entries<unknown>(backup.data)) {
-        if (typeof value === 'string' && !EXCLUDED_KEYS.includes(key)) {
-          localStorage.setItem(key, value);
-        }
-      }
-
-      for (const [k, v] of Object.entries(preservedStats)) {
-        if (v !== null) localStorage.setItem(k, v);
-      }
-
-      const settingsRaw = localStorage.getItem('musicx_settings_v5');
-      if (settingsRaw) {
-        try {
-          const parsed = JSON.parse(settingsRaw);
-          if (parsed.appearance) {
-            const app = parsed.appearance;
-            if (app.accentPreset) localStorage.setItem('musicx_accent_preset', app.accentPreset);
-            if (app.accentColor) localStorage.setItem('musicx_accent_color', app.accentColor);
-            if (app.bgPreset) localStorage.setItem('musicx_theme_preset', app.bgPreset);
-            if (app.bgColor) localStorage.setItem('musicx_theme_color', app.bgColor);
-            if (app.bgOpacity !== undefined) localStorage.setItem('musicx_bg_opacity', String(app.bgOpacity));
-            if (app.neonGlow !== undefined) localStorage.setItem('musicx_neon_glow', String(app.neonGlow));
-            if (app.neonIntensity !== undefined) localStorage.setItem('musicx_neon_glow_intensity', String(app.neonIntensity));
-            if (app.borderRadius !== undefined) localStorage.setItem('musicx_corner_radius', String(app.borderRadius));
-
-            applyTheme(
-              app.accentPreset || 'cyan',
-              app.bgPreset || 'dark_slate',
-              app.accentColor || '#06b6d4',
-              app.bgColor || '#0f172a',
-              app.bgOpacity ?? 0.85,
-              app.neonGlow ?? true,
-              app.neonIntensity ?? 0.5,
-            );
-          }
-        } catch {
-          // Ignore
-        }
-      }
-
+      await restoreFullBackupData(backup.data);
       savedMessage = 'Copia de seguridad restaurada con éxito. Recargando app...';
       setTimeout(() => {
         window.location.reload();
@@ -429,93 +453,127 @@
     }
   };
 
-  const applyStatsFile = async (path: string) => {
-    const raw = await readTextFile(path);
-    if (!raw) throw new Error('El archivo está vacío.');
-    const backup = JSON.parse(raw);
-    const fileStats = backup?.listeningStats;
-    if (!fileStats || !Number.isFinite(fileStats.totalSecondsListened)) {
-      throw new Error('El archivo no contiene estadísticas de MusicX.');
-    }
-    useMusicStore.getState().setListeningStats({
-      totalSecondsListened: Math.max(0, fileStats.totalSecondsListened),
-      totalTracksPlayed: Math.max(0, Number(fileStats.totalTracksPlayed) || 0),
-      totalSessions: Math.max(0, Number(fileStats.totalSessions) || 0),
-    }, { syncFile: false });
-    useMusicStore.getState().setLibrarySettings({ statsSyncFilePath: path }, { syncFile: false });
-  };
-
-  const chooseStatsSyncFile = async () => {
+  const linkFullBackupFile = async () => {
     try {
       const selected = await open({
         multiple: false,
-        title: 'Seleccionar archivo de estadísticas',
-        defaultPath: librarySettings.statsSyncFilePath || 'musicx-listening-stats.json',
+        title: 'Vincular archivo de copia de seguridad completa',
+        defaultPath: librarySettings.fullBackupFilePath || defaultFullBackupPath || undefined,
         filters: [{ name: 'JSON', extensions: ['json'] }],
       });
-      if (typeof selected === 'string') {
-        useMusicStore.getState().setLibrarySettings({ statsSyncFilePath: selected, statsBackupMode: 'sync' }, { syncFile: false });
-        await useMusicStore.getState().loadListeningStatsFromSyncFile();
-        savedMessage = 'Archivo cargado y sincronización activada.';
-        setTimeout(() => { savedMessage = null; }, 2500);
+      if (typeof selected !== 'string' || !selected.trim()) return;
+
+      const path = selected.trim();
+      const content = await readTextFile(path).catch(() => null);
+      if (content) {
+        try {
+          const backup = JSON.parse(content);
+          if (backup?.format === 'musicx-full-backup-v1' && backup.data && typeof backup.data === 'object') {
+            useMusicStore.getState().setLibrarySettings({ fullBackupFilePath: path });
+            await restoreFullBackupData(backup.data, path);
+            savedMessage = 'Archivo vinculado y configuración restaurada con éxito.';
+            setTimeout(() => { window.location.reload(); }, 1000);
+            return;
+          }
+        } catch {
+          // File not JSON or not full backup; link and save current state into it
+        }
       }
+      useMusicStore.getState().setLibrarySettings({ fullBackupFilePath: path });
+      triggerFullBackupSync();
+      savedMessage = 'Archivo vinculado como copia de seguridad activa.';
+      setTimeout(() => { savedMessage = null; }, 2500);
     } catch {
-      savedMessage = 'No se pudo cargar el archivo de estadísticas.';
+      savedMessage = 'No se pudo vincular el archivo.';
       setTimeout(() => { savedMessage = null; }, 2500);
     }
   };
 
-  const syncStatsNow = async () => {
-    await useMusicStore.getState().loadListeningStatsFromSyncFile();
-    savedMessage = 'Estadísticas sincronizadas con el archivo.';
+  const unlinkFullBackupFile = () => {
+    useMusicStore.getState().setLibrarySettings({ fullBackupFilePath: '' });
+    triggerFullBackupSync();
+    savedMessage = 'Ruta personalizada eliminada. Se usará la ruta por defecto.';
     setTimeout(() => { savedMessage = null; }, 2500);
   };
 
-  const importManualStats = async () => {
+  const exportStatsBackup = async () => {
+    try {
+      const defaultName = `musicx-listening-stats-${new Date().toISOString().slice(0, 10)}.json`;
+      const selected = await save({
+        title: 'Guardar copia de estadísticas',
+        defaultPath: defaultName,
+        filters: [{ name: 'JSON', extensions: ['json'] }],
+      });
+      if (typeof selected !== 'string' || !selected.trim()) return;
+
+      await writeTextFile(selected.trim(), JSON.stringify({
+        format: 'musicx-listening-stats-v1',
+        exportedAt: new Date().toISOString(),
+        listeningStats,
+      }, null, 2));
+      savedMessage = 'Copia de estadísticas guardada con éxito.';
+      setTimeout(() => { savedMessage = null; }, 2500);
+    } catch {
+      savedMessage = 'No se pudo guardar la copia de estadísticas.';
+      setTimeout(() => { savedMessage = null; }, 2500);
+    }
+  };
+
+  const importStatsBackup = async () => {
     try {
       const selected = await open({
         multiple: false,
-        title: 'Importar estadísticas escuchadas',
-        defaultPath: librarySettings.statsSyncFilePath || 'musicx-listening-stats.json',
+        title: 'Restaurar copia de estadísticas',
         filters: [{ name: 'JSON', extensions: ['json'] }],
       });
-      if (typeof selected === 'string') {
-        await applyStatsFile(selected);
-        savedMessage = 'Estadísticas importadas.';
-        setTimeout(() => { savedMessage = null; }, 2500);
+      if (typeof selected !== 'string' || !selected.trim()) return;
+
+      const raw = await readTextFile(selected.trim());
+      if (!raw) throw new Error('El archivo está vacío.');
+      const backup = JSON.parse(raw);
+      const fileStats = backup?.listeningStats;
+      if (!fileStats || !Number.isFinite(fileStats.totalSecondsListened)) {
+        throw new Error('El archivo no contiene estadísticas válidas.');
       }
+      useMusicStore.getState().setListeningStats({
+        totalSecondsListened: Math.max(0, fileStats.totalSecondsListened),
+        totalTracksPlayed: Math.max(0, Number(fileStats.totalTracksPlayed) || 0),
+        totalSessions: Math.max(0, Number(fileStats.totalSessions) || 0),
+      });
+      savedMessage = 'Copia de estadísticas restaurada con éxito.';
+      setTimeout(() => { savedMessage = null; }, 2500);
     } catch {
-      savedMessage = 'No se pudo importar el archivo de estadísticas.';
+      savedMessage = 'No se pudo restaurar la copia de estadísticas.';
       setTimeout(() => { savedMessage = null; }, 2500);
     }
   };
 
-  const exportManualStats = async () => {
+  const linkStatsBackupFile = async () => {
     try {
-      const selected = await save({
-        title: 'Exportar estadísticas escuchadas',
-        defaultPath: librarySettings.statsSyncFilePath || 'musicx-listening-stats.json',
+      const selected = await open({
+        multiple: false,
+        title: 'Vincular archivo de estadísticas',
+        defaultPath: librarySettings.statsSyncFilePath || defaultStatsBackupPath || undefined,
         filters: [{ name: 'JSON', extensions: ['json'] }],
       });
-      if (typeof selected === 'string') {
-        await writeTextFile(selected, JSON.stringify({
-          format: 'musicx-listening-stats-v1',
-          exportedAt: new Date().toISOString(),
-          listeningStats,
-        }, null, 2));
-        useMusicStore.getState().setLibrarySettings({ statsSyncFilePath: selected }, { syncFile: false });
-        savedMessage = 'Estadísticas exportadas.';
-        setTimeout(() => { savedMessage = null; }, 2500);
-      }
+      if (typeof selected !== 'string' || !selected.trim()) return;
+
+      const path = selected.trim();
+      useMusicStore.getState().setLibrarySettings({ statsSyncFilePath: path, statsBackupMode: 'sync' }, { syncFile: false });
+      await useMusicStore.getState().loadListeningStatsFromSyncFile();
+      savedMessage = 'Archivo vinculado para estadísticas.';
+      setTimeout(() => { savedMessage = null; }, 2500);
     } catch {
-      savedMessage = 'No se pudo exportar el archivo de estadísticas.';
+      savedMessage = 'No se pudo vincular el archivo de estadísticas.';
       setTimeout(() => { savedMessage = null; }, 2500);
     }
   };
 
-  const enableStatsSync = async () => {
-    useMusicStore.getState().setLibrarySettings({ statsBackupMode: 'sync' }, { syncFile: false });
+  const unlinkStatsBackupFile = async () => {
+    useMusicStore.getState().setLibrarySettings({ statsSyncFilePath: '' }, { syncFile: false });
     await useMusicStore.getState().loadListeningStatsFromSyncFile();
+    savedMessage = 'Ruta personalizada eliminada. Se usará la ruta por defecto.';
+    setTimeout(() => { savedMessage = null; }, 2500);
   };
 </script>
 
@@ -619,75 +677,60 @@
             <div class="p-4 rounded-xl bg-slate-900/40 border border-slate-800/80 space-y-3">
               <div>
                 <div class="text-xs font-bold text-slate-200 uppercase tracking-wider">Copia de Seguridad Completa</div>
-                <div class="text-[11px] text-slate-400">Ruta del archivo de configuración: la app lo lee al arrancar y lo actualiza en tiempo real al cambiar ajustes, apariencia y widgets.</div>
+                <div class="text-[11px] text-slate-400">Guarda y sincroniza toda la configuración (apariencia, ajustes, widgets, tamaños y disposiciones) en un único archivo.</div>
               </div>
-              <div class="flex items-center gap-2 rounded-xl border border-slate-800 bg-slate-950/60 px-3 py-2">
-                <FolderOpen size={14} class="shrink-0 text-slate-500" />
-                <span class="min-w-0 flex-1 truncate font-mono text-[11px] text-slate-300" title={librarySettings.fullBackupFilePath || undefined}>
-                  {librarySettings.fullBackupFilePath || "Ningún archivo vinculado"}
+
+              <div class="flex items-center gap-2.5 rounded-xl border border-slate-800 bg-slate-950/70 px-3 py-2">
+                <FolderOpen size={14} class="shrink-0 text-slate-400" />
+                <span class="min-w-0 flex-1 truncate font-mono text-[11px] text-slate-200" title={librarySettings.fullBackupFilePath || defaultFullBackupPath}>
+                  {librarySettings.fullBackupFilePath || defaultFullBackupPath || "musicx-full-backup-default.json"}
                 </span>
-              </div>
-              <div class="flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  onclick={async () => {
-                    const selected = await save({
-                      title: 'Archivo de configuración en vivo',
-                      defaultPath: librarySettings.fullBackupFilePath || 'musicx-config.json',
-                      filters: [{ name: 'JSON', extensions: ['json'] }],
-                    });
-                    if (typeof selected === 'string') {
-                      useMusicStore.getState().setLibrarySettings({ fullBackupFilePath: selected });
-                    }
-                  }}
-                  class="rounded-xl border border-slate-700 bg-slate-800 px-3 py-2 text-xs font-semibold text-slate-200 hover:bg-slate-700"
-                >
-                  Elegir archivo...
-                </button>
-                <button
-                  type="button"
-                  onclick={async () => {
-                    const selected = await open({
-                      multiple: false,
-                      defaultPath: librarySettings.fullBackupFilePath || undefined,
-                      filters: [{ name: 'JSON', extensions: ['json'] }],
-                      title: 'Usar copia de seguridad existente',
-                    });
-                    if (typeof selected === 'string') {
-                      useMusicStore.getState().setLibrarySettings({ fullBackupFilePath: selected });
-                    }
-                  }}
-                  class="rounded-xl border border-slate-700 bg-slate-800 px-3 py-2 text-xs font-semibold text-slate-200 hover:bg-slate-700"
-                >
-                  Vincular existente...
-                </button>
                 {#if librarySettings.fullBackupFilePath}
-                  <button
-                    type="button"
-                    onclick={() => useMusicStore.getState().setLibrarySettings({ fullBackupFilePath: '' })}
-                    class="rounded-xl border border-slate-800 px-3 py-2 text-xs text-slate-400 hover:text-rose-300"
-                  >
-                    Quitar ruta
-                  </button>
+                  <span class="px-2 py-0.5 rounded text-[10px] font-semibold bg-cyan-950/70 text-cyan-300 border border-cyan-700/50 shrink-0">
+                    Ruta vinculada
+                  </span>
+                {:else}
+                  <span class="px-2 py-0.5 rounded text-[10px] font-semibold bg-slate-800 text-slate-400 border border-slate-700 shrink-0">
+                    Por defecto (fallback)
+                  </span>
                 {/if}
               </div>
-              <div class="flex flex-wrap gap-3">
+
+              <div class="flex flex-wrap gap-2 pt-1">
                 <button
                   type="button"
                   onclick={exportFullAppBackup}
-                  class="flex items-center gap-2 rounded-xl border border-slate-700 bg-slate-800 px-3.5 py-2 text-xs font-semibold text-slate-200 transition hover:bg-slate-700 hover:border-slate-500 cursor-pointer"
+                  class="flex items-center gap-1.5 rounded-xl border border-slate-700 bg-slate-800/90 px-3 py-2 text-xs font-semibold text-slate-200 transition hover:bg-slate-700 cursor-pointer"
                 >
-                  <Download size={14} style="color: {appearance.accentColor || '#06b6d4'};" />
-                  <span>Guardar copia ahora...</span>
+                  <Download size={13} style="color: {appearance.accentColor || '#06b6d4'};" />
+                  <span>Guardar copia</span>
                 </button>
                 <button
                   type="button"
                   onclick={importFullAppBackup}
-                  class="flex items-center gap-2 rounded-xl border border-slate-700 bg-slate-800 px-3.5 py-2 text-xs font-semibold text-slate-200 transition hover:bg-slate-700 hover:border-slate-500 cursor-pointer"
+                  class="flex items-center gap-1.5 rounded-xl border border-slate-700 bg-slate-800/90 px-3 py-2 text-xs font-semibold text-slate-200 transition hover:bg-slate-700 cursor-pointer"
                 >
-                  <Upload size={14} style="color: {appearance.accentColor || '#06b6d4'};" />
-                  <span>Restaurar copia...</span>
+                  <Upload size={13} style="color: {appearance.accentColor || '#06b6d4'};" />
+                  <span>Restaurar copia</span>
                 </button>
+                <button
+                  type="button"
+                  onclick={linkFullBackupFile}
+                  class="flex items-center gap-1.5 rounded-xl border border-slate-700 bg-slate-800/90 px-3 py-2 text-xs font-semibold text-slate-200 transition hover:bg-slate-700 cursor-pointer"
+                >
+                  <Link size={13} style="color: {appearance.accentColor || '#06b6d4'};" />
+                  <span>Vincular archivo</span>
+                </button>
+                {#if librarySettings.fullBackupFilePath}
+                  <button
+                    type="button"
+                    onclick={unlinkFullBackupFile}
+                    class="flex items-center gap-1.5 rounded-xl border border-slate-800 bg-slate-900/60 px-3 py-2 text-xs font-semibold text-rose-300 hover:bg-rose-950/30 hover:border-rose-800/50 transition cursor-pointer"
+                  >
+                    <Unlink size={13} />
+                    <span>Quitar ruta</span>
+                  </button>
+                {/if}
               </div>
             </div>
 
@@ -1758,106 +1801,61 @@
             </div>
 
             <div class="p-4 rounded-xl bg-slate-900/40 border border-slate-800/80 space-y-3">
-              <div class="text-xs font-bold text-slate-300">Modo de backup del tiempo escuchado</div>
-              <div class="flex items-center justify-between flex-wrap gap-2">
-                <div class="flex flex-wrap gap-2">
-                  <button
-                    onclick={() => useMusicStore.getState().setLibrarySettings({ statsBackupMode: 'manual' })}
-                    class="px-3 py-1.5 rounded-lg border text-xs font-semibold transition cursor-pointer {librarySettings.statsBackupMode === 'manual' ? 'border-cyan-500/60 bg-cyan-950/40 text-cyan-300' : 'border-slate-700 bg-slate-800 text-slate-300 hover:bg-slate-700'}"
-                  >
-                    Manual (exportar / importar)
-                  </button>
-                  <button
-                    onclick={() => void enableStatsSync()}
-                    class="px-3 py-1.5 rounded-lg border text-xs font-semibold transition cursor-pointer {librarySettings.statsBackupMode === 'sync' ? 'border-cyan-500/60 bg-cyan-950/40 text-cyan-300' : 'border-slate-700 bg-slate-800 text-slate-300 hover:bg-slate-700'}"
-                  >
-                    Sincronizado (archivo compartido)
-                  </button>
-                </div>
-                {#if librarySettings.statsBackupMode === 'sync'}
-                  <button
-                    onclick={syncStatsNow}
-                    disabled={!librarySettings.statsSyncFilePath}
-                    class="px-3 py-1.5 rounded-lg border border-cyan-700/60 bg-cyan-950/40 text-cyan-300 text-xs font-semibold hover:bg-cyan-900/40 transition cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-2 ml-auto"
-                  >
-                    <RefreshCw size={13} />
-                    Sincronizar ahora
-                  </button>
+              <div>
+                <div class="text-xs font-bold text-slate-200 uppercase tracking-wider">Backup del Tiempo Escuchado</div>
+                <div class="text-[11px] text-slate-400">Historial de tiempo y canciones escuchadas. Se mantiene sincronizado automáticamente en un único archivo.</div>
+              </div>
+
+              <div class="flex items-center gap-2.5 rounded-xl border border-slate-800 bg-slate-950/70 px-3 py-2">
+                <FolderOpen size={14} class="shrink-0 text-slate-400" />
+                <span class="min-w-0 flex-1 truncate font-mono text-[11px] text-slate-200" title={librarySettings.statsSyncFilePath || defaultStatsBackupPath}>
+                  {librarySettings.statsSyncFilePath || defaultStatsBackupPath || "musicx-listening-stats-default.json"}
+                </span>
+                {#if librarySettings.statsSyncFilePath}
+                  <span class="px-2 py-0.5 rounded text-[10px] font-semibold bg-cyan-950/70 text-cyan-300 border border-cyan-700/50 shrink-0">
+                    Ruta vinculada
+                  </span>
+                {:else}
+                  <span class="px-2 py-0.5 rounded text-[10px] font-semibold bg-slate-800 text-slate-400 border border-slate-700 shrink-0">
+                    Por defecto (fallback)
+                  </span>
                 {/if}
               </div>
-              <p class="text-[11px] text-slate-500">
-                {librarySettings.statsBackupMode === 'sync'
-                  ? 'El contador se guarda automáticamente en el archivo elegido (frecuencia configurable abajo) y se lee al abrir la app. Apunta la ruta a una carpeta sincronizada (Mega, Nextcloud, etc.) para compartir el progreso entre varios ordenadores.'
-                  : 'Importa un archivo de estadísticas existente o exporta el contador actual para usarlo en otro equipo.'}
-              </p>
-              <div class="space-y-3">
-                <div class="flex flex-wrap items-center gap-2">
-                  <input
-                    type="text"
-                    readonly
-                    value={librarySettings.statsSyncFilePath}
-                    placeholder="Selecciona un archivo musicx-listening-stats.json"
-                    class="flex-1 min-w-[220px] px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs font-mono text-slate-200"
-                  />
-                  {#if librarySettings.statsBackupMode === 'sync'}
-                    <button
-                      onclick={() => void chooseStatsSyncFile()}
-                      class="px-3 py-1.5 rounded-lg border border-slate-700 bg-slate-800 text-xs font-semibold hover:bg-slate-700 transition cursor-pointer"
-                    >
-                      Seleccionar y cargar
-                    </button>
-                  {:else}
-                    <button
-                      onclick={() => void importManualStats()}
-                      class="px-3 py-1.5 rounded-lg border border-slate-700 bg-slate-800 text-xs font-semibold hover:bg-slate-700 transition cursor-pointer flex items-center gap-2"
-                    >
-                      <Upload size={13} />Importar
-                    </button>
-                    <button
-                      onclick={() => void exportManualStats()}
-                      class="px-3 py-1.5 rounded-lg border border-slate-700 bg-slate-800 text-xs font-semibold hover:bg-slate-700 transition cursor-pointer flex items-center gap-2"
-                    >
-                      <Download size={13} />Exportar
-                    </button>
-                  {/if}
-                </div>
 
-                {#if librarySettings.statsBackupMode === 'sync'}
-                  <div class="space-y-2">
-                    <div class="text-[11px] font-bold text-slate-400 uppercase tracking-wide">Frecuencia de escritura en el archivo</div>
-                    <div class="flex flex-wrap gap-2">
-                      <button
-                        onclick={() => useMusicStore.getState().setLibrarySettings({ statsSyncFrequency: 'interval10s' })}
-                        class="px-3 py-1.5 rounded-lg border text-xs font-semibold transition cursor-pointer {librarySettings.statsSyncFrequency === 'interval10s' ? 'border-cyan-500/60 bg-cyan-950/40 text-cyan-300' : 'border-slate-700 bg-slate-800 text-slate-300 hover:bg-slate-700'}"
-                      >
-                        Cada 10s de reproducción (actual)
-                      </button>
-                      <button
-                        onclick={() => useMusicStore.getState().setLibrarySettings({ statsSyncFrequency: 'intervalMinutes' })}
-                        class="px-3 py-1.5 rounded-lg border text-xs font-semibold transition cursor-pointer {librarySettings.statsSyncFrequency === 'intervalMinutes' ? 'border-cyan-500/60 bg-cyan-950/40 text-cyan-300' : 'border-slate-700 bg-slate-800 text-slate-300 hover:bg-slate-700'}"
-                      >
-                        Cada X minutos de reproducción
-                      </button>
-                      <button
-                        onclick={() => useMusicStore.getState().setLibrarySettings({ statsSyncFrequency: 'onClose' })}
-                        class="px-3 py-1.5 rounded-lg border text-xs font-semibold transition cursor-pointer {librarySettings.statsSyncFrequency === 'onClose' ? 'border-cyan-500/60 bg-cyan-950/40 text-cyan-300' : 'border-slate-700 bg-slate-800 text-slate-300 hover:bg-slate-700'}"
-                      >
-                        Solo al cerrar la app
-                      </button>
-                    </div>
-                    {#if librarySettings.statsSyncFrequency === 'intervalMinutes'}
-                      <div class="flex items-center gap-2">
-                        <span class="text-xs text-slate-300">Minutos de reproducción acumulada entre cada escritura:</span>
-                        <input
-                          type="number"
-                          min="1"
-                          value={librarySettings.statsSyncIntervalMinutes}
-                          oninput={(e) => useMusicStore.getState().setLibrarySettings({ statsSyncIntervalMinutes: Math.max(1, parseInt((e.target as HTMLInputElement).value) || 1) })}
-                          class="w-20 px-2 py-1 bg-slate-950 border border-slate-700 rounded-lg text-xs font-mono text-slate-100"
-                        />
-                      </div>
-                    {/if}
-                  </div>
+              <div class="flex flex-wrap gap-2 pt-1">
+                <button
+                  type="button"
+                  onclick={exportStatsBackup}
+                  class="flex items-center gap-1.5 rounded-xl border border-slate-700 bg-slate-800/90 px-3 py-2 text-xs font-semibold text-slate-200 transition hover:bg-slate-700 cursor-pointer"
+                >
+                  <Download size={13} style="color: {appearance.accentColor || '#06b6d4'};" />
+                  <span>Guardar copia</span>
+                </button>
+                <button
+                  type="button"
+                  onclick={importStatsBackup}
+                  class="flex items-center gap-1.5 rounded-xl border border-slate-700 bg-slate-800/90 px-3 py-2 text-xs font-semibold text-slate-200 transition hover:bg-slate-700 cursor-pointer"
+                >
+                  <Upload size={13} style="color: {appearance.accentColor || '#06b6d4'};" />
+                  <span>Restaurar copia</span>
+                </button>
+                <button
+                  type="button"
+                  onclick={linkStatsBackupFile}
+                  class="flex items-center gap-1.5 rounded-xl border border-slate-700 bg-slate-800/90 px-3 py-2 text-xs font-semibold text-slate-200 transition hover:bg-slate-700 cursor-pointer"
+                >
+                  <Link size={13} style="color: {appearance.accentColor || '#06b6d4'};" />
+                  <span>Vincular archivo</span>
+                </button>
+                {#if librarySettings.statsSyncFilePath}
+                  <button
+                    type="button"
+                    onclick={unlinkStatsBackupFile}
+                    class="flex items-center gap-1.5 rounded-xl border border-slate-800 bg-slate-900/60 px-3 py-2 text-xs font-semibold text-rose-300 hover:bg-rose-950/30 hover:border-rose-800/50 transition cursor-pointer"
+                  >
+                    <Unlink size={13} />
+                    <span>Quitar ruta</span>
+                  </button>
                 {/if}
               </div>
             </div>

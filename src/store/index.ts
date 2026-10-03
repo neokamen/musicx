@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { homeDir } from "@tauri-apps/api/path";
+import { homeDir, appDataDir } from "@tauri-apps/api/path";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import type { AudioTelemetry, FileNode, PlaybackState, RepeatMode, ScanStatus, Track } from "../types/index.ts";
 import * as api from "../services/api.ts";
@@ -233,8 +233,52 @@ const EXPLORER_PATH_STORAGE_KEY = "musicx_explorer_last_path_v1";
 const FULL_BACKUP_PATH_KEY = "musicx_full_backup_path";
 const FULL_BACKUP_EXCLUDED = ["musicx_listening_stats", "musicx_stats_backup"];
 
-async function flushFullBackupToFile(path: string): Promise<void> {
-  if (!path) return;
+let cachedDefaultAppDataDir: string | null = null;
+
+export async function getDefaultAppDataDir(): Promise<string> {
+  if (cachedDefaultAppDataDir) return cachedDefaultAppDataDir;
+  try {
+    const dir = await appDataDir();
+    cachedDefaultAppDataDir = dir.replace(/\/+$/, "");
+    return cachedDefaultAppDataDir;
+  } catch {
+    try {
+      const h = await homeDir();
+      cachedDefaultAppDataDir = `${h.replace(/\/+$/, "")}/.local/share/com.musicx.audioplayer`;
+      return cachedDefaultAppDataDir;
+    } catch {
+      return "";
+    }
+  }
+}
+
+export async function getDefaultFullBackupPath(): Promise<string> {
+  const dir = await getDefaultAppDataDir();
+  return dir ? `${dir}/musicx-full-backup-default.json` : "";
+}
+
+export async function getDefaultStatsBackupPath(): Promise<string> {
+  const dir = await getDefaultAppDataDir();
+  return dir ? `${dir}/musicx-listening-stats-default.json` : "";
+}
+
+export async function getEffectiveFullBackupPath(userPath?: string): Promise<string> {
+  const trimmed = userPath?.trim();
+  if (trimmed) return trimmed;
+  const stored = localStorage.getItem(FULL_BACKUP_PATH_KEY)?.trim();
+  if (stored) return stored;
+  return await getDefaultFullBackupPath();
+}
+
+export async function getEffectiveStatsBackupPath(userPath?: string): Promise<string> {
+  const trimmed = userPath?.trim();
+  if (trimmed) return trimmed;
+  return await getDefaultStatsBackupPath();
+}
+
+async function flushFullBackupToFile(path?: string): Promise<void> {
+  const targetPath = await getEffectiveFullBackupPath(path);
+  if (!targetPath) return;
   const data: Record<string, string> = {};
   for (let i = 0; i < localStorage.length; i++) {
     const key = localStorage.key(i);
@@ -246,12 +290,18 @@ async function flushFullBackupToFile(path: string): Promise<void> {
     const settingsRaw = data[SETTINGS_STORAGE_KEY];
     if (settingsRaw) {
       const parsed = JSON.parse(settingsRaw);
-      parsed.librarySettings = { ...(parsed.librarySettings || {}), fullBackupFilePath: path };
+      parsed.librarySettings = { ...(parsed.librarySettings || {}), fullBackupFilePath: path || "" };
       data[SETTINGS_STORAGE_KEY] = JSON.stringify(parsed);
     }
-    data[FULL_BACKUP_PATH_KEY] = path;
+    if (path && path.trim()) {
+      data[FULL_BACKUP_PATH_KEY] = path.trim();
+      localStorage.setItem(FULL_BACKUP_PATH_KEY, path.trim());
+    } else {
+      delete data[FULL_BACKUP_PATH_KEY];
+      localStorage.removeItem(FULL_BACKUP_PATH_KEY);
+    }
     await api.writeTextFile(
-      path,
+      targetPath,
       JSON.stringify(
         {
           format: "musicx-full-backup-v1",
@@ -263,7 +313,6 @@ async function flushFullBackupToFile(path: string): Promise<void> {
       )
     );
     localStorage.setItem(SETTINGS_STORAGE_KEY, data[SETTINGS_STORAGE_KEY] || localStorage.getItem(SETTINGS_STORAGE_KEY) || "");
-    localStorage.setItem(FULL_BACKUP_PATH_KEY, path);
   } catch {
     // Ignore backup write failure
   }
@@ -271,10 +320,8 @@ async function flushFullBackupToFile(path: string): Promise<void> {
 
 export function triggerFullBackupSync(): void {
   try {
-    const path = localStorage.getItem(FULL_BACKUP_PATH_KEY) || "";
-    if (path) {
-      void flushFullBackupToFile(path);
-    }
+    const path = useMusicStore.getState().librarySettings.fullBackupFilePath || localStorage.getItem(FULL_BACKUP_PATH_KEY) || "";
+    void flushFullBackupToFile(path);
   } catch {
     // Ignore
   }
@@ -374,10 +421,11 @@ async function loadLiveFullBackupIntoStore(
   get: () => MusicPlayerStore,
   set: (partial: Partial<MusicPlayerStore>) => void
 ): Promise<void> {
-  const path = get().librarySettings.fullBackupFilePath || localStorage.getItem(FULL_BACKUP_PATH_KEY) || "";
-  if (!path) return;
+  const userPath = get().librarySettings.fullBackupFilePath || localStorage.getItem(FULL_BACKUP_PATH_KEY) || "";
+  const targetPath = await getEffectiveFullBackupPath(userPath);
+  if (!targetPath) return;
   try {
-    const raw = await api.readTextFile(path);
+    const raw = await api.readTextFile(targetPath);
     if (!raw) return;
     const backup = JSON.parse(raw);
     if (backup?.format !== "musicx-full-backup-v1" || !backup.data || typeof backup.data !== "object") return;
@@ -392,7 +440,7 @@ async function loadLiveFullBackupIntoStore(
     const librarySettings = {
       ...defaultLibrarySettings,
       ...(parsed.librarySettings || {}),
-      fullBackupFilePath: path,
+      fullBackupFilePath: userPath,
     };
     const persisted = {
       language: parsed.language || get().language,
@@ -403,7 +451,11 @@ async function loadLiveFullBackupIntoStore(
       librarySettings,
     };
     localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(persisted));
-    localStorage.setItem(FULL_BACKUP_PATH_KEY, path);
+    if (userPath && userPath.trim()) {
+      localStorage.setItem(FULL_BACKUP_PATH_KEY, userPath.trim());
+    } else {
+      localStorage.removeItem(FULL_BACKUP_PATH_KEY);
+    }
     set({
       language: persisted.language,
       appearance: persisted.appearance,
@@ -580,6 +632,7 @@ function saveStoredSettings(
     void flushFullBackupToFile(state.librarySettings.fullBackupFilePath);
   } else {
     localStorage.removeItem(FULL_BACKUP_PATH_KEY);
+    void flushFullBackupToFile("");
   }
   if (options.syncFile !== false) {
     syncListeningStatsToFile(state.librarySettings, state.listeningStats);
@@ -588,9 +641,6 @@ function saveStoredSettings(
 
 // Decides whether accumulated playback seconds should trigger a sync-file write, per the chosen frequency
 function shouldSyncStatsNow(librarySettings: LibrarySettings, accumulatedSeconds: number): boolean {
-  if (librarySettings.statsBackupMode !== "sync" || !librarySettings.statsSyncFilePath) {
-    return false;
-  }
   if (librarySettings.statsSyncFrequency === "onClose") {
     return false;
   }
@@ -602,7 +652,8 @@ function shouldSyncStatsNow(librarySettings: LibrarySettings, accumulatedSeconds
 }
 
 async function flushListeningStatsToFile(librarySettings: LibrarySettings, listeningStats: ListeningStatsState): Promise<void> {
-  if (librarySettings.statsBackupMode !== "sync" || !librarySettings.statsSyncFilePath) {
+  const targetPath = await getEffectiveStatsBackupPath(librarySettings.statsSyncFilePath);
+  if (!targetPath) {
     return;
   }
   const payload = JSON.stringify(
@@ -615,7 +666,7 @@ async function flushListeningStatsToFile(librarySettings: LibrarySettings, liste
     2
   );
   try {
-    await api.writeTextFile(librarySettings.statsSyncFilePath, payload);
+    await api.writeTextFile(targetPath, payload);
   } catch {
     // Ignore sync write failure (e.g. path temporarily unavailable, cloud folder offline)
   }
@@ -1324,21 +1375,19 @@ export const useMusicStore = create<MusicPlayerStore>((set, get) => ({
   },
 
   loadListeningStatsFromSyncFile: async () => {
-    const { statsBackupMode, statsSyncFilePath } = get().librarySettings;
-    if (statsBackupMode !== "sync" || !statsSyncFilePath) {
+    const { statsSyncFilePath } = get().librarySettings;
+    const targetPath = await getEffectiveStatsBackupPath(statsSyncFilePath);
+    if (!targetPath) {
       return;
     }
     try {
-      const raw = await api.readTextFile(statsSyncFilePath);
+      const raw = await api.readTextFile(targetPath);
       const current = get();
-      if (
-        current.librarySettings.statsBackupMode !== "sync" ||
-        current.librarySettings.statsSyncFilePath !== statsSyncFilePath
-      ) {
+      if (current.librarySettings.statsSyncFilePath !== statsSyncFilePath) {
         return;
       }
       if (!raw) {
-        // Nothing on disk yet: seed the sync file with the current local stats
+        // Nothing on disk yet: seed the active file with current local stats
         syncListeningStatsToFile(current.librarySettings, current.listeningStats);
         return;
       }
@@ -1353,10 +1402,7 @@ export const useMusicStore = create<MusicPlayerStore>((set, get) => ({
         totalSessions: Math.max(0, Number(fileStats.totalSessions) || 0),
       };
       set((latest) => {
-        if (
-          latest.librarySettings.statsBackupMode !== "sync" ||
-          latest.librarySettings.statsSyncFilePath !== statsSyncFilePath
-        ) {
+        if (latest.librarySettings.statsSyncFilePath !== statsSyncFilePath) {
           return latest;
         }
         saveStoredSettings({
@@ -1724,18 +1770,19 @@ export const useMusicStore = create<MusicPlayerStore>((set, get) => ({
     const unlistenClose = await appWindow.onCloseRequested(async (event) => {
       const state = get();
       saveStoredQueue(state.queue, state.queueIndex, state.currentTrack);
-      if (state.librarySettings.statsBackupMode === "sync" && state.librarySettings.statsSyncFilePath) {
-        event.preventDefault();
-        if (statsCloseInProgress) return;
-        statsCloseInProgress = true;
-        try {
-          await Promise.race([
+      event.preventDefault();
+      if (statsCloseInProgress) return;
+      statsCloseInProgress = true;
+      try {
+        await Promise.race([
+          Promise.all([
             flushListeningStatsToFile(state.librarySettings, state.listeningStats),
-            new Promise<void>((resolve) => window.setTimeout(resolve, 1200)),
-          ]);
-        } finally {
-          await appWindow.destroy().catch(() => {});
-        }
+            flushFullBackupToFile(state.librarySettings.fullBackupFilePath),
+          ]),
+          new Promise<void>((resolve) => window.setTimeout(resolve, 1200)),
+        ]);
+      } finally {
+        await appWindow.destroy().catch(() => {});
       }
     });
 
