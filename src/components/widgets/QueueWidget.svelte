@@ -184,8 +184,13 @@
     const labelQueue = lang === "ca" ? "Cua de Reproducció" : lang === "en" ? "Playback Queue" : "Cola de Reproducción";
     const labelSignal = lang === "ca" ? "Senyal Hi-Fi & DAC" : lang === "en" ? "Hi-Fi Signal & DAC" : "Señal Hi-Fi & DAC";
     const labelWaveform = lang === "ca" ? "Ones de la Cançó (HD)" : lang === "en" ? "Song Waveform (HD)" : "Ondas de la Canción (HD)";
-    const labelFluidWave = lang === "ca" ? "Ona Fluida Contínua" : lang === "en" ? "Fluid Continuous Wave" : "Onda Fluida Continua";
-    const labelBlank = lang === "ca" ? "En Blanc" : lang === "en" ? "Blank" : "En Blanco";
+    const labelVuMeter = lang === "ca" ? "Vúmetre Estèreo Balístic dB" : lang === "en" ? "Stereo Ballistic VU Meter dB" : "Vúmetro Estéreo Balístico dB";
+    const labelCavaFluid = lang === "ca" ? "CAVA: Ona Fluida" : lang === "en" ? "CAVA: Fluid Wave" : "CAVA: Onda Fluida";
+    const labelCavaDots = lang === "ca" ? "CAVA: Punts" : lang === "en" ? "CAVA: Dots" : "CAVA: Puntos";
+    const labelCavaLines = lang === "ca" ? "CAVA: Línies" : lang === "en" ? "CAVA: Lines" : "CAVA: Líneas";
+    const labelLiveMatrix = lang === "ca" ? "En Viu: Matriu LED" : lang === "en" ? "Live: LED Matrix" : "En Vivo: Matriz LED";
+    const labelLivePeakFall = lang === "ca" ? "En Viu: Caiguda de Pics" : lang === "en" ? "Live: Peak Fall" : "En Vivo: Caída de Picos";
+    const labelLiveFluidWave = lang === "ca" ? "En Viu: Ona Fluida Contínua Millorada" : lang === "en" ? "Live: Enhanced Fluid Wave" : "En Vivo: Onda Fluida Continua Mejorada";
 
     const liveTelemetry = useMusicStore.getState().telemetry;
     const isCurrent = currentTrack && liveTelemetry.filepath && currentTrack.filepath === liveTelemetry.filepath;
@@ -241,19 +246,58 @@
       {
         id: "waveform",
         label: labelWaveform,
-        type: "waveform" as const,
+        type: "visualizer" as const,
+        mode: "waveform" as const,
         cells: [],
       },
       {
-        id: "fluid_wave",
-        label: labelFluidWave,
-        type: "fluid_wave" as const,
+        id: "stereo_vu",
+        label: labelVuMeter,
+        type: "visualizer" as const,
+        mode: "stereo_vu" as const,
+        cells: [],
+      },
+      // Second column/row of 6 spectrums:
+      {
+        id: "cava_fluid",
+        label: labelCavaFluid,
+        type: "visualizer" as const,
+        mode: "cava_fluid" as const,
         cells: [],
       },
       {
-        id: "blank",
-        label: labelBlank,
-        type: "blank" as const,
+        id: "cava_dots",
+        label: labelCavaDots,
+        type: "visualizer" as const,
+        mode: "cava_dots" as const,
+        cells: [],
+      },
+      {
+        id: "cava_lines",
+        label: labelCavaLines,
+        type: "visualizer" as const,
+        mode: "cava_lines" as const,
+        cells: [],
+      },
+      {
+        id: "live_led_matrix",
+        label: labelLiveMatrix,
+        type: "visualizer" as const,
+        mode: "live_led_matrix" as const,
+        cells: [],
+      },
+      {
+        id: "live_peak_fall",
+        label: labelLivePeakFall,
+        type: "visualizer" as const,
+        mode: "live_peak_fall" as const,
+        cells: [],
+      },
+      {
+        id: "live_fluid_wave",
+        label: labelLiveFluidWave,
+        type: "visualizer" as const,
+        mode: "live_fluid_wave" as const,
         cells: [],
       },
     ];
@@ -524,8 +568,8 @@
       ondblclick={() => { queueHudMode = (queueHudMode + 1) % hudPanels.length; }}
     >
       <div class="flex items-center gap-2.5 w-full h-full">
-        <!-- Vertical Pagination Dots at the extreme left (100% round dots, illuminated point) -->
-        <div class="flex flex-col items-center justify-center shrink-0 h-full gap-0.5" role="tablist">
+        <!-- Two columns/rows of 6 pagination dots (Col 1: Datos & Pista, Col 2: Espectros CAVA & En Vivo) -->
+        <div class="grid grid-flow-col grid-rows-6 gap-x-2 gap-y-0.5 items-center justify-center shrink-0 h-full py-0.5" role="tablist">
           {#each hudPanels as panel, index}
             <button
               type="button"
@@ -533,7 +577,7 @@
                 e.stopPropagation();
                 queueHudMode = index;
               }}
-              class="group relative flex items-center justify-center w-3 h-[5px] p-0 cursor-pointer focus:outline-none"
+              class="group relative flex items-center justify-center w-2.5 h-[5px] p-0 cursor-pointer focus:outline-none"
               title={`${index + 1}/${hudPanels.length} · ${panel.label}`}
               aria-label={panel.label}
             >
@@ -548,20 +592,10 @@
         </div>
 
         <!-- Main HUD Panel Content -->
-        {#if currentHudPanel.type === "blank"}
-          <!-- Blank mode: strictly nothing inside, only the extreme dots -->
-          <div class="flex-1 h-full"></div>
-        {:else if currentHudPanel.type === "waveform"}
+        {#if currentHudPanel.type === "visualizer"}
           <div class="flex-1 h-full overflow-hidden">
             <QueueHudVisualizer
-              mode="waveform"
-              accentColor={appearance.accentColor}
-            />
-          </div>
-        {:else if currentHudPanel.type === "fluid_wave"}
-          <div class="flex-1 h-full overflow-hidden">
-            <QueueHudVisualizer
-              mode="fluid_wave"
+              mode={currentHudPanel.mode}
               accentColor={appearance.accentColor}
             />
           </div>

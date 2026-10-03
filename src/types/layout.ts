@@ -25,7 +25,10 @@ export type WidgetType =
   | "signal_monitor_compact"
   | "eq_spectrum"
   | "loudness_normalizer"
-  | "audio_telemetry_full";
+  | "audio_telemetry_full"
+  | "waveform_bars"
+  | "waveform_envelope"
+  | "waveform_matrix";
 
 export interface WidgetMeta {
   type: WidgetType;
@@ -168,6 +171,21 @@ export const AVAILABLE_WIDGETS: WidgetMeta[] = ([
     type: "audio_telemetry_full",
     label: "Telemetría de audio (completa)",
     description: "Espectro, señal, dispositivo, buffer, latencia, XRuns y fuente",
+  },
+  {
+    type: "waveform_bars",
+    label: "Onda de Canción (Barras HD)",
+    description: "Onda interactiva de barras como la del HUD, responde al ratón para mover la pista",
+  },
+  {
+    type: "waveform_envelope",
+    label: "Onda de Canción (Silueta Neón)",
+    description: "Onda continua con silueta y reflejo neón, interactiva para mover la pista",
+  },
+  {
+    type: "waveform_matrix",
+    label: "Onda de Canción (Matriz Digital)",
+    description: "Onda segmentada estilo matriz de bloques de estudio, interactiva con el ratón",
   },
 ] satisfies WidgetMeta[]).sort((a, b) => a.label.localeCompare(b.label, "es", { sensitivity: "base" }));
 

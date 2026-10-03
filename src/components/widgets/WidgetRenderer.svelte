@@ -25,6 +25,9 @@
   import LoudnessWidget from "./LoudnessWidget.svelte";
   import AudioTelemetryFullWidget from "./AudioTelemetryFullWidget.svelte";
   import StreamMusicModal from "./StreamMusicModal.svelte";
+  import WaveformBarsWidget from "./WaveformBarsWidget.svelte";
+  import WaveformEnvelopeWidget from "./WaveformEnvelopeWidget.svelte";
+  import WaveformMatrixWidget from "./WaveformMatrixWidget.svelte";
 
   interface Props {
     widget: WidgetType;
@@ -89,6 +92,12 @@
   <LoudnessWidget />
 {:else if widget === "audio_telemetry_full"}
   <AudioTelemetryFullWidget />
+{:else if widget === "waveform_bars"}
+  <WaveformBarsWidget />
+{:else if widget === "waveform_envelope"}
+  <WaveformEnvelopeWidget />
+{:else if widget === "waveform_matrix"}
+  <WaveformMatrixWidget />
 {:else}
   <div class="p-4 text-center text-audiophile-muted font-mono text-xs">
     Widget desconocido: {widget}

@@ -620,8 +620,8 @@
     />
   {/if}
 
-  <AudioEQModal isOpen={isAudioEqOpen} onClose={() => { isAudioEqOpen = false; }} />
   <StreamMusicModal isOpen={isStreamMusicOpen} onClose={() => useMusicStore.getState().setStreamMusicOpen(false)} />
   <RadioHubModal isOpen={isRadioHubOpen} onClose={() => useMusicStore.getState().setRadioHubOpen(false)} />
   <SettingsModal />
+  <AudioEQModal isOpen={isAudioEqOpen} onClose={() => { isAudioEqOpen = false; }} />
 </div>

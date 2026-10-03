@@ -104,7 +104,7 @@
   <!-- svelte-ignore a11y_click_events_have_key_events -->
   <!-- svelte-ignore a11y_no_static_element_interactions -->
   <div
-    class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-md animate-fade-in select-none"
+    class="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/75 backdrop-blur-md animate-fade-in select-none"
     onclick={(e) => {
       if (e.target === e.currentTarget) onClose();
     }}
@@ -201,7 +201,7 @@
               <ChevronDown size={12} />
             </button>
             {#if showPresetsPanel}
-              <div class="absolute right-0 top-full mt-1 z-50 bg-slate-800 border border-slate-700 rounded-xl shadow-2xl p-2 w-48 max-h-60 overflow-y-auto">
+              <div class="absolute right-0 top-full mt-1 z-[110] bg-slate-800 border border-slate-700 rounded-xl shadow-2xl p-2 w-48 max-h-60 overflow-y-auto">
                 {#each SOUNDIX_PRESETS as p (p.name)}
                   <button
                     type="button"
