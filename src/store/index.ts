@@ -269,6 +269,17 @@ async function flushFullBackupToFile(path: string): Promise<void> {
   }
 }
 
+export function triggerFullBackupSync(): void {
+  try {
+    const path = localStorage.getItem(FULL_BACKUP_PATH_KEY) || "";
+    if (path) {
+      void flushFullBackupToFile(path);
+    }
+  } catch {
+    // Ignore
+  }
+}
+
 const defaultAppearance: AppearanceState = {
   accentColor: "#06b6d4", // Cyan
   accentPreset: "cyan",
@@ -400,6 +411,9 @@ async function loadLiveFullBackupIntoStore(
       playbackSettings: persisted.playbackSettings,
       librarySettings,
     });
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("musicx-layout-restored"));
+    }
   } catch {
     // Ignore unreadable live backup
   }
@@ -476,10 +490,17 @@ function loadStoredSettings(): {
           : detectSystemLanguage();
 
         const savedAudio = (parsed.audioSettings || {}) as Partial<AudioSettingsState>;
-        let bufferLatency = savedAudio.bufferLatency || defaultAudioSettings.bufferLatency;
-        if (!savedAudio.bufferVersion || (bufferLatency === "ultra_low" && savedAudio.bufferVersion < 2)) {
-          bufferLatency = "medium";
-        }
+        const validLatencies: AudioSettingsState["bufferLatency"][] = [
+          "ultra_low",
+          "very_low",
+          "low",
+          "medium",
+          "stable",
+        ];
+        const bufferLatency =
+          savedAudio.bufferLatency && validLatencies.includes(savedAudio.bufferLatency)
+            ? savedAudio.bufferLatency
+            : defaultAudioSettings.bufferLatency;
         const validEngines: ResamplingQuality[] = [
           "bit_perfect",
           "soxr",
@@ -1195,7 +1216,7 @@ export const useMusicStore = create<MusicPlayerStore>((set, get) => ({
 
   setAudioSettings: (patch: Partial<AudioSettingsState>) => {
     set((state) => {
-      const next = { ...state.audioSettings, ...patch };
+      const next = { ...state.audioSettings, ...patch, bufferVersion: 2 };
       saveStoredSettings({
         language: state.language,
         appearance: state.appearance,

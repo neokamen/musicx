@@ -23,6 +23,7 @@
     isStreamMusicOpenStore,
     isRadioHubOpenStore,
     bitPerfectModeStore,
+    triggerFullBackupSync,
   } from "./store/index";
   import { initTheme } from "./lib/theme";
   import { FIRST_RUN_PROFILE } from "./components/layout/defaultLayout";
@@ -87,6 +88,7 @@
         isMini ? MINI_WINDOW_SIZE_KEY : NORMAL_WINDOW_SIZE_KEY,
         JSON.stringify({ width, height }),
       );
+      triggerFullBackupSync();
     } catch {
       // Ignore unavailable local storage outside the desktop runtime.
     }
@@ -288,27 +290,38 @@
         const { getCurrentWindow, LogicalSize } = await import("@tauri-apps/api/window");
         if (cancelled) return;
         const currentWindow = getCurrentWindow();
-        unlistenResize = await currentWindow.onResized(({ payload: size }) => {
+        unlistenResize = await currentWindow.onResized(async ({ payload: size }) => {
           if (isRestoringWindowSize) return;
+          const isMax = await currentWindow.isMaximized().catch(() => false);
+          if (isMax) return;
           window.clearTimeout(resizeSaveTimer);
-          resizeSaveTimer = window.setTimeout(() => {
-            void currentWindow.scaleFactor().then((scaleFactor) => {
-              storeWindowState(
-                size.width / scaleFactor,
-                size.height / scaleFactor,
-                isMiniPlayerCurrent,
-              );
-            }).catch((error) => console.error("No se pudo guardar el tamaño de la ventana:", error));
+          resizeSaveTimer = window.setTimeout(async () => {
+            try {
+              const scaleFactor = await currentWindow.scaleFactor();
+              const w = Math.round(size.width / scaleFactor);
+              const h = Math.round(size.height / scaleFactor);
+              if (w >= 300 && h >= 200) {
+                if (!isMiniPlayerCurrent) {
+                  normalWindowSize = { width: w, height: h };
+                }
+                storeWindowState(w, h, isMiniPlayerCurrent);
+              }
+            } catch (error) {
+              console.error("No se pudo guardar el tamaño de la ventana:", error);
+            }
           }, 180);
         });
         unlistenClose = await currentWindow.onCloseRequested(async () => {
           try {
-            const [innerSize, scaleFactor] = await Promise.all([currentWindow.innerSize(), currentWindow.scaleFactor()]);
-            storeWindowState(
-              innerSize.width / scaleFactor,
-              innerSize.height / scaleFactor,
-              isMiniPlayerCurrent,
-            );
+            const isMax = await currentWindow.isMaximized().catch(() => false);
+            if (!isMax) {
+              const [innerSize, scaleFactor] = await Promise.all([currentWindow.innerSize(), currentWindow.scaleFactor()]);
+              const w = Math.round(innerSize.width / scaleFactor);
+              const h = Math.round(innerSize.height / scaleFactor);
+              if (w >= 300 && h >= 200) {
+                storeWindowState(w, h, isMiniPlayerCurrent);
+              }
+            }
           } catch (error) {
             console.error("No se pudo guardar el tamaño al cerrar la ventana:", error);
           }
@@ -333,10 +346,51 @@
 
     void initializeWindowSize();
 
-    const updateViewportHeight = () => {
+    const handleWindowResize = () => {
       viewportHeight = window.innerHeight;
+      if (isRestoringWindowSize) return;
+      window.clearTimeout(resizeSaveTimer);
+      resizeSaveTimer = window.setTimeout(async () => {
+        try {
+          const { getCurrentWindow } = await import("@tauri-apps/api/window");
+          const currentWindow = getCurrentWindow();
+          const isMax = await currentWindow.isMaximized().catch(() => false);
+          if (isMax) return;
+          const w = window.innerWidth;
+          const h = window.innerHeight;
+          if (w >= 300 && h >= 200) {
+            if (!isMiniPlayerCurrent) {
+              normalWindowSize = { width: w, height: h };
+            }
+            storeWindowState(w, h, isMiniPlayerCurrent);
+          }
+        } catch {
+          // Ignore
+        }
+      }, 250);
     };
-    window.addEventListener("resize", updateViewportHeight);
+    window.addEventListener("resize", handleWindowResize);
+
+    const handleBeforeUnload = () => {
+      const w = window.innerWidth;
+      const h = window.innerHeight;
+      if (w >= 300 && h >= 200 && !isMiniPlayerCurrent) {
+        storeWindowState(w, h, false);
+      }
+    };
+    window.addEventListener("beforeunload", handleBeforeUnload);
+
+    const handleLayoutRestored = () => {
+      const stored = readSavedWindowState();
+      if (stored && !stored.isMiniPlayer) {
+        normalWindowSize = { width: stored.width, height: stored.height };
+        void import("@tauri-apps/api/window").then(async ({ getCurrentWindow, LogicalSize }) => {
+          const currentWindow = getCurrentWindow();
+          await currentWindow.setSize(new LogicalSize(stored.width, stored.height));
+        }).catch(() => {});
+      }
+    };
+    window.addEventListener("musicx-layout-restored", handleLayoutRestored);
 
     return () => {
       cancelled = true;
@@ -344,7 +398,9 @@
       unlistenResize?.();
       unlistenClose?.();
       cleanupListeners?.();
-      window.removeEventListener("resize", updateViewportHeight);
+      window.removeEventListener("resize", handleWindowResize);
+      window.removeEventListener("beforeunload", handleBeforeUnload);
+      window.removeEventListener("musicx-layout-restored", handleLayoutRestored);
     };
   });
 

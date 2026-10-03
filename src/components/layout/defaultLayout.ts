@@ -1,9 +1,10 @@
 import type { LayoutNode } from "../../types/layout.ts";
-import type {
-  AppearanceState,
-  AudioSettingsState,
-  LibrarySettings,
-  PlaybackSettingsState,
+import {
+  triggerFullBackupSync,
+  type AppearanceState,
+  type AudioSettingsState,
+  type LibrarySettings,
+  type PlaybackSettingsState,
 } from "../../store/index.ts";
 import type { Language } from "../../i18n/translations.ts";
 
@@ -307,6 +308,7 @@ export function loadLayoutFavorites(): LayoutFavoriteSnapshot[] {
 export function saveLayoutFavorites(favorites: LayoutFavoriteSnapshot[]): void {
   try {
     localStorage.setItem(FAVORITES_STORAGE_KEY, JSON.stringify(favorites));
+    triggerFullBackupSync();
   } catch (e) {
     console.error("Error al guardar favoritos de layout:", e);
   }
@@ -324,6 +326,7 @@ export function loadStartupLayoutFavorite(): LayoutFavoriteSnapshot | null {
 export function saveStartupLayoutFavorite(favorite: LayoutFavoriteSnapshot): void {
   try {
     localStorage.setItem(STARTUP_FAVORITE_STORAGE_KEY, JSON.stringify(favorite));
+    triggerFullBackupSync();
   } catch (e) {
     console.error("Error al guardar el layout de arranque:", e);
   }
@@ -340,6 +343,7 @@ export function loadActiveLayoutFavoriteId(): string | null {
 export function saveActiveLayoutFavoriteId(id: string): void {
   try {
     localStorage.setItem(ACTIVE_FAVORITE_STORAGE_KEY, id);
+    triggerFullBackupSync();
   } catch {
     // Ignore
   }
@@ -356,6 +360,7 @@ export function hasSavedLayout(): boolean {
 export function saveLayoutToStorage(layout: LayoutNode): void {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(layout));
+    triggerFullBackupSync();
   } catch (e) {
     console.error("Error al guardar layout en localStorage:", e);
   }

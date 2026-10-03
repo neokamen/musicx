@@ -138,26 +138,14 @@ import * as api from "../../services/api.ts";
     useMusicStore.getState().addToQueue(track);
   };
 
-  const handleAddFolderToQueue = (entry: FileNode) => {
-    const audioNodes = explorer.entries.filter(
-      (e) => !e.is_dir && /\.(mp3|flac|wav|ogg|m4a|aac|opus|alac)$/i.test(e.name)
-    );
-    if (audioNodes.length > 0) {
-      const tracks: Track[] = audioNodes.map((e, idx) => ({
-        filepath: e.path,
-        title: e.name.replace(/\.[^/.]+$/, ""),
-        artist: entry.name,
-        album: entry.name,
-        track_number: idx + 1,
-        duration_seconds: 0,
-        format: e.extension ? e.extension.toUpperCase() : "AUDIO",
-        sample_rate: 0,
-        bit_depth: 0,
-        bitrate_kbps: 0,
-        file_size: e.size,
-        mtime: 0,
-      }));
-      useMusicStore.getState().addToQueue(tracks);
+  const handleAddFolderToQueue = async (entry: FileNode) => {
+    try {
+      const tracks = await api.scanFolderTracksRecursive(entry.path);
+      if (tracks && tracks.length > 0) {
+        useMusicStore.getState().addToQueue(tracks);
+      }
+    } catch (e) {
+      console.error("Error al escanear carpeta recursivamente:", e);
     }
   };
 
@@ -208,6 +196,14 @@ import * as api from "../../services/api.ts";
           comp = (a.extension || "").localeCompare(b.extension || "");
         } else if (sortField === "size") {
           comp = a.size - b.size;
+        } else if (sortField === "duration") {
+          const durA = tracksByPath.get(a.path)?.duration_seconds || 0;
+          const durB = tracksByPath.get(b.path)?.duration_seconds || 0;
+          comp = durA - durB;
+        } else if (sortField === "bitrate") {
+          const bitA = tracksByPath.get(a.path)?.bitrate_kbps || 0;
+          const bitB = tracksByPath.get(b.path)?.bitrate_kbps || 0;
+          comp = bitA - bitB;
         }
 
         return sortDir === "asc" ? comp : -comp;
@@ -473,11 +469,15 @@ import * as api from "../../services/api.ts";
       </div>
     {:else}
       {#each sortedAndFilteredEntries as entry (entry.path)}
+        {@const track = tracksByPath.get(entry.path)}
+        {@const dur = track?.duration_seconds ?? null}
+        {@const bitrate = track?.bitrate_kbps ?? (dur && dur > 0 && entry.size > 0 ? Math.round((entry.size * 8) / (dur * 1000)) : null)}
         <FolderExplorerRow
           {entry}
           {visibleColumns}
           {columnWidths}
-          durationSeconds={tracksByPath.get(entry.path)?.duration_seconds ?? null}
+          durationSeconds={dur}
+          bitrateKbps={bitrate}
           onPlay={handleEntryPlay}
           onAddToQueue={handleEntryAddToQueue}
           onAddFolderToQueue={handleAddFolderToQueue}

@@ -17,6 +17,7 @@
     };
     columnWidths: ExplorerColumnWidths;
     durationSeconds: number | null;
+    bitrateKbps: number | null;
     onPlay: (entry: FileNode) => void;
     onAddToQueue: (entry: FileNode) => void;
     onAddFolderToQueue: (entry: FileNode) => void;
@@ -28,6 +29,7 @@
     visibleColumns,
     columnWidths,
     durationSeconds,
+    bitrateKbps,
     onPlay,
     onAddToQueue,
     onAddFolderToQueue,
@@ -104,7 +106,7 @@
 
   {#if visibleColumns.bitrate}
     <div class="relative text-right shrink-0 text-audiophile-muted text-[10px] pr-2 font-mono" style="flex: 0 0 {columnWidths.bitrate}%;">
-      {entry.is_dir ? "---" : "1411k"}
+      {entry.is_dir ? "---" : bitrateKbps ? `${bitrateKbps}k` : "---"}
     </div>
   {/if}
 

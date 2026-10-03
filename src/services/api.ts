@@ -117,6 +117,10 @@ export async function readDirectoryLazy(path: string): Promise<FileNode[]> {
   return invoke<FileNode[]>("read_directory_lazy", { path });
 }
 
+export async function scanFolderTracksRecursive(path: string): Promise<Track[]> {
+  return invoke<Track[]>("scan_folder_tracks_recursive", { path });
+}
+
 export async function triggerScan(path: string, _force: boolean = false): Promise<void> {
   return invoke<void>("scan_directory", { path });
 }

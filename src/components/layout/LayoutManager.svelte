@@ -36,16 +36,11 @@
     return loadLayoutFavorites().find((favorite) => favorite.id === activeId) ?? loadStartupLayoutFavorite();
   })();
 
-  let layout = $state<LayoutNode>(
-    initialFavorite
-      ? (JSON.parse(JSON.stringify(initialFavorite.layout)) as LayoutNode)
-      : loadLayoutFromStorage()
-  );
+  let layout = $state<LayoutNode>(loadLayoutFromStorage());
 
   let favorites = $state<LayoutFavoriteSnapshot[]>(loadLayoutFavorites());
   let activeFavoriteId = $state<string | null>(loadActiveLayoutFavoriteId());
   let startupFavorite = $state<LayoutFavoriteSnapshot | null>(loadStartupLayoutFavorite());
-  let applyStartupOnMount = initialFavorite !== null || !hasSavedLayout();
   let startupApplied = false;
 
   let lastSavedLayoutJson = "";
@@ -80,16 +75,30 @@
   };
 
   onMount(() => {
-    const favoriteToApply = initialFavorite ?? startupFavorite;
-    if (!applyStartupOnMount || !favoriteToApply || startupApplied) return;
-    startupApplied = true;
-    void applyFavorite(favoriteToApply, true);
+    if (!hasSavedLayout()) {
+      const favoriteToApply = initialFavorite ?? startupFavorite;
+      if (favoriteToApply && !startupApplied) {
+        startupApplied = true;
+        void applyFavorite(favoriteToApply, true);
+      }
+    }
+
+    const handleRestored = () => {
+      layout = loadLayoutFromStorage();
+      favorites = loadLayoutFavorites();
+      activeFavoriteId = loadActiveLayoutFavoriteId();
+      startupFavorite = loadStartupLayoutFavorite();
+    };
+    window.addEventListener("musicx-layout-restored", handleRestored);
+    return () => {
+      window.removeEventListener("musicx-layout-restored", handleRestored);
+    };
   });
 
   $effect(() => {
-    if (!startupFavorite || !applyStartupOnMount) return;
+    if (!startupFavorite || activeFavoriteId) return;
     const matchingFavorite = favorites.find((favorite) => favorite.id === startupFavorite?.id);
-    if (matchingFavorite && activeFavoriteId !== matchingFavorite.id) {
+    if (matchingFavorite) {
       activeFavoriteId = matchingFavorite.id;
     }
   });

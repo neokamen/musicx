@@ -146,6 +146,66 @@ pub fn read_directory_lazy(path: String) -> Result<Vec<FileEntry>, String> {
 }
 
 #[tauri::command]
+pub fn scan_folder_tracks_recursive(path: String, state: State<'_, AppState>) -> Result<Vec<TrackMetadata>, String> {
+    let p = PathBuf::from(&path);
+    if !p.exists() || !p.is_dir() {
+        return Err("Ruta de directorio inválida o inexistente".to_string());
+    }
+
+    let mut audio_paths: Vec<PathBuf> = Vec::new();
+    for entry in jwalk::WalkDir::new(&p).skip_hidden(true).follow_links(true) {
+        if let Ok(entry) = entry {
+            if entry.file_type().is_file() {
+                let fpath = entry.path();
+                if let Some(ext) = fpath.extension().and_then(|e| e.to_str()) {
+                    match ext.to_lowercase().as_str() {
+                        "flac" | "wav" | "wave" | "mp3" | "m4a" | "aac" | "ogg" | "opus" | "alac" => {
+                            audio_paths.push(fpath);
+                        }
+                        _ => {}
+                    }
+                }
+            }
+        }
+    }
+
+    audio_paths.sort();
+
+    let mut tracks = Vec::with_capacity(audio_paths.len());
+    for fpath in audio_paths {
+        let fpath_str = fpath.to_string_lossy().to_string();
+        if let Some(cached) = state.db.get_track_by_path(&fpath_str) {
+            tracks.push(cached);
+        } else if let Some(extracted) = db::extract_metadata(&fpath) {
+            let _ = state.db.upsert_track(&extracted);
+            tracks.push(extracted);
+        } else {
+            let file_size = std::fs::metadata(&fpath).map(|m| m.len()).unwrap_or(0);
+            let ext = fpath.extension().and_then(|e| e.to_str()).unwrap_or("AUDIO").to_uppercase();
+            let default_title = fpath.file_stem().and_then(|s| s.to_str()).unwrap_or("Pista").to_string();
+            let fallback_track = TrackMetadata {
+                id: None,
+                filepath: fpath_str,
+                title: default_title,
+                artist: "Desconocido".to_string(),
+                album: p.file_name().and_then(|s| s.to_str()).unwrap_or("Carpeta").to_string(),
+                track_number: None,
+                duration_seconds: 0.0,
+                format: ext,
+                sample_rate: 0,
+                bit_depth: 0,
+                bitrate_kbps: 0,
+                file_size,
+                mtime: 0,
+            };
+            tracks.push(fallback_track);
+        }
+    }
+
+    Ok(tracks)
+}
+
+#[tauri::command]
 pub fn get_track_cover_art(path: String) -> Option<String> {
     use base64::Engine;
     let p = std::path::Path::new(&path);

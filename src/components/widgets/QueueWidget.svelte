@@ -383,8 +383,8 @@
     {:else}
       <div class="flex-1 overflow-y-auto min-h-0">
         <div
-          class="sticky top-0 z-[1] grid items-center gap-2 px-3 py-1.5 text-[9px] font-bold uppercase tracking-wider text-audiophile-muted bg-audiophile-surface/95"
-          style="grid-template-columns: {gridTemplate}; border-bottom: 1px solid color-mix(in srgb, var(--app-accent, #06b6d4) 12%, transparent);"
+          class="sticky top-0 z-20 grid items-center gap-2 px-3 py-1.5 text-[9px] font-bold uppercase tracking-wider text-audiophile-muted bg-audiophile-surface"
+          style="grid-template-columns: {gridTemplate}; border-bottom: 1px solid color-mix(in srgb, var(--app-accent, #06b6d4) 12%, transparent); background-color: var(--app-surface, #0c1220);"
         >
           <span class="relative">
             #
@@ -432,7 +432,6 @@
           <div
             class="grid items-center gap-2 px-3 py-2 cursor-pointer group transition-all duration-200"
             style="grid-template-columns: {gridTemplate}; border-bottom: 1px solid color-mix(in srgb, white 6%, transparent); background: {playingNow ? `linear-gradient(90deg, ${appearance.accentColor}18, transparent 70%)` : isCurrent ? `${appearance.accentColor}0d` : 'transparent'};"
-            onclick={() => void useMusicStore.getState().playFromQueue(i)}
             ondblclick={() => void useMusicStore.getState().playFromQueue(i)}
           >
             <button
