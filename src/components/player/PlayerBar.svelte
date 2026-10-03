@@ -49,8 +49,8 @@
     void useMusicStore.getState().setVolume(val);
   };
 
-  let title = $derived(telemetry.track_title || currentTrack?.title || "Musicx Hi-Fi Player");
-  let artist = $derived(telemetry.track_artist || currentTrack?.artist || "Listo para reproducir");
+  let title = $derived(currentTrack?.title || "Musicx Hi-Fi Player");
+  let artist = $derived(currentTrack?.artist || "Listo para reproducir");
 </script>
 
 <footer class="h-16 border-t border-audiophile-border bg-audiophile-surface px-4 flex items-center justify-between gap-4 font-sans select-none z-40">

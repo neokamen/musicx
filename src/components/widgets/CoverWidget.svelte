@@ -1,7 +1,6 @@
 <script lang="ts">
   import { Disc3, Music2 } from "@lucide/svelte";
   import {
-    useMusicStore,
     currentTrackStore,
     currentCoverArtStore,
     appearanceStore,

@@ -27,7 +27,7 @@
 </script>
 
 <div class="flex flex-col gap-2">
-  <label class="text-xs text-slate-400">{label}</label>
+  <span class="text-xs text-slate-400">{label}</span>
   <div class="relative w-full h-1 rounded bg-slate-700">
     <div
       class="absolute h-1 rounded bg-cyan-400"

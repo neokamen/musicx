@@ -1861,9 +1861,9 @@ export function select<T>(
   selector: (state: MusicPlayerStore) => T,
   equalityFn: (a: T, b: T) => boolean = (a, b) => a === b
 ) {
-  let currentValue = selector(useMusicStore.getState());
   return {
     subscribe(run: (val: T) => void) {
+      let currentValue = selector(useMusicStore.getState());
       run(currentValue);
       return originalSubscribe((state: MusicPlayerStore) => {
         const nextValue = selector(state);
@@ -1900,11 +1900,11 @@ export const isRadioHubOpenStore = select((s) => s.isRadioHubOpen);
 export const isSettingsOpenStore = select((s) => s.isSettingsOpen);
 export const audioFormatStore = select(
   (s) => ({
-    sample_rate: s.telemetry.sample_rate || s.currentTrack?.sample_rate || 44100,
-    bits_per_sample: s.telemetry.bits_per_sample || s.currentTrack?.bit_depth || 16,
-    bitrate: s.telemetry.bitrate || s.currentTrack?.bitrate_kbps || 1411,
-    channels: s.telemetry.channels || 2,
-    is_bit_perfect: Boolean(s.bitPerfectMode || s.telemetry.is_bit_perfect),
+    sample_rate: s.telemetry?.sample_rate || s.currentTrack?.sample_rate || 44100,
+    bits_per_sample: s.telemetry?.bits_per_sample || s.currentTrack?.bit_depth || 16,
+    bitrate: s.telemetry?.bitrate || s.currentTrack?.bitrate_kbps || 1411,
+    channels: s.telemetry?.channels || 2,
+    is_bit_perfect: Boolean(s.bitPerfectMode || s.telemetry?.is_bit_perfect),
   }),
   (a, b) =>
     a.sample_rate === b.sample_rate &&
@@ -1916,14 +1916,18 @@ export const audioFormatStore = select(
 export const shuffleStore = select((s) => s.shuffle);
 export const repeatStore = select((s) => s.repeat);
 export const availableDevicesStore = select((s) => s.availableDevices);
+export const tempoStore = select(
+  (s) => (s.telemetry?.tempo_bpm && s.telemetry?.tempo_confidence >= 0.12 ? Math.round(s.telemetry.tempo_bpm) : null),
+  (a, b) => a === b
+);
 export const playbackProgressStore = select(
   (s) => ({
-    current_time: s.telemetry.current_time || 0,
-    duration: s.telemetry.duration || s.currentTrack?.duration_seconds || 0,
-    seekbar_spectrum: s.telemetry.seekbar_spectrum,
-    spectrum: s.telemetry.spectrum,
-    tempo_bpm: s.telemetry.tempo_bpm,
-    tempo_confidence: s.telemetry.tempo_confidence,
+    current_time: s.telemetry?.current_time || 0,
+    duration: s.telemetry?.duration || s.currentTrack?.duration_seconds || 0,
+    seekbar_spectrum: s.telemetry?.seekbar_spectrum || [],
+    spectrum: s.telemetry?.spectrum || [],
+    tempo_bpm: s.telemetry?.tempo_bpm ?? null,
+    tempo_confidence: s.telemetry?.tempo_confidence ?? 0,
   }),
   (a, b) =>
     a.current_time === b.current_time &&

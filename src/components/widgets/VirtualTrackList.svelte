@@ -111,23 +111,8 @@
     }
   };
 
-  let cachedLibrary: Track[] | null = null;
-  let cachedSortField: SortField | null = null;
-  let cachedSortDirection: SortDirection | null = null;
-  let cachedSortedTracks: Track[] = [];
-
   let sortedTracks = $derived.by(() => {
-    if (
-      cachedLibrary === libraryTracks &&
-      cachedSortField === sortField &&
-      cachedSortDirection === sortDirection
-    ) {
-      return cachedSortedTracks;
-    }
-    cachedLibrary = libraryTracks;
-    cachedSortField = sortField;
-    cachedSortDirection = sortDirection;
-    cachedSortedTracks = [...libraryTracks].sort((a, b) => {
+    return [...libraryTracks].sort((a, b) => {
       let valA = a[sortField];
       let valB = b[sortField];
       if (valA === null || valA === undefined) valA = "" as never;
@@ -140,7 +125,6 @@
       }
       return sortDirection === "asc" ? comp : -comp;
     });
-    return cachedSortedTracks;
   });
 
   let visibleDurationSeconds = $derived(

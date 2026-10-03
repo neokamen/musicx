@@ -6,6 +6,7 @@
     audioFormatStore,
     selectedDeviceStore,
     appearanceStore,
+    isPlayingStore,
   } from "../../store/index.ts";
   import type { BufferTelemetry } from "../../types/index.ts";
 
@@ -28,6 +29,7 @@
   let audioFormat = $derived($audioFormatStore);
   let selectedDevice = $derived($selectedDeviceStore);
   let appearance = $derived($appearanceStore);
+  let isPlaying = $derived($isPlayingStore);
 
   let buffer = $state(INITIAL_BUFFER);
 
@@ -68,7 +70,7 @@
     <div class="flex items-center justify-between gap-2 border-b border-slate-800 pb-1.5">
       <span class="text-[9px] uppercase tracking-[0.16em] text-slate-500">Sample rate</span>
       <span class="text-[9px] uppercase {clock ? 'text-emerald-400' : 'text-slate-500'}">
-        {clock ? "Bit-perfect" : telemetry.state}
+        {clock ? "Bit-perfect" : isPlaying ? "Playing" : "Stopped"}
       </span>
     </div>
     <div class="flex items-baseline gap-1 pt-1">
@@ -82,7 +84,7 @@
     </div>
     <div class="mt-1 flex items-center gap-2 text-[10px] text-slate-300">
       <span>{bitDepth}-bit</span><span class="text-slate-700">/</span><span>{channels}</span>
-      <span class="ml-auto {clock ? 'text-emerald-400' : 'text-slate-500'}">{telemetry.state}</span>
+      <span class="ml-auto {isPlaying ? 'text-emerald-400' : 'text-slate-500'}">{isPlaying ? "Playing" : "Stopped"}</span>
     </div>
     <div class="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 border-t border-slate-800 pt-2 text-[9px]">
       <span class="flex min-w-0 items-center gap-1 text-slate-500"><Cpu size={10} class="shrink-0" />Hardware</span>

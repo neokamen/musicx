@@ -1,14 +1,17 @@
 <script lang="ts">
   import { ShieldCheck, Cpu, Volume2 } from "@lucide/svelte";
   import {
+    useMusicStore,
     audioFormatStore,
     selectedDeviceStore,
     appearanceStore,
+    isPlayingStore,
   } from "../../store/index.ts";
 
   let audioFormat = $derived($audioFormatStore);
   let selectedDevice = $derived($selectedDeviceStore);
   let appearance = $derived($appearanceStore);
+  let isPlaying = $derived($isPlayingStore);
 
   let isBitPerfect = $derived(audioFormat.is_bit_perfect);
   let sampleRateKhz = $derived(
@@ -60,11 +63,11 @@
         <span>
           ESTADO:{" "}
           <strong
-            class={telemetry.state === "Playing"
+            class={isPlaying
               ? "text-emerald-400 font-bold"
               : "text-slate-500"}
           >
-            {telemetry.state.toUpperCase()}
+            {isPlaying ? "PLAYING" : "STOPPED"}
           </strong>
         </span>
       </div>
@@ -72,7 +75,7 @@
 
     <button
       type="button"
-      onclick={() => musicStore.getState().setBitPerfectMode(!isBitPerfect)}
+      onclick={() => useMusicStore.getState().setBitPerfectMode(!isBitPerfect)}
       class="w-full py-2 px-3 rounded-lg font-mono text-xs font-bold transition flex items-center justify-center gap-2 border cursor-pointer {isBitPerfect
         ? 'bg-slate-900 text-white'
         : 'bg-slate-950 text-slate-400 border-slate-800 hover:border-slate-700'}"
@@ -97,9 +100,9 @@
         </span>
         <span
           class="font-bold text-slate-200 truncate max-w-[150px]"
-          title={telemetry.output_device || selectedDevice}
+          title={selectedDevice}
         >
-          {telemetry.output_device || selectedDevice}
+          {selectedDevice}
         </span>
       </div>
 

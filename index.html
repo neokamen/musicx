@@ -5,6 +5,33 @@
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>MusicX - The Audio Player</title>
+    <script>
+      function reportFrontendLog(level, msg) {
+        console.error('[' + level.toUpperCase() + '] ' + msg);
+        try {
+          if (window.__TAURI_INTERNALS__) {
+            window.__TAURI_INTERNALS__.invoke('frontend_log', { level: level, message: String(msg) });
+          }
+        } catch (_) {}
+      }
+      window.addEventListener('error', function(e) {
+        var msg = (e.error ? e.error.message : e.message) || String(e);
+        var stack = e.error ? (e.error.stack || '') : '';
+        reportFrontendLog('error', 'JS Crash: ' + msg + ' at ' + e.filename + ':' + e.lineno + ':' + e.colno + '\nStack: ' + stack);
+        var div = document.createElement('div');
+        div.style = 'position:fixed;top:0;left:0;width:100vw;height:100vh;background:#2a0000;color:#ff6666;padding:24px;font-family:monospace;font-size:14px;z-index:9999999;white-space:pre-wrap;overflow:auto;';
+        div.innerText = 'MUSICX CRITICAL RUNTIME ERROR:\n\n' + msg + '\n\n' + stack + '\nat ' + e.filename + ':' + e.lineno + ':' + e.colno;
+        document.body.appendChild(div);
+      });
+      window.addEventListener('unhandledrejection', function(e) {
+        var reason = e.reason ? (e.reason.stack || e.reason.message || e.reason) : e;
+        reportFrontendLog('rejection', 'Unhandled Promise Rejection: ' + reason);
+        var div = document.createElement('div');
+        div.style = 'position:fixed;top:0;left:0;width:100vw;height:100vh;background:#2a1100;color:#ffaa66;padding:24px;font-family:monospace;font-size:14px;z-index:9999999;white-space:pre-wrap;overflow:auto;';
+        div.innerText = 'MUSICX UNHANDLED PROMISE REJECTION:\n\n' + reason;
+        document.body.appendChild(div);
+      });
+    </script>
   </head>
 
   <body>

@@ -318,4 +318,10 @@ pub fn save_radio_recording(
     Ok(file_path.to_string_lossy().to_string())
 }
 
+#[tauri::command]
+pub fn frontend_log(level: String, message: String) {
+    eprintln!("[FRONTEND {}] {}", level.to_uppercase(), message);
+}
+
+
 

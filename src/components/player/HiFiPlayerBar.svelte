@@ -178,7 +178,7 @@
   let liveSpectrum = $derived(progressData.spectrum || []);
 
   let seekbarStyle = $derived(playbackSettings?.playerBarStyle || "spectrum");
-  let isWaveSeekbar = $derived(seekbarStyle === "wave" || seekbarStyle === "aurora");
+  let isWaveSeekbar = $derived(seekbarStyle === "aurora" || (seekbarStyle as string) === "wave" || seekbarStyle === "hybrid");
 
   let waveformSamples = $derived(
     isWaveSeekbar

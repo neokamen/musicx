@@ -11,7 +11,6 @@
     listeningStatsStore,
     volumeStore,
     languageStore,
-    bitPerfectModeStore,
     audioSettingsStore,
   } from "../../store/index.ts";
   import { ListMusic, Play, Trash2, X, Radio as RadioIcon, Globe, Volume2, Download, SlidersHorizontal } from "@lucide/svelte";
@@ -87,7 +86,6 @@
   let listeningStats = $derived($listeningStatsStore);
   let volume = $derived($volumeStore);
   let lang = $derived($languageStore);
-  let bitPerfectMode = $derived($bitPerfectModeStore);
   let audioSettings = $derived($audioSettingsStore);
 
   let showRadio = $state(false);
@@ -114,23 +112,8 @@
     download: true,
   });
 
-  let cachedQueue: Track[] | null = null;
-  let cachedTotalDuration = 0;
-  let totalDuration = $derived.by(() => {
-    if (cachedQueue === queue) return cachedTotalDuration;
-    cachedQueue = queue;
-    cachedTotalDuration = queue.reduce((acc, t) => acc + (t.duration_seconds || 0), 0);
-    return cachedTotalDuration;
-  });
-
-  let cachedQueueIdx = -1;
-  let cachedRemaining = 0;
-  let remaining = $derived.by(() => {
-    if (cachedQueue === queue && cachedQueueIdx === queueIndex) return cachedRemaining;
-    cachedQueueIdx = queueIndex;
-    cachedRemaining = queue.slice(Math.max(queueIndex, 0)).reduce((acc, t) => acc + (t.duration_seconds || 0), 0);
-    return cachedRemaining;
-  });
+  let totalDuration = $derived(queue.reduce((acc, t) => acc + (t.duration_seconds || 0), 0));
+  let remaining = $derived(queue.slice(Math.max(queueIndex, 0)).reduce((acc, t) => acc + (t.duration_seconds || 0), 0));
 
   const handleDownload = (track: Track, event: MouseEvent) => {
     event.stopPropagation();

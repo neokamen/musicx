@@ -126,6 +126,7 @@ pub fn run() {
             ytdlp::update_ytdlp,
             ytdlp::get_runtime_deps_status,
             ytdlp::install_or_update_runtime_deps,
+            commands::frontend_log,
         ])
         .run(tauri::generate_context!())
         .expect("error while running musicx audio player application");

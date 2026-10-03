@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { onMount } from 'svelte';
   import {
     useMusicStore,
     AUDIO_ENGINES,
@@ -578,9 +579,9 @@
         {#if activeTab === 'general'}
           <div class="space-y-6">
             <div class="p-4 rounded-xl bg-slate-900/40 border border-slate-800/80 space-y-3">
-              <label class="text-xs font-bold uppercase tracking-wider text-slate-300">
+              <div class="text-xs font-bold uppercase tracking-wider text-slate-300">
                 {t('appLanguage', language)}
-              </label>
+              </div>
               <div class="grid grid-cols-3 gap-3">
                 {#each [
                   { id: 'es' as const, name: 'Español' },
@@ -765,10 +766,10 @@
         {#if activeTab === 'appearance'}
           <div class="space-y-6">
             <div class="flex flex-col gap-2.5">
-              <label class="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-2">
+              <div class="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-2">
                 <Sparkles size={14} style="color: {appearance.accentColor};" />
                 Color de Acento Predominante
-              </label>
+              </div>
               <p class="text-xs text-slate-400">
                 Selecciona el color para botones, deslizadores, carátulas y telemetría:
               </p>
@@ -826,10 +827,10 @@
             </div>
 
             <div class="flex flex-col gap-2.5 pt-4 border-t border-slate-800">
-              <label class="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-2">
+              <div class="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-2">
                 <Palette size={14} style="color: {appearance.accentColor};" />
                 Fondo y Contraste
-              </label>
+              </div>
               <div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
                 {#each THEME_OPTIONS as opt (opt.id)}
                   {@const isSelected = bgTheme === opt.id}
@@ -982,9 +983,9 @@
             </div>
 
             <div class="flex flex-col gap-2 pt-2">
-              <label class="text-xs font-bold uppercase tracking-wider text-slate-300">
+              <div class="text-xs font-bold uppercase tracking-wider text-slate-300">
                 Curvatura de Esquinas
-              </label>
+              </div>
               <div class="grid grid-cols-4 gap-2.5">
                 {#each [
                   { id: 'square' as CornerRadius, label: 'Recto', px: '0px', r: 0 },
@@ -1176,7 +1177,7 @@
             {#if activeVisualizerPanel === 'cava'}
               <div class="space-y-6">
                 <div class="p-4 rounded-xl bg-slate-900/40 border border-slate-800/80 space-y-3">
-                  <label class="text-xs font-bold text-slate-300">Estilo visual CAVA</label>
+                  <div class="text-xs font-bold text-slate-300">Estilo visual CAVA</div>
                   <div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
                     {#each CAVA_STYLES as style (style.id)}
                       <button
@@ -1190,7 +1191,7 @@
                 </div>
 
                 <div class="p-4 rounded-xl bg-slate-900/40 border border-slate-800/80 space-y-3">
-                  <label class="text-xs font-bold text-slate-300">Frecuencia del motor</label>
+                  <div class="text-xs font-bold text-slate-300">Frecuencia del motor</div>
                   <div class="grid grid-cols-4 gap-2">
                     {#each [30, 60, 120, 144] as fps (fps)}
                       <button
@@ -1256,7 +1257,7 @@
                 </div>
 
                 <div class="p-4 rounded-xl bg-slate-900/40 border border-slate-800/80 space-y-3">
-                  <label class="text-xs font-bold text-slate-300">Paleta de CAVA</label>
+                  <div class="text-xs font-bold text-slate-300">Paleta de CAVA</div>
                   <div class="grid grid-cols-2 sm:grid-cols-5 gap-2">
                     {#each [
                       { id: 'aurora', label: 'Aurora', colors: ['#4ade80', '#22d3ee', '#a78bfa'] },
@@ -1323,7 +1324,7 @@
                 </div>
 
                 <div class="p-4 rounded-xl bg-slate-900/40 border border-slate-800/80 space-y-2">
-                  <label class="text-xs font-bold text-slate-300">Física de Caída / Gravedad</label>
+                  <div class="text-xs font-bold text-slate-300">Física de Caída / Gravedad</div>
                   <div class="grid grid-cols-3 gap-2">
                     {#each [
                       { id: 'monstercat', label: 'Monstercat (Fluido)' },
@@ -1381,7 +1382,7 @@
                 </div>
 
                 <div class="p-4 rounded-xl bg-slate-900/40 border border-slate-800/80 space-y-3">
-                  <label class="text-xs font-bold text-slate-300">Estilo del espectro</label>
+                  <div class="text-xs font-bold text-slate-300">Estilo del espectro</div>
                   <div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
                     {#each SPECTRUM_STYLES as style (style.id)}
                       <button
@@ -1395,7 +1396,7 @@
                 </div>
 
                 <div class="p-4 rounded-xl bg-slate-900/40 border border-slate-800/80 space-y-3">
-                  <label class="text-xs font-bold text-slate-300">Fluidez del espectro</label>
+                  <div class="text-xs font-bold text-slate-300">Fluidez del espectro</div>
                   <div class="grid grid-cols-4 gap-2">
                     {#each [30, 60, 120, 144] as fps (fps)}
                       <button
@@ -1415,9 +1416,9 @@
         {#if activeTab === 'playback'}
           <div class="space-y-6">
             <div class="p-4 rounded-xl bg-slate-900/40 border border-slate-800/80 space-y-3">
-              <label class="text-xs font-bold uppercase tracking-wider text-slate-300">
+              <div class="text-xs font-bold uppercase tracking-wider text-slate-300">
                 Estilo de Barra de Reproducción
-              </label>
+              </div>
               <div class="grid grid-cols-2 lg:grid-cols-3 gap-3">
                 {#each SEEK_BAR_STYLES as style (style.id)}
                   <button
@@ -1499,7 +1500,7 @@
             </div>
 
             <div class="p-4 rounded-xl bg-slate-900/40 border border-slate-800/80 space-y-3">
-              <label class="text-xs font-bold text-slate-300">Plantilla de botones de reproducción</label>
+              <div class="text-xs font-bold text-slate-300">Plantilla de botones de reproducción</div>
               <div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
                 {#each (Object.entries(TRANSPORT_STYLES) as [TransportStyle, typeof TRANSPORT_STYLES[TransportStyle]][]) as [id, style] (id)}
                   <button
@@ -1599,9 +1600,9 @@
           <div class="space-y-6">
             <div class="p-4 rounded-xl bg-slate-900/40 border border-slate-800/80 space-y-3">
               <div class="flex items-center justify-between">
-                <label class="text-xs font-bold uppercase tracking-wider text-slate-300">
+                <div class="text-xs font-bold uppercase tracking-wider text-slate-300">
                   Motor de Decodificación y Remuestreo Hi-Fi
-                </label>
+                </div>
                 <span class="text-[10px] font-mono px-2 py-0.5 rounded font-semibold transition-all duration-300" style={currentEngine.id === 'float32' ? 'background: #33415540; border: 1px solid #475569; color: #94a3b8;' : `background: ${currentEngine.color}20; border: 1px solid ${currentEngine.color}50; color: ${currentEngine.color}; box-shadow: 0 0 10px ${currentEngine.color}33;`}>
                   {currentEngine.name}
                 </span>
@@ -1646,9 +1647,9 @@
             </div>
 
             <div class="p-4 rounded-xl bg-slate-900/40 border border-slate-800/80 space-y-3">
-              <label class="text-xs font-bold uppercase tracking-wider text-slate-300">
+              <div class="text-xs font-bold uppercase tracking-wider text-slate-300">
                 Tamaño de Buffer y Latencia PCM
-              </label>
+              </div>
               <div class="grid grid-cols-2 sm:grid-cols-5 gap-2">
                 {#each [
                   { id: 'ultra_low' as const, label: 'Ultra Baja', sub: '64 spls · 1.5ms' },
@@ -1740,7 +1741,7 @@
             </div>
 
             <div class="p-4 rounded-xl bg-slate-900/40 border border-slate-800/80 space-y-3">
-              <label class="text-xs font-bold text-slate-300">Modo de backup del tiempo escuchado</label>
+              <div class="text-xs font-bold text-slate-300">Modo de backup del tiempo escuchado</div>
               <div class="flex items-center justify-between flex-wrap gap-2">
                 <div class="flex flex-wrap gap-2">
                   <button
@@ -1806,7 +1807,7 @@
 
                 {#if librarySettings.statsBackupMode === 'sync'}
                   <div class="space-y-2">
-                    <label class="text-[11px] font-bold text-slate-400 uppercase tracking-wide">Frecuencia de escritura en el archivo</label>
+                    <div class="text-[11px] font-bold text-slate-400 uppercase tracking-wide">Frecuencia de escritura en el archivo</div>
                     <div class="flex flex-wrap gap-2">
                       <button
                         onclick={() => useMusicStore.getState().setLibrarySettings({ statsSyncFrequency: 'interval10s' })}
@@ -1846,7 +1847,7 @@
 
             <div class="p-4 rounded-xl bg-slate-900/40 border border-slate-800/80 space-y-3">
               <div class="space-y-3">
-                <label class="text-xs font-bold text-slate-300">Carpeta principal de la biblioteca</label>
+                <div class="text-xs font-bold text-slate-300">Carpeta principal de la biblioteca</div>
                 <div class="flex flex-wrap gap-2">
                   <input
                     type="text"
@@ -1898,7 +1899,7 @@
 
             <div class="p-4 rounded-xl bg-slate-900/40 border border-slate-800/80 space-y-3">
               <div class="space-y-3">
-                <label class="text-xs font-bold text-slate-300">Carpeta de inicio del explorador</label>
+                <div class="text-xs font-bold text-slate-300">Carpeta de inicio del explorador</div>
                 <p class="text-[11px] text-slate-400">El botón de inicio del explorador volverá a esta ruta. La última carpeta visitada se restaura al abrir la aplicación.</p>
                 <div class="flex flex-wrap gap-2">
                   <input
@@ -1923,17 +1924,17 @@
             <!-- Radio Recording Settings -->
             <div class="p-4 rounded-xl bg-slate-900/40 border border-slate-800/80 space-y-4">
               <div class="space-y-2">
-                <label class="text-xs font-bold text-slate-200 flex items-center gap-2">
+                <div class="text-xs font-bold text-slate-200 flex items-center gap-2">
                   <Radio size={14} class="text-cyan-400" />
                   Grabaciones de Radio (Neowave Recorder)
-                </label>
+                </div>
                 <p class="text-[11px] text-slate-400">
                   Ubicación en tu disco donde se guardarán las canciones grabadas desde el widget de radio.
                 </p>
               </div>
 
               <div class="space-y-2">
-                <label class="text-[11px] font-semibold text-slate-300">Carpeta de destino</label>
+                <div class="text-[11px] font-semibold text-slate-300">Carpeta de destino</div>
                 <div class="flex flex-wrap gap-2">
                   <input
                     type="text"

@@ -1,9 +1,10 @@
 <script lang="ts">
   import { AudioLines, Power, ShieldCheck } from "@lucide/svelte";
-  import { useMusicStore, audioSettingsStore, appearanceStore } from "../../store/index.ts";
+  import { useMusicStore, isPlayingStore, audioSettingsStore, appearanceStore } from "../../store/index.ts";
 
   let audioSettings = $derived($audioSettingsStore);
   let appearance = $derived($appearanceStore);
+  let isPlaying = $derived($isPlayingStore);
   let enabled = $derived(audioSettings.isNormalizerEnabled);
   let accentColor = $derived(appearance.accentColor || "#06b6d4");
 
@@ -28,7 +29,7 @@
       title={enabled ? "Desactivar normalizador" : "Activar normalizador"}
       aria-label={enabled ? "Desactivar normalizador" : "Activar normalizador"}
       aria-pressed={enabled}
-      onclick={() => musicStore.getState().setAudioSettings({ isNormalizerEnabled: !enabled })}
+      onclick={() => useMusicStore.getState().setAudioSettings({ isNormalizerEnabled: !enabled })}
       class="grid size-6 place-items-center border {enabled ? 'border-emerald-500/60 text-emerald-300' : 'border-slate-700 text-slate-500'}"
     >
       <Power size={12} />
@@ -58,6 +59,6 @@
   </div>
   <footer class="flex shrink-0 items-center justify-between gap-2 border-t border-audiophile-border px-2.5 py-1.5 text-[8px] text-slate-500">
     <span class="flex min-w-0 items-center gap-1 truncate"><ShieldCheck size={10} /> EBU R128 · control true-peak</span>
-    <span class="shrink-0">{telemetry.state}</span>
+    <span class="shrink-0">{isPlaying ? "Playing" : "Stopped"}</span>
   </footer>
 </div>

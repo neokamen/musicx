@@ -1,17 +1,11 @@
 <script lang="ts">
   import { Activity, Music2 } from "@lucide/svelte";
   import {
-    useMusicStore,
+    tempoStore,
     currentTrackStore,
     appearanceStore,
     isPlayingStore,
-    select,
   } from "../../store/index.ts";
-
-  const tempoStore = select(
-    (s) => (s.telemetry.tempo_bpm && s.telemetry.tempo_confidence >= 0.12 ? Math.round(s.telemetry.tempo_bpm) : null),
-    (a, b) => a === b
-  );
 
   let detectedBpm = $derived($tempoStore);
   let currentTrack = $derived($currentTrackStore);

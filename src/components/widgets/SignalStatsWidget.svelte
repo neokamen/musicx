@@ -7,11 +7,13 @@
     audioFormatStore,
     selectedDeviceStore,
     appearanceStore,
+    isPlayingStore,
   } from "../../store/index.ts";
 
   let audioFormat = $derived($audioFormatStore);
   let selectedDevice = $derived($selectedDeviceStore);
   let appearance = $derived($appearanceStore);
+  let isPlaying = $derived($isPlayingStore);
 
   let bufferTelemetry = $state<BufferTelemetry>({
     buffer_capacity_frames: 0,
@@ -74,8 +76,8 @@
       <Activity size={13} style="color: {appearance.accentColor}" />
       Signal telemetry
     </div>
-    <span class="text-[9px] uppercase {audioTelemetry.state === 'Playing' ? 'text-emerald-400' : 'text-slate-500'}">
-      {audioTelemetry.state}
+    <span class="text-[9px] uppercase {isPlaying ? 'text-emerald-400' : 'text-slate-500'}">
+      {isPlaying ? 'Playing' : 'Stopped'}
     </span>
   </header>
   <div class="grid min-h-0 flex-1 grid-cols-2 gap-px bg-audiophile-border">
@@ -90,8 +92,8 @@
     <span class="flex min-w-0 items-center gap-1.5 truncate text-slate-400" title={output}>
       <Radio size={11} class="shrink-0" />{output}
     </span>
-    <span class="flex shrink-0 items-center gap-1 {bitPerfectMode || audioTelemetry.is_bit_perfect ? 'text-emerald-400' : 'text-slate-500'}">
-      <Waves size={11} />{bitPerfectMode || audioTelemetry.is_bit_perfect ? "Exclusive" : "Shared"}
+    <span class="flex shrink-0 items-center gap-1 {audioFormat.is_bit_perfect ? 'text-emerald-400' : 'text-slate-500'}">
+      <Waves size={11} />{audioFormat.is_bit_perfect ? "Exclusive" : "Shared"}
     </span>
   </footer>
 </div>

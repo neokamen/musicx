@@ -5,14 +5,18 @@
   import type { RadioPlaybackState } from "../../types/radio.ts";
   import { getBufferTelemetry, onBufferTelemetry } from "../../services/api.ts";
   import { radioAudioService } from "../../services/radioAudioService.ts";
+  import { formatDataSize } from "../../lib/formatBytes.ts";
   import {
-    useMusicStore,
     audioFormatStore,
     currentTrackStore,
     selectedDeviceStore,
     appearanceStore,
     activeRadioStationStore,
     isRadioPlayingStore,
+    isPlayingStore,
+    volumeStore,
+    bitPerfectModeStore,
+    playbackProgressStore,
   } from "../../store/index.ts";
   import SpectrumVisualizer from "./SpectrumVisualizer.svelte";
 
@@ -53,6 +57,10 @@
   let appearance = $derived($appearanceStore);
   let activeRadioStation = $derived($activeRadioStationStore);
   let isRadioPlaying = $derived($isRadioPlayingStore);
+  let isPlaying = $derived($isPlayingStore);
+  let volume = $derived($volumeStore);
+  let bitPerfectMode = $derived($bitPerfectModeStore);
+  let progress = $derived($playbackProgressStore);
 
   let isRadioActive = $derived(Boolean(activeRadioStation) && (isRadioPlaying || radioState.status !== "stopped"));
   let sampleRate = $derived(audioFormat.sample_rate || buffer.sample_rate);
@@ -72,18 +80,18 @@
     ["Sample rate", isRadioActive ? "Stream" : `${(sampleRate / 1000).toFixed(1)} kHz`],
     ["Bit depth", isRadioActive ? "N/A" : `${bitDepth} bit`],
     ["Bitrate", bitrate ? `${bitrate} kb/s` : "PCM"],
-    ["Canales", `${isRadioActive ? 2 : telemetry.channels || buffer.channels} ch`],
+    ["Canales", `${isRadioActive ? 2 : audioFormat.channels || buffer.channels} ch`],
     ["Codec", isRadioActive ? activeRadioStation?.codec?.toUpperCase() || "AUDIO" : currentTrack?.format?.toUpperCase() || "PCM"],
-    ["Tiempo", isRadioActive ? formatTime(radioState.elapsedSeconds) : `${formatTime(telemetry.current_time)} / ${formatTime(telemetry.duration)}`],
-    ["Volumen", `${Math.round(telemetry.volume * 100)}%`],
-    ["Bit-perfect", !isRadioActive && (bitPerfectMode || telemetry.is_bit_perfect) ? "Activo" : "Compartido"],
+    ["Tiempo", isRadioActive ? formatTime(radioState.elapsedSeconds) : `${formatTime(progress.current_time)} / ${formatTime(progress.duration)}`],
+    ["Volumen", `${Math.round(volume * 100)}%`],
+    ["Bit-perfect", !isRadioActive && (bitPerfectMode || audioFormat.is_bit_perfect) ? "Activo" : "Compartido"],
     ["Buffer llenado", isRadioActive ? "Web stream" : `${buffer.buffer_fill_frames.toLocaleString()} / ${buffer.buffer_capacity_frames.toLocaleString()} f`],
     ["Buffer HW", isRadioActive ? "Web Audio" : `${buffer.hardware_buffer_frames.toLocaleString()} frames`],
     ["Latencia", isRadioActive ? "Web Audio" : `${buffer.latency_ms.toFixed(2)} ms`],
     ["Xruns", isRadioActive ? "N/A" : `${buffer.total_xruns} · ${buffer.underruns}↓ ${buffer.overruns}↑`],
     [isRadioActive ? "Descarga en vivo" : "Lectura I/O", isRadioActive ? `${formatDataSize(radioState.bytesPerSecond || 0)}/s` : `${buffer.io_read_time_ms.toFixed(2)} ms`],
     [isRadioActive ? "Acumulado" : "Fuente", isRadioActive ? formatDataSize(radioState.sessionBytesTotal || 0) : buffer.is_network_mount ? "Montaje de red" : "Almacenamiento local"],
-    ["Salida", telemetry.output_device || selectedDevice || "Predeterminada"],
+    ["Salida", selectedDevice || "Predeterminada"],
     ["Estado del buffer", buffer.is_active ? "Activo" : "En espera"],
   ]);
 
@@ -95,8 +103,8 @@
     <span class="flex items-center gap-1.5 text-[9px] uppercase tracking-widest text-slate-300">
       <Activity size={12} style="color: {appearance.accentColor}" /> Audio telemetry / full
     </span>
-    <span class="shrink-0 text-[8px] uppercase {telemetry.state === 'Playing' ? 'text-emerald-400' : 'text-slate-500'}">
-      {telemetry.state}
+    <span class="shrink-0 text-[8px] uppercase {isPlaying ? 'text-emerald-400' : 'text-slate-500'}">
+      {isPlaying ? 'Playing' : 'Stopped'}
     </span>
   </header>
   <div class="flex min-w-0 items-center gap-2 border-b border-slate-800 px-2.5 py-1.5">
@@ -125,11 +133,11 @@
   <footer class="flex shrink-0 items-center justify-between border-t border-slate-800 px-2.5 py-1 text-[8px] text-slate-500">
     <span class="flex min-w-0 items-center gap-1 truncate">
       <Radio size={10} />
-      {isRadioActive ? `${((radioState.bytesPerSecond || 0) / 1024).toFixed(1)} KB/s · ${radioState.isRealDataUsage ? "medido" : "estimado"}` : telemetry.output_device || selectedDevice || "Salida predeterminada"}
+      {isRadioActive ? `${((radioState.bytesPerSecond || 0) / 1024).toFixed(1)} KB/s · ${radioState.isRealDataUsage ? "medido" : "estimado"}` : selectedDevice || "Salida predeterminada"}
     </span>
     <span class="flex items-center gap-1">
       <AudioLines size={10} />
-      {!isRadioActive && (bitPerfectMode || telemetry.is_bit_perfect) ? "Bit-perfect" : "Shared mode"}
+      {!isRadioActive && (bitPerfectMode || audioFormat.is_bit_perfect) ? "Bit-perfect" : "Shared mode"}
     </span>
   </footer>
 </div>
