@@ -144,17 +144,10 @@
 
   let favorites = $state<MiniPlayerFavorite[]>([]);
   let favoriteName = $state("");
-  let showCover = $state(false);
-  let showSpectrum = $state(false);
-  let showSeekbar = $state(true);
-  let showVolume = $state(true);
-
-  $effect(() => {
-    showCover = template === "cover" || template === "vinyl" || template === "foobar";
-    showSpectrum = template === "spectrum" || template === "foobar";
-    showSeekbar = template !== "slim";
-    showVolume = template !== "slim";
-  });
+  let showCover = $derived(template === "cover" || template === "vinyl" || template === "foobar");
+  let showSpectrum = $derived(template === "spectrum" || template === "foobar");
+  let showSeekbar = $derived(template !== "slim");
+  let showVolume = $derived(template !== "slim");
   let foobarLayout = $state<FoobarCell>(loadFoobarLayout());
 
   onMount(() => {

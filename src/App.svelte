@@ -94,9 +94,6 @@
 
   let normalWindowSize = readStoredWindowSize(NORMAL_WINDOW_SIZE_KEY);
   let isMiniPlayerCurrent = false;
-  $effect(() => {
-    isMiniPlayerCurrent = isMiniPlayer;
-  });
 
   let isRestoringWindowSize = true;
   let resizeSaveTimer: number | undefined = undefined;

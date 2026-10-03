@@ -30,7 +30,9 @@ import * as api from "../../services/api.ts";
 
   let inputPath = $state("");
   $effect(() => {
-    inputPath = explorer.currentPath;
+    if (inputPath !== explorer.currentPath) {
+      inputPath = explorer.currentPath;
+    }
   });
 
   let folderQuery = $state("");

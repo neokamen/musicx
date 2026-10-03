@@ -146,8 +146,10 @@
     coverUrl: "",
   });
 
+  let lastTrackId: string | null = $state(null);
   $effect(() => {
-    if (first) {
+    if (first && first.id !== lastTrackId) {
+      lastTrackId = first.id;
       draft.title = first.title || "";
       draft.artist = first.artist || "";
       draft.album = first.album || "";

@@ -48,8 +48,13 @@
   let applyStartupOnMount = initialFavorite !== null || !hasSavedLayout();
   let startupApplied = false;
 
+  let lastSavedLayoutJson = "";
   $effect(() => {
-    saveLayoutToStorage(layout);
+    const currentJson = JSON.stringify(layout);
+    if (currentJson !== lastSavedLayoutJson) {
+      lastSavedLayoutJson = currentJson;
+      saveLayoutToStorage(layout);
+    }
   });
 
   const applyFavorite = async (favorite: LayoutFavoriteSnapshot, isStartupRestore = false) => {
@@ -84,7 +89,9 @@
   $effect(() => {
     if (!startupFavorite || !applyStartupOnMount) return;
     const matchingFavorite = favorites.find((favorite) => favorite.id === startupFavorite?.id);
-    if (matchingFavorite) activeFavoriteId = matchingFavorite.id;
+    if (matchingFavorite && activeFavoriteId !== matchingFavorite.id) {
+      activeFavoriteId = matchingFavorite.id;
+    }
   });
 
   const captureWindowSize = async () => {

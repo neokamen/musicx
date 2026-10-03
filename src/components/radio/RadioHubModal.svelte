@@ -168,10 +168,14 @@
     });
   });
 
+  let lastLanguage: string | null = $state(null);
   $effect(() => {
-    if (language === "ca") selectedRegionId = "catalunya";
-    else if (language === "en") selectedRegionId = "uk";
-    else selectedRegionId = "spain";
+    if (lastLanguage !== language) {
+      lastLanguage = language;
+      if (language === "ca") selectedRegionId = "catalunya";
+      else if (language === "en") selectedRegionId = "uk";
+      else selectedRegionId = "spain";
+    }
   });
 
   let selectedRegion = $derived(

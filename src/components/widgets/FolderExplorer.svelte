@@ -35,7 +35,9 @@
   let viewMode = $state<ExplorerViewMode>("compact");
 
   $effect(() => {
-    customPath = explorer.currentPath;
+    if (!isEditingPath && customPath !== explorer.currentPath) {
+      customPath = explorer.currentPath;
+    }
   });
 
   let pathParts = $derived(explorer.currentPath.split("/").filter(Boolean));

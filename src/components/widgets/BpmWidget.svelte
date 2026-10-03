@@ -17,9 +17,12 @@
   );
   let bpm = $derived(manualBpm ?? detectedBpm);
 
+  let lastTrackFilepath = "";
   $effect(() => {
-    // Reset when track changes
-    if (telemetry.filepath) {
+    // Reset only when track actually changes
+    const current = telemetry.filepath || "";
+    if (current && current !== lastTrackFilepath) {
+      lastTrackFilepath = current;
       tapTimes = [];
       manualBpm = null;
     }

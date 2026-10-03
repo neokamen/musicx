@@ -37,10 +37,14 @@
   let lowpass = $state(0);
 
   $effect(() => {
-    subBoost = audioSettings.eqSubBoost || 0;
-    bassBoost = audioSettings.eqBassBoost || 0;
-    highpass = audioSettings.eqHighpass || 0;
-    lowpass = audioSettings.eqLowpass || 0;
+    const s = audioSettings.eqSubBoost || 0;
+    const b = audioSettings.eqBassBoost || 0;
+    const h = audioSettings.eqHighpass || 0;
+    const l = audioSettings.eqLowpass || 0;
+    if (subBoost !== s) subBoost = s;
+    if (bassBoost !== b) bassBoost = b;
+    if (highpass !== h) highpass = h;
+    if (lowpass !== l) lowpass = l;
   });
 
   let targetLufs = $state(-14);

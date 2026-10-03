@@ -102,12 +102,15 @@
     };
   });
 
+  let autoRecord = $derived(Boolean(librarySettings.radioAutoRecordEnabled));
+  let maxStored = $derived(librarySettings.radioMaxStoredTracks || 20);
+
   $effect(() => {
-    radioAudioService.setAutoRecordEnabled(Boolean(librarySettings.radioAutoRecordEnabled));
+    radioAudioService.setAutoRecordEnabled(autoRecord);
   });
 
   $effect(() => {
-    radioAudioService.setMaxStoredTracks(librarySettings.radioMaxStoredTracks || 20);
+    radioAudioService.setMaxStoredTracks(maxStored);
   });
 
   // Debounced search
@@ -116,11 +119,11 @@
     const query = searchQuery.trim();
     if (searchTimer) clearTimeout(searchTimer);
     if (!query) {
-      searchResults = [];
+      if (searchResults.length > 0) searchResults = [];
       isSearching = false;
       return;
     }
-    activeTab = "search";
+    if (activeTab !== "search") activeTab = "search";
     isSearching = true;
     searchTimer = setTimeout(() => {
       searchStations(query, 25)

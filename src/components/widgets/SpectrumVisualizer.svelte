@@ -34,7 +34,10 @@
   $effect(() => {
     if (!nodeKey) {
       const current = appearance.spectrumStyle as string;
-      visualStyle = current === "quantum_laser" ? "fluid_wave" : (appearance.spectrumStyle || "bars");
+      const target = (current === "quantum_laser" ? "fluid_wave" : (appearance.spectrumStyle || "bars")) as SpectrumStyle;
+      if (visualStyle !== target) {
+        visualStyle = target;
+      }
     }
   });
 
