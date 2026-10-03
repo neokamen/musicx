@@ -1163,6 +1163,30 @@
               </label>
             </div>
 
+            <!-- Colorido de Formatos de Audio -->
+            <div class="p-3.5 rounded-xl bg-slate-900/60 border border-slate-800 space-y-2 pt-2">
+              <div class="flex items-center justify-between">
+                <div>
+                  <div class="text-xs font-bold text-slate-200">Colorido de Formatos de Audio</div>
+                  <div class="text-[11px] text-slate-400">
+                    Colorear las etiquetas de formato (FLAC, MP3, WAV, etc.) en el explorador de carpetas, biblioteca y cola de reproducción
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  aria-label="Alternar Colorido de Formatos de Audio"
+                  onclick={() => {
+                    useMusicStore.getState().setAppearance({
+                      coloredFormats: appearance.coloredFormats === false ? true : false,
+                    });
+                  }}
+                  class="w-10 h-5 rounded-full transition-colors relative cursor-pointer {appearance.coloredFormats !== false ? 'bg-cyan-500' : 'bg-slate-800'}"
+                >
+                  <div class="w-4 h-4 rounded-full bg-white transition-transform absolute top-0.5 {appearance.coloredFormats !== false ? 'left-5' : 'left-0.5'}"></div>
+                </button>
+              </div>
+            </div>
+
             <!-- Velocidad y tiempo de espera de la marquesina -->
             <div class="p-3.5 rounded-xl bg-slate-900/60 border border-slate-800 space-y-4 pt-2">
               <div class="space-y-2">

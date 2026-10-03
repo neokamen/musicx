@@ -176,7 +176,6 @@
   onpointerup={handlePointerUp}
   onpointerleave={handlePointerLeave}
   class="relative w-full h-full min-h-[40px] rounded-xl border border-slate-800/80 bg-slate-950/90 shadow-inner select-none cursor-pointer overflow-hidden group p-2"
-  title="Haz clic o arrastra para mover la pista"
 >
   <!-- Background Glow on Hover -->
   <div

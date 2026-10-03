@@ -1,5 +1,6 @@
 <script lang="ts">
   import { appearanceStore } from "../../store/index.ts";
+  import { FORMAT_COLORS } from "../../types/spectrum.ts";
   import { Folder, Music, Play, Plus, FolderPlus } from "@lucide/svelte";
   import type { FileNode } from "../../types/index.ts";
 
@@ -37,6 +38,12 @@
   }: Props = $props();
 
   let appearance = $derived($appearanceStore);
+  let extUpper = $derived(entry.extension?.toUpperCase() || "");
+  let formatColor = $derived(
+    appearance.coloredFormats !== false
+      ? (FORMAT_COLORS[extUpper] || "#cbd5e1")
+      : "#94a3b8"
+  );
   let isHoveredLong = $state(false);
   let hoverTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -83,7 +90,10 @@
       {#if entry.is_dir}
         <span class="text-[9px] text-slate-500">DIR</span>
       {:else if entry.extension}
-        <span class="uppercase px-1 rounded bg-slate-800 text-[9px] font-bold text-slate-300">
+        <span
+          class="uppercase px-1 rounded bg-slate-800/80 text-[9px] font-bold tracking-wide transition-colors"
+          style="color: {formatColor};"
+        >
           {entry.extension}
         </span>
       {:else}

@@ -112,7 +112,7 @@
     <span class="truncate text-[9px] text-slate-300" title={source}>{source}</span>
     <span class="ml-auto shrink-0 text-[8px] text-slate-500">{isRadioActive ? radioState.streamTitle || "Radio" : currentTrack?.title || "--"}</span>
   </div>
-  <div class="h-10 shrink-0 border-b border-slate-800 bg-black/30" title="Doble clic para cambiar el estilo del espectro">
+  <div class="h-10 shrink-0 border-b border-slate-800 bg-black/30">
     <SpectrumVisualizer height={40} />
   </div>
   <div class="flex shrink-0 items-center gap-2 px-2.5 py-1.5 text-[8px] text-slate-500">

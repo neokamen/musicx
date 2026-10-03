@@ -52,3 +52,22 @@ export const CAVA_STYLES: { id: CavaStyle; label: string }[] = [
   { id: "embers", label: "Brasas" },
   { id: "scope", label: "Osciloscopio" },
 ];
+
+export const FORMAT_COLORS: Record<string, string> = {
+  FLAC: "#38bdf8",
+  DSD: "#e879f9",
+  DSF: "#e879f9",
+  DFF: "#e879f9",
+  WAV: "#4ade80",
+  AIFF: "#a3e635",
+  ALAC: "#2dd4bf",
+  APE: "#f472b6",
+  WV: "#f472b6",
+  MP3: "#fbbf24",
+  AAC: "#fb923c",
+  OGG: "#34d399",
+  OPUS: "#22d3ee",
+  M4A: "#fb923c",
+  WMA: "#94a3b8",
+};
+

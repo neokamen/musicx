@@ -229,14 +229,14 @@
       }
 
       // =========================================================================
-      // 3. CAVA: ONDA FLUIDA (cava_fluid) - Con el mismo meneo dinámico del widget
+      // 3. CAVA: ONDA FLUIDA (cava_fluid) - Clon exacto de la Onda Fluida Continua Mejorada del widget
       // =========================================================================
       else if (mode === "cava_fluid") {
-        phase += isPlaying ? dt * 4.6 : dt * 1.6;
-        const spectrum = tele.spectrum || [];
+        phase += isPlaying ? dt * 4.5 : dt * 1.6;
 
         let bassEnergy = 0;
         let midEnergy = 0;
+        const spectrum = tele.spectrum || [];
         if (isPlaying && spectrum.length > 0) {
           const sampleCount = Math.min(12, spectrum.length);
           for (let s = 0; s < sampleCount; s++) {
@@ -248,22 +248,22 @@
           for (let s = sampleCount; s < midCount; s++) {
             midEnergy += spectrum[s] || 0;
           }
-          midEnergy = midEnergy / (midCount - sampleCount);
+          midEnergy = midEnergy / Math.max(1, midCount - sampleCount);
         } else {
           bassEnergy = 0.08;
           midEnergy = 0.04;
         }
 
-        const midY = height * 0.52;
-        const amplitude = Math.min(height * 0.44, Math.max(3.5, height * (bassEnergy * 0.7 + midEnergy * 0.35 + 0.12)));
-        const count = 48;
-        const step = width / (count - 1);
+        const midY = height * 0.5;
+        const amplitude = Math.min(height * 0.44, Math.max(3, height * (bassEnergy * 0.65 + midEnergy * 0.35 + 0.1)));
+        const pointsCount = 48;
+        const step = width / (pointsCount - 1);
         const points: { x: number; y: number }[] = [];
 
-        for (let i = 0; i < count; i++) {
+        for (let i = 0; i < pointsCount; i++) {
           const x = i * step;
-          const normX = i / (count - 1);
-          const env = Math.sin(normX * Math.PI);
+          const normX = i / (pointsCount - 1);
+          const envelope = Math.sin(normX * Math.PI);
 
           const freqVal = isPlaying && spectrum.length > 0
             ? (spectrum[Math.min(i, spectrum.length - 1)] || 0) * 0.8
@@ -274,10 +274,11 @@
             Math.sin(normX * 22 - phase * 1.4) * 0.28 +
             Math.cos(normX * 36 + phase * 2) * (0.12 + freqVal * 0.3);
 
-          const y = midY - wave * amplitude * env;
+          const y = midY + wave * amplitude * envelope;
           points.push({ x, y });
         }
 
+        // Draw translucent underfill
         ctx.beginPath();
         ctx.moveTo(0, height);
         ctx.lineTo(points[0].x, points[0].y);
@@ -291,12 +292,13 @@
         ctx.closePath();
 
         const areaGrad = ctx.createLinearGradient(0, midY - amplitude, 0, height);
-        areaGrad.addColorStop(0, `${accentColor}55`);
-        areaGrad.addColorStop(0.6, `${accentColor}20`);
+        areaGrad.addColorStop(0, `${accentColor}35`);
+        areaGrad.addColorStop(0.7, `${accentColor}10`);
         areaGrad.addColorStop(1, "transparent");
         ctx.fillStyle = areaGrad;
         ctx.fill();
 
+        // Draw luminous wave crest
         ctx.beginPath();
         ctx.moveTo(points[0].x, points[0].y);
         for (let i = 0; i < points.length - 1; i++) {
@@ -305,12 +307,18 @@
           ctx.quadraticCurveTo(points[i].x, points[i].y, xc, yc);
         }
         ctx.lineTo(points[points.length - 1].x, points[points.length - 1].y);
+
         ctx.strokeStyle = accentColor;
-        ctx.lineWidth = 2;
+        ctx.lineWidth = 1.8;
         ctx.shadowColor = accentColor;
         ctx.shadowBlur = 8;
         ctx.stroke();
         ctx.shadowBlur = 0;
+
+        // White core filament
+        ctx.strokeStyle = "#ffffff";
+        ctx.lineWidth = 0.6;
+        ctx.stroke();
       }
 
       // =========================================================================

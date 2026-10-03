@@ -55,6 +55,7 @@ export interface AppearanceState {
   cavaCustomPalette: [string, string, string];
   marqueeSpeed: number;
   marqueeDelay: number;
+  coloredFormats: boolean;
 }
 
 export type ResamplingQuality =
@@ -386,6 +387,7 @@ const defaultAppearance: AppearanceState = {
   cavaCustomPalette: ["#00d1ff", "#4f46e5", "#ff4fd8"],
   marqueeSpeed: 10,
   marqueeDelay: 2,
+  coloredFormats: true,
 };
 
 const defaultAudioSettings: AudioSettingsState = {

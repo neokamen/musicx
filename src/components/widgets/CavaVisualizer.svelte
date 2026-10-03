@@ -33,12 +33,6 @@
     }
   };
 
-  const handleDoubleClick = () => {
-    const currentIndex = CAVA_STYLES.findIndex((style) => style.id === visualStyle);
-    const nextStyle = CAVA_STYLES[(currentIndex + 1) % CAVA_STYLES.length].id;
-    setStyleAndSave(nextStyle);
-  };
-
   onMount(() => {
     const canvas = canvasRef;
     if (!canvas) return;
@@ -440,9 +434,7 @@
 <!-- svelte-ignore a11y_click_events_have_key_events -->
 <!-- svelte-ignore a11y_no_static_element_interactions -->
 <div
-  ondblclick={handleDoubleClick}
-  title="Doble clic para cambiar estilo CAVA"
-  class="h-full w-full min-h-0 bg-slate-950 p-2 flex items-stretch relative overflow-hidden group cursor-pointer"
+  class="h-full w-full min-h-0 bg-slate-950 p-2 flex items-stretch relative overflow-hidden group"
 >
   <canvas bind:this={canvasRef} class="h-full w-full" aria-label="Visualizador CAVA"></canvas>
   {#if isEditing}

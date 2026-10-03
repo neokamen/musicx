@@ -23,19 +23,7 @@
   import type { Track } from "../../types/index.ts";
   import { t } from "../../i18n/translations.ts";
   import QueueHudVisualizer from "./QueueHudVisualizer.svelte";
-
-  const FORMAT_COLORS: Record<string, string> = {
-    MP3: "#f59e0b",
-    FLAC: "#22d3ee",
-    WAV: "#a78bfa",
-    OGG: "#84cc16",
-    OPUS: "#60a5fa",
-    AAC: "#fb7185",
-    M4A: "#f472b6",
-    ALAC: "#e2e8f0",
-    STREAM: "#06b6d4",
-    RADIO: "#ec4899",
-  };
+  import { FORMAT_COLORS } from "../../types/spectrum.ts";
 
   type QueueColumn = "index" | "title" | "format" | "bitrate" | "duration" | "download";
 
@@ -516,8 +504,8 @@
             </div>
             {#if visibleCols.format}
               <span
-                class="truncate text-[10px] font-bold tracking-wide"
-                style="color: {FORMAT_COLORS[fmt] || appearance.accentColor};"
+                class="truncate text-[10px] font-bold tracking-wide transition-colors"
+                style="color: {appearance.coloredFormats !== false ? (FORMAT_COLORS[fmt] || appearance.accentColor) : '#94a3b8'};"
               >
                 {fmt}
               </span>
@@ -560,10 +548,8 @@
     {/if}
 
     <div
-      class="border-t shrink-0 cursor-pointer select-none transition-colors h-[50px] px-1.5 py-0.5 flex items-center bg-audiophile-surface"
+      class="border-t shrink-0 select-none transition-colors h-[50px] px-1.5 py-0.5 flex items-center bg-audiophile-surface"
       style="border-color: {appearance.accentColor}25;"
-      title={lang === "ca" ? "Doble clic per canviar vista" : lang === "en" ? "Double click to cycle view" : "Doble clic para cambiar vista"}
-      ondblclick={() => { queueHudMode = (queueHudMode + 1) % hudPanels.length; }}
     >
       <div class="flex items-center gap-1.5 w-full h-full">
         <!-- Two columns/rows of 6 pagination dots (squeezed, minimal margins) -->

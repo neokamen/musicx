@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { useMusicStore } from "../../store/index.ts";
+  import { appearanceStore } from "../../store/index.ts";
+  import { FORMAT_COLORS } from "../../types/spectrum.ts";
   import { Volume2 } from "@lucide/svelte";
   import type { Track } from "../../types/index.ts";
 
@@ -45,11 +46,19 @@
     onContextMenu,
   }: Props = $props();
 
+  let appearance = $derived($appearanceStore);
+  let fmtUpper = $derived(track.format?.toUpperCase() || "");
+  let formatColor = $derived(
+    appearance.coloredFormats !== false
+      ? (FORMAT_COLORS[fmtUpper] || "#cbd5e1")
+      : "#94a3b8"
+  );
+
   let isHoveredLong = $state(false);
   let hoverTimer: ReturnType<typeof setTimeout> | null = null;
 
   const handleMouseEnter = () => {
-    const delayMs = Math.max(200, (useMusicStore.getState().appearance.marqueeDelay ?? 2) * 1000);
+    const delayMs = Math.max(200, (appearance.marqueeDelay ?? 2) * 1000);
     hoverTimer = setTimeout(() => {
       isHoveredLong = true;
     }, delayMs);
@@ -103,7 +112,10 @@
 
   {#if visibleCols.format}
     <div class="w-20 text-center shrink-0" style="flex: 0 0 {columnWidths.format}%;">
-      <span class="text-[9px] px-1.5 py-0.5 rounded bg-audiophile-border/80 font-medium text-slate-300">
+      <span
+        class="text-[9px] px-1.5 py-0.5 rounded bg-audiophile-border/80 font-bold tracking-wide transition-colors"
+        style="color: {formatColor};"
+      >
         {track.format}
       </span>
     </div>
