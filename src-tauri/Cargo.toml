@@ -1,6 +1,6 @@
 [package]
 name = "musicx"
-version = "0.3.36"
+version = "0.3.37"
 description = "musicx - the audio player (Hi-Fi local & network player)"
 authors = ["musicx team"]
 edition = "2021"
@@ -33,17 +33,16 @@ rubato = "0.16"
 rusqlite = { version = "0.32", features = ["bundled", "bundled-full"] }
 jwalk = "0.8"
 
-# Linux D-Bus MPRIS Media Controls
-
-[target.'cfg(target_os = "linux")'.dependencies]
-mpris-player = "0.6"
-glib = "0.15"
-
 # Fast Base64 encoding for embedded cover art
 base64 = "0.22"
 
 # Blocking HTTP client (TLS) used by the local radio relay (ICY metadata + byte counting)
 ureq = { version = "2", features = ["tls"] }
+
+# Linux D-Bus MPRIS Media Controls
+[target.'cfg(target_os = "linux")'.dependencies]
+mpris-player = "0.6"
+glib = "0.15"
 
 [profile.release]
 codegen-units = 1
