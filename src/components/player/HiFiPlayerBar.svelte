@@ -185,7 +185,7 @@
 
   let songPeaks = $derived.by(() => {
     const raw = progressData.seekbar_spectrum || [];
-    const targetBins = 192;
+    const targetBins = 384;
     if (raw.length > 0 && raw.some((p) => p > 0.01)) {
       if (raw.length === targetBins) return raw;
       const step = raw.length / targetBins;
@@ -274,6 +274,11 @@
   };
 
   const handleMouseDownSeek = (e: MouseEvent) => {
+    // Shield against clicks originating on buttons or interactive controls
+    const target = e.target as HTMLElement | null;
+    if (target?.closest("button") || target?.closest("[role='button']")) {
+      return;
+    }
     isDraggingSeek = true;
     handlePointerSeek(e.clientX);
   };
@@ -579,8 +584,8 @@
                     {/if}
 
                     {#if seekbarStyle === "spectrum"}
-                      {#each songPeaks as p, i (i)}
-                        {@const isPassed = i <= activeBarIdx}
+                      {#each songPeaks.filter((_, i) => i % 4 === 0) as p, i (i)}
+                        {@const isPassed = i <= Math.floor(progress * 96)}
                         {@const heightPct = Math.max(18, Math.floor(p * 90))}
                         <div
                           class="flex-1 rounded-full"
@@ -657,8 +662,8 @@
           </div>
         </div>
       {:else}
-        <!-- DYNAMIC DOUBLE-HEIGHT WAVEFORM SEEKBAR BEHIND PLAY BUTTON (h-14 / 56px) -->
-        <div class="relative flex h-14 w-full min-w-0 items-center justify-center transition-[height] duration-200">
+        <!-- DYNAMIC DOUBLE-HEIGHT WAVEFORM SEEKBAR BEHIND PLAY BUTTON (h-[68px] reaching EQ button top) -->
+        <div class="relative flex h-[68px] -translate-y-[2px] w-full min-w-0 items-center justify-center transition-[height] duration-200">
           <div
             class="relative flex h-full shrink-0 items-center justify-center"
             style="width: {playerBarWidth}%; flex: 0 0 {playerBarWidth}%;"
@@ -706,7 +711,7 @@
                 <span class="w-10 shrink-0 text-right z-30">{formatTime(currentTime)}</span>
               {/if}
 
-              <!-- Scrubber Container: h-14 with waveform in background and buttons in foreground -->
+              <!-- Scrubber Container: unboxed (sin caja), full height h-full (h-[68px]), hover shine -->
               <!-- svelte-ignore a11y_no_static_element_interactions -->
               <div
                 bind:this={scrubberRef}
@@ -719,26 +724,27 @@
                 onmouseleave={() => {
                   scrubberHoverX = null;
                 }}
-                class="flex-1 h-14 bg-slate-900/90 hover:bg-slate-900/95 border border-slate-800 rounded-xl px-2 flex items-center justify-between cursor-pointer select-none relative overflow-hidden group shadow-inner transition-colors"
+                class="flex-1 h-full bg-transparent border-0 rounded-none px-0 flex items-center justify-between cursor-pointer select-none relative overflow-hidden group/scrubber shadow-none transition-all duration-200 hover:brightness-125"
                 title="Doble clic para alternar estilo de barra de reproducción"
                 aria-label="Barra de reproducción; haz clic o arrastra para desplazarte"
               >
                 <!-- LAYER 1: WAVEFORM IN THE BACKGROUND BEHIND PLAY BUTTON (z-0 / z-10) -->
                 {#if seekbarStyle === "waveform_bars"}
-                  <div class="flex h-full w-full items-center gap-[1.5px] px-1 pointer-events-none opacity-85">
+                  <!-- DOUBLE RESOLUTION HD BARS: 384 bins -->
+                  <div class="flex h-full w-full items-center gap-[0.5px] px-0.5 pointer-events-none opacity-85 group-hover/scrubber:opacity-100 transition-opacity">
                     {#each songPeaks as p, i (i)}
                       {@const isPassed = i <= activeBarIdx}
-                      {@const heightPct = Math.max(12, Math.floor(p * 94))}
+                      {@const heightPct = Math.max(10, Math.floor(p * 94))}
                       <div
-                        class="flex-1 rounded-[1px] transition-[height] duration-75"
-                        style="height: {heightPct}%; background-color: {isPassed ? accentColor : 'rgba(255, 255, 255, 0.16)'}; {isPassed ? `box-shadow: 0 0 6px ${accentColor}80;` : ''}"
+                        class="flex-1 min-w-0 rounded-[0.5px] transition-[height] duration-75"
+                        style="height: {heightPct}%; background-color: {isPassed ? accentColor : 'rgba(255, 255, 255, 0.16)'}; {isPassed ? `box-shadow: 0 0 5px ${accentColor}80;` : ''}"
                       ></div>
                     {/each}
                   </div>
                   <!-- Vertical playhead line -->
                   <div class="pointer-events-none absolute inset-y-0 w-[2px] bg-white shadow-[0_0_10px_2px_white] z-10" style="left: {progress * 100}%;"></div>
                 {:else if seekbarStyle === "waveform_envelope"}
-                  <div class="pointer-events-none absolute inset-0 overflow-hidden opacity-90">
+                  <div class="pointer-events-none absolute inset-0 overflow-hidden opacity-90 group-hover/scrubber:opacity-100 transition-opacity">
                     <div class="absolute inset-0 opacity-25" style="background: radial-gradient(ellipse at center, {accentColor}55 0%, transparent 80%);"></div>
                     <svg viewBox="0 0 1000 100" preserveAspectRatio="none" class="absolute inset-0 h-full w-full">
                       <defs>
@@ -758,11 +764,12 @@
                     <div class="absolute inset-y-0 w-[2px] bg-white shadow-[0_0_10px_2px_white]" style="left: {progress * 100}%;"></div>
                   </div>
                 {:else if seekbarStyle === "waveform_matrix"}
-                  <div class="flex h-full w-full items-center justify-between gap-[2px] px-1 pointer-events-none py-1 opacity-85">
-                    {#each songPeaks.slice(0, 72) as peak, colIdx}
-                      {@const isPassed = (colIdx / 72) <= progress}
+                  <!-- DOUBLE RESOLUTION LED MATRIX: 144 columns -->
+                  <div class="flex h-full w-full items-center justify-between gap-[1px] px-0.5 pointer-events-none py-1 opacity-85 group-hover/scrubber:opacity-100 transition-opacity">
+                    {#each songPeaks.slice(0, 144) as peak, colIdx}
+                      {@const isPassed = (colIdx / 144) <= progress}
                       {@const litCells = Math.max(1, Math.round(peak * 8))}
-                      <div class="flex flex-col-reverse justify-between flex-1 h-full gap-[1.5px]">
+                      <div class="flex flex-col-reverse justify-between flex-1 min-w-0 h-full gap-[1px]">
                         {#each Array.from({ length: 8 }) as _, rowIdx}
                           {@const isLit = rowIdx < litCells}
                           {@const cellColor = rowIdx >= 7 ? '#ef4444' : rowIdx >= 5 ? '#f59e0b' : accentColor}
@@ -778,64 +785,87 @@
                   <div class="pointer-events-none absolute inset-y-0 w-[2px] bg-white shadow-[0_0_10px_2px_white] z-10" style="left: {progress * 100}%;"></div>
                 {/if}
 
-                <!-- LAYER 2: PLAY BUTTONS SITTING IN FRONT OF WAVEFORM (z-20) -->
-                <div class="absolute inset-0 flex items-center justify-center gap-2 pointer-events-none z-20">
+                <!-- LAYER 2: PLAY BUTTONS RAISED TO TOP & ALIGNED AT TOP WITH SHIELDING & HOVER SHINE (z-20) -->
+                <!-- svelte-ignore a11y_no_static_element_interactions -->
+                <div
+                  onmousedown={(e) => e.stopPropagation()}
+                  onpointerdown={(e) => e.stopPropagation()}
+                  onmouseup={(e) => e.stopPropagation()}
+                  onpointerup={(e) => e.stopPropagation()}
+                  class="absolute inset-x-0 top-0 flex items-start justify-center gap-2 pointer-events-none z-20"
+                >
                   <button
+                    onmousedown={(e) => e.stopPropagation()}
+                    onpointerdown={(e) => e.stopPropagation()}
                     onclick={(e) => { e.stopPropagation(); useMusicStore.getState().toggleShuffle(); }}
-                    class="pointer-events-auto p-1.5 rounded-full bg-slate-950/75 backdrop-blur-sm border border-slate-700/60 hover:bg-slate-900 transition-colors cursor-pointer"
+                    class="group/btn pointer-events-auto relative overflow-hidden p-1.5 rounded-full bg-slate-950/80 backdrop-blur-sm border border-slate-700/60 hover:border-cyan-400/70 hover:bg-slate-900 hover:shadow-[0_0_14px_var(--app-accent)] hover:scale-105 transition-all duration-200 cursor-pointer"
                     style="color: {shuffle ? accentColor : '#94a3b8'};"
                     aria-label={lang === "ca" ? `Aleatori: ${shuffle ? "Activat" : "Desactivat"}` : lang === "en" ? `Shuffle: ${shuffle ? "On" : "Off"}` : `Aleatorio: ${shuffle ? "Activado" : "Desactivado"}`}
                   >
-                    <Shuffle size={13} />
+                    <span class="pointer-events-none absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/30 to-transparent transition-transform duration-500 ease-out group-hover/btn:translate-x-full"></span>
+                    <Shuffle size={13} class="relative z-10" />
                   </button>
 
                   <button
+                    onmousedown={(e) => e.stopPropagation()}
+                    onpointerdown={(e) => e.stopPropagation()}
                     onclick={(e) => { e.stopPropagation(); void useMusicStore.getState().previousTrack(); }}
-                    class="pointer-events-auto p-1.5 rounded-full bg-slate-950/75 backdrop-blur-sm border border-slate-700/60 text-slate-300 hover:text-white hover:bg-slate-900 transition-colors cursor-pointer"
+                    class="group/btn pointer-events-auto relative overflow-hidden p-1.5 rounded-full bg-slate-950/80 backdrop-blur-sm border border-slate-700/60 text-slate-300 hover:text-white hover:border-cyan-400/70 hover:bg-slate-900 hover:shadow-[0_0_14px_var(--app-accent)] hover:scale-105 transition-all duration-200 cursor-pointer"
                     aria-label={t("previous", lang)}
                   >
-                    <SkipBack size={15} />
+                    <span class="pointer-events-none absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/30 to-transparent transition-transform duration-500 ease-out group-hover/btn:translate-x-full"></span>
+                    <SkipBack size={15} class="relative z-10" />
                   </button>
 
                   <button
+                    onmousedown={(e) => e.stopPropagation()}
+                    onpointerdown={(e) => e.stopPropagation()}
                     onclick={(e) => { e.stopPropagation(); handlePlayClick(); }}
-                    class="pointer-events-auto flex h-10 w-10 items-center justify-center text-slate-950 hover:scale-105 active:scale-95 transition-all font-bold cursor-pointer rounded-full shadow-xl"
-                    style="background-color: {accentColor}; box-shadow: {appearance.neonGlow ? `0 0 16px ${accentColor}88` : '0 4px 14px rgba(0,0,0,0.6)'}; animation: {isPlaying && appearance.playButtonBpmPulseEnabled ? `bpm-play-button ${beatPeriod}s ease-in-out infinite` : 'none'};"
+                    class="group/play pointer-events-auto relative overflow-hidden flex h-10 w-10 items-center justify-center text-slate-950 hover:scale-105 active:scale-95 transition-all duration-300 font-bold cursor-pointer rounded-full shadow-xl hover:shadow-[0_0_24px_var(--app-accent),0_0_10px_rgba(255,255,255,0.7)]"
+                    style="background-color: {accentColor}; box-shadow: {appearance.neonGlow ? `0 0 18px ${accentColor}99` : '0 4px 14px rgba(0,0,0,0.6)'}; animation: {isPlaying && appearance.playButtonBpmPulseEnabled ? `bpm-play-button ${beatPeriod}s ease-in-out infinite` : 'none'};"
                     aria-label={isPlaying ? t("pause", lang) : t("play", lang)}
                   >
+                    <!-- Glossy specular shine sweep on hover -->
+                    <span class="pointer-events-none absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/50 to-transparent transition-transform duration-700 ease-out group-hover/play:translate-x-full"></span>
                     {#if isPlaying}
-                      <Pause size={18} fill="currentColor" class={isPlayFlipping && appearance.playButtonClickEffect !== "none" ? `animate-play-button-${appearance.playButtonClickEffect || "pulse"}` : ""} />
+                      <Pause size={18} fill="currentColor" class="relative z-10 {isPlayFlipping && appearance.playButtonClickEffect !== 'none' ? `animate-play-button-${appearance.playButtonClickEffect || 'pulse'}` : ''}" />
                     {:else}
-                      <Play size={18} fill="currentColor" class="ml-0.5 {isPlayFlipping && appearance.playButtonClickEffect !== 'none' ? `animate-play-button-${appearance.playButtonClickEffect || 'pulse'}` : ''}" />
+                      <Play size={18} fill="currentColor" class="relative z-10 ml-0.5 {isPlayFlipping && appearance.playButtonClickEffect !== 'none' ? `animate-play-button-${appearance.playButtonClickEffect || 'pulse'}` : ''}" />
                     {/if}
                   </button>
 
                   <button
+                    onmousedown={(e) => e.stopPropagation()}
+                    onpointerdown={(e) => e.stopPropagation()}
                     onclick={(e) => { e.stopPropagation(); void useMusicStore.getState().nextTrack(); }}
-                    class="pointer-events-auto p-1.5 rounded-full bg-slate-950/75 backdrop-blur-sm border border-slate-700/60 text-slate-300 hover:text-white hover:bg-slate-900 transition-colors cursor-pointer"
+                    class="group/btn pointer-events-auto relative overflow-hidden p-1.5 rounded-full bg-slate-950/80 backdrop-blur-sm border border-slate-700/60 text-slate-300 hover:text-white hover:border-cyan-400/70 hover:bg-slate-900 hover:shadow-[0_0_14px_var(--app-accent)] hover:scale-105 transition-all duration-200 cursor-pointer"
                     aria-label={t("next", lang)}
                   >
-                    <SkipForward size={15} />
+                    <span class="pointer-events-none absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/30 to-transparent transition-transform duration-500 ease-out group-hover/btn:translate-x-full"></span>
+                    <SkipForward size={15} class="relative z-10" />
                   </button>
 
                   <button
+                    onmousedown={(e) => e.stopPropagation()}
+                    onpointerdown={(e) => e.stopPropagation()}
                     onclick={(e) => { e.stopPropagation(); useMusicStore.getState().cycleRepeat(); }}
-                    class="pointer-events-auto p-1.5 rounded-full bg-slate-950/75 backdrop-blur-sm border border-slate-700/60 hover:bg-slate-900 transition-colors cursor-pointer"
+                    class="group/btn pointer-events-auto relative overflow-hidden p-1.5 rounded-full bg-slate-950/80 backdrop-blur-sm border border-slate-700/60 hover:border-cyan-400/70 hover:bg-slate-900 hover:shadow-[0_0_14px_var(--app-accent)] hover:scale-105 transition-all duration-200 cursor-pointer"
                     style="color: {repeat !== 'off' ? accentColor : '#94a3b8'};"
                     aria-label={lang === "ca" ? `Repetir: ${repeat}` : lang === "en" ? `Repeat: ${repeat}` : `Repetir: ${repeat}`}
                   >
+                    <span class="pointer-events-none absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/30 to-transparent transition-transform duration-500 ease-out group-hover/btn:translate-x-full"></span>
                     {#if repeat === "one"}
-                      <Repeat1 size={13} />
+                      <Repeat1 size={13} class="relative z-10" />
                     {:else}
-                      <Repeat size={13} />
+                      <Repeat size={13} class="relative z-10" />
                     {/if}
                   </button>
                 </div>
 
-                <!-- LAYER 3: Hover Needle (perceptible por debajo como la clasica) -->
+                <!-- LAYER 3: Hover Needle (perceptible por debajo como la clasica con brillo neon) -->
                 {#if scrubberHoverX !== null}
                   <div
-                    class="pointer-events-none absolute bottom-0 h-6 w-px bg-white/90 shadow-[0_0_8px_#fff] z-30"
+                    class="pointer-events-none absolute bottom-0 h-7 w-[2px] bg-white shadow-[0_0_10px_2px_#fff,0_0_20px_var(--app-accent)] z-30"
                     style="left: {scrubberHoverX}px;"
                   ></div>
                 {/if}
