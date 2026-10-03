@@ -229,19 +229,34 @@
       }
 
       // =========================================================================
-      // 3. CAVA: ONDA FLUIDA (cava_fluid)
+      // 3. CAVA: ONDA FLUIDA (cava_fluid) - Con el mismo meneo dinámico del widget
       // =========================================================================
       else if (mode === "cava_fluid") {
-        phase += isPlaying ? dt * 4.2 : dt * 1.2;
+        phase += isPlaying ? dt * 4.6 : dt * 1.6;
         const spectrum = tele.spectrum || [];
-        const count = 48;
 
-        for (let i = 0; i < count; i++) {
-          const raw = isPlaying && spectrum.length ? (spectrum[Math.floor((i / count) * spectrum.length)] || 0) : 0;
-          cavaLevels[i] += (raw - cavaLevels[i]) * 0.35;
+        let bassEnergy = 0;
+        let midEnergy = 0;
+        if (isPlaying && spectrum.length > 0) {
+          const sampleCount = Math.min(12, spectrum.length);
+          for (let s = 0; s < sampleCount; s++) {
+            bassEnergy += spectrum[s] || 0;
+          }
+          bassEnergy = bassEnergy / sampleCount;
+
+          const midCount = Math.min(32, spectrum.length);
+          for (let s = sampleCount; s < midCount; s++) {
+            midEnergy += spectrum[s] || 0;
+          }
+          midEnergy = midEnergy / (midCount - sampleCount);
+        } else {
+          bassEnergy = 0.08;
+          midEnergy = 0.04;
         }
 
-        const midY = height * 0.54;
+        const midY = height * 0.52;
+        const amplitude = Math.min(height * 0.44, Math.max(3.5, height * (bassEnergy * 0.7 + midEnergy * 0.35 + 0.12)));
+        const count = 48;
         const step = width / (count - 1);
         const points: { x: number; y: number }[] = [];
 
@@ -249,9 +264,17 @@
           const x = i * step;
           const normX = i / (count - 1);
           const env = Math.sin(normX * Math.PI);
-          const amp = Math.min(height * 0.42, 3 + cavaLevels[i] * height * 0.85);
-          const wave = Math.sin(normX * 8 + phase) * 0.65 + Math.cos(normX * 18 - phase * 1.5) * 0.35;
-          const y = midY - wave * amp * env;
+
+          const freqVal = isPlaying && spectrum.length > 0
+            ? (spectrum[Math.min(i, spectrum.length - 1)] || 0) * 0.8
+            : 0;
+
+          const wave =
+            Math.sin(normX * 10 + phase) * 0.6 +
+            Math.sin(normX * 22 - phase * 1.4) * 0.28 +
+            Math.cos(normX * 36 + phase * 2) * (0.12 + freqVal * 0.3);
+
+          const y = midY - wave * amplitude * env;
           points.push({ x, y });
         }
 
@@ -267,7 +290,7 @@
         ctx.lineTo(width, height);
         ctx.closePath();
 
-        const areaGrad = ctx.createLinearGradient(0, 0, 0, height);
+        const areaGrad = ctx.createLinearGradient(0, midY - amplitude, 0, height);
         areaGrad.addColorStop(0, `${accentColor}55`);
         areaGrad.addColorStop(0.6, `${accentColor}20`);
         areaGrad.addColorStop(1, "transparent");

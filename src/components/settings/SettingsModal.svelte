@@ -1526,12 +1526,18 @@
               </div>
               <div class="grid grid-cols-2 lg:grid-cols-3 gap-3">
                 {#each SEEK_BAR_STYLES as style (style.id)}
+                  {@const isTaller = style.id === 'waveform_bars' || style.id === 'waveform_envelope' || style.id === 'waveform_matrix'}
                   <button
                     onclick={() => useMusicStore.getState().setPlaybackSettings({ playerBarStyle: style.id })}
-                    class="flex min-h-[108px] flex-col justify-between rounded-xl border p-2.5 text-xs font-semibold transition cursor-pointer text-center {playbackSettings.playerBarStyle === style.id ? 'border-cyan-400 bg-cyan-950/40 text-cyan-300' : 'border-slate-800 bg-slate-900/60 text-slate-400 hover:text-slate-200'}"
+                    class="flex {isTaller ? 'min-h-[124px]' : 'min-h-[108px]'} flex-col justify-between rounded-xl border p-2.5 text-xs font-semibold transition cursor-pointer text-center {playbackSettings.playerBarStyle === style.id ? 'border-cyan-400 bg-cyan-950/40 text-cyan-300 shadow-[0_0_12px_rgba(34,211,238,0.25)]' : 'border-slate-800 bg-slate-900/60 text-slate-400 hover:text-slate-200'}"
                   >
-                    <span>{style.label}</span>
-                    <span class="mt-2 flex h-7 w-full items-center overflow-hidden rounded border border-slate-700 bg-slate-950 px-1.5">
+                    <div class="flex items-center justify-between w-full">
+                      <span class="font-bold">{style.label}</span>
+                      {#if isTaller}
+                        <span class="text-[9px] font-mono px-1.5 py-0.2 rounded bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 font-bold" title="Doble altura, waveform detrás del botón Play">2X Play</span>
+                      {/if}
+                    </div>
+                    <span class="mt-2 flex {isTaller ? 'h-11' : 'h-7'} w-full items-center overflow-hidden rounded border border-slate-700 bg-slate-950 px-1.5 relative">
                       {#if style.id === 'spectrum'}
                         {#each [25, 44, 66, 35, 82, 54, 30, 70, 42, 22, 64, 48, 75, 33, 58, 27] as h, index}
                           <span class="mx-px flex-1 rounded-sm" style="height: {h}%; background: {index < 9 ? 'var(--app-accent, #22d3ee)' : '#475569'};"></span>
@@ -1568,11 +1574,17 @@
                             <span class="flex-1 rounded-[0.5px]" style="height: {h}%; background: {index < 10 ? 'var(--app-accent, #22d3ee)' : '#334155'};"></span>
                           {/each}
                         </div>
+                        <span class="absolute inset-0 flex items-center justify-center pointer-events-none opacity-40">
+                          <span class="w-5 h-5 rounded-full bg-slate-900 border border-slate-600 flex items-center justify-center text-[8px]">▶</span>
+                        </span>
                       {:else if style.id === 'waveform_envelope'}
-                        <svg viewBox="0 0 160 28" preserveAspectRatio="none" class="h-full w-full">
-                          <path d="M0 14 Q20 2 40 14 T80 14 T120 4 T160 14 Q140 24 120 14 T80 14 T40 24 T0 14" fill="var(--app-accent, #22d3ee)33" stroke="var(--app-accent, #22d3ee)" stroke-width="1.5" />
-                          <line x1="0" y1="14" x2="160" y2="14" stroke="rgba(255,255,255,0.2)" stroke-width="1" />
+                        <svg viewBox="0 0 160 44" preserveAspectRatio="none" class="h-full w-full">
+                          <path d="M0 22 Q20 3 40 22 T80 22 T120 6 T160 22 Q140 38 120 22 T80 22 T40 38 T0 22" fill="var(--app-accent, #22d3ee)33" stroke="var(--app-accent, #22d3ee)" stroke-width="1.5" />
+                          <line x1="0" y1="22" x2="160" y2="22" stroke="rgba(255,255,255,0.2)" stroke-width="1" />
                         </svg>
+                        <span class="absolute inset-0 flex items-center justify-center pointer-events-none opacity-40">
+                          <span class="w-5 h-5 rounded-full bg-slate-900 border border-slate-600 flex items-center justify-center text-[8px]">▶</span>
+                        </span>
                       {:else if style.id === 'waveform_matrix'}
                         <div class="flex h-full w-full items-center justify-between gap-[2px] py-1">
                           {#each [2, 4, 6, 7, 5, 8, 4, 3, 6, 5, 7, 3] as cells, col}
@@ -1586,6 +1598,9 @@
                             </div>
                           {/each}
                         </div>
+                        <span class="absolute inset-0 flex items-center justify-center pointer-events-none opacity-40">
+                          <span class="w-5 h-5 rounded-full bg-slate-900 border border-slate-600 flex items-center justify-center text-[8px]">▶</span>
+                        </span>
                       {/if}
                     </span>
                   </button>

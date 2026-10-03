@@ -1,5 +1,4 @@
 <script lang="ts">
-  import { onMount } from "svelte";
   import {
     useMusicStore,
     AUDIO_ENGINES,
@@ -59,8 +58,6 @@
     STREAM: "#06b6d4",
   };
 
-  const EMPTY_SEEKBAR_SPECTRUM = Array.from({ length: 192 }, () => 0.025);
-
   function formatTime(seconds: number): string {
     if (!seconds || isNaN(seconds)) return "0:00";
     const mins = Math.floor(seconds / 60);
@@ -98,12 +95,12 @@
   let isPlayFlipping = $state(false);
   let playerBarWidthPreview = $state<number | null>(null);
   let playerInfoWidthPreview = $state<number | null>(null);
-  let seekbarAreaWidth = $state(Math.max(0, typeof window !== "undefined" ? window.innerWidth - 32 : 800));
+  let centerBlockWidth = $state(Math.max(0, typeof window !== "undefined" ? window.innerWidth - 32 : 800));
   let isDraggingSeek = $state(false);
 
   let resizeStart: { x: number; width: number } | null = null;
   let heightResizeStart: { y: number; height: number } | null = null;
-  let seekbarAreaRef: HTMLDivElement | null = $state(null);
+  let centerBlockRef: HTMLDivElement | null = $state(null);
   let scrubberRef: HTMLDivElement | null = $state(null);
 
   let currentTime = $derived(progressData.current_time);
@@ -147,17 +144,36 @@
     )
   );
   let transportStyle = $derived(TRANSPORT_STYLES[playbackSettings?.transportStyle || "studio"]);
-  let showSeekbar = $derived(seekbarAreaWidth * playerBarWidth / 100 >= 112);
+  let showSeekbar = $derived((centerBlockWidth * playerBarWidth / 100) >= 80);
 
-  onMount(() => {
-    const seekbarArea = seekbarAreaRef;
-    if (!seekbarArea) return;
+  $effect(() => {
+    if (!centerBlockRef) return;
     const observer = new ResizeObserver(([entry]) => {
-      seekbarAreaWidth = entry.contentRect.width;
+      if (entry && entry.contentRect && entry.contentRect.width > 0) {
+        centerBlockWidth = entry.contentRect.width;
+      }
     });
-    observer.observe(seekbarArea);
+    observer.observe(centerBlockRef);
     return () => observer.disconnect();
   });
+
+  const ALL_SEEKBAR_STYLES = [
+    "classic",
+    "spectrum",
+    "hybrid",
+    "aurora",
+    "segments",
+    "ribbon",
+    "waveform_bars",
+    "waveform_envelope",
+    "waveform_matrix",
+  ] as const;
+
+  const cycleSeekbarStyle = () => {
+    const curIdx = ALL_SEEKBAR_STYLES.indexOf(seekbarStyle as any);
+    const nextStyle = ALL_SEEKBAR_STYLES[(curIdx + 1) % ALL_SEEKBAR_STYLES.length];
+    useMusicStore.getState().setPlaybackSettings({ playerBarStyle: nextStyle });
+  };
 
   let detectedBpm = $derived(
     progressData.tempo_bpm && progressData.tempo_confidence >= 0.12
@@ -169,14 +185,24 @@
 
   let songPeaks = $derived.by(() => {
     const raw = progressData.seekbar_spectrum || [];
-    if (!raw.length) return EMPTY_SEEKBAR_SPECTRUM;
-    if (raw.length === 192) return raw;
     const targetBins = 192;
-    const step = raw.length / targetBins;
+    if (raw.length > 0 && raw.some((p) => p > 0.01)) {
+      if (raw.length === targetBins) return raw;
+      const step = raw.length / targetBins;
+      const res: number[] = new Array(targetBins);
+      for (let i = 0; i < targetBins; i++) {
+        const idx = Math.min(raw.length - 1, Math.floor(i * step));
+        res[i] = raw[idx] || 0.025;
+      }
+      return res;
+    }
+    // Organic rich waveform fallback matching the standalone widgets so it is never blank
     const res: number[] = new Array(targetBins);
     for (let i = 0; i < targetBins; i++) {
-      const idx = Math.min(raw.length - 1, Math.floor(i * step));
-      res[i] = raw[idx] || 0.025;
+      const norm = i / (targetBins - 1);
+      const env = Math.sin(norm * Math.PI);
+      const amp = (0.24 + 0.28 * Math.sin(norm * 18) + 0.18 * Math.sin(norm * 44) + 0.1 * Math.cos(norm * 88)) * env;
+      res[i] = Math.max(0.08, Math.min(0.95, Math.abs(amp)));
     }
     return res;
   });
@@ -420,402 +446,411 @@
     </div>
 
     <!-- Center block: Controls & Symmetrical Adaptive Seekbar -->
-    {#if !isTallerWaveform}
-      <!-- Classic 6 seekbar styles (unchanged) -->
-      <div class="relative z-10 flex h-full w-full min-w-0 -translate-y-[6px] flex-col items-center justify-center gap-[6px]">
-        <div class="flex shrink-0 items-center gap-2">
-          <button
-            onclick={() => useMusicStore.getState().toggleShuffle()}
-            class="p-1.5 transition-colors {transportStyle.secondary}"
-            style="color: {shuffle ? accentColor : '#94a3b8'};"
-            aria-label={lang === "ca" ? `Aleatori: ${shuffle ? "Activat" : "Desactivat"}` : lang === "en" ? `Shuffle: ${shuffle ? "On" : "Off"}` : `Aleatorio: ${shuffle ? "Activado" : "Desactivado"}`}
-          >
-            <Shuffle size={14} />
-          </button>
+    <div
+      bind:this={centerBlockRef}
+      class="relative z-10 flex h-full w-full min-w-0 items-center justify-center"
+    >
+      {#if !isTallerWaveform}
+        <!-- Classic 6 seekbar styles (unchanged) -->
+        <div class="relative flex h-full w-full min-w-0 -translate-y-[6px] flex-col items-center justify-center gap-[6px]">
+          <div class="flex shrink-0 items-center gap-2">
+            <button
+              onclick={() => useMusicStore.getState().toggleShuffle()}
+              class="p-1.5 transition-colors {transportStyle.secondary}"
+              style="color: {shuffle ? accentColor : '#94a3b8'};"
+              aria-label={lang === "ca" ? `Aleatori: ${shuffle ? "Activat" : "Desactivat"}` : lang === "en" ? `Shuffle: ${shuffle ? "On" : "Off"}` : `Aleatorio: ${shuffle ? "Activado" : "Desactivado"}`}
+            >
+              <Shuffle size={14} />
+            </button>
 
-          <button
-            onclick={() => void useMusicStore.getState().previousTrack()}
-            class="p-1.5 text-slate-300 transition-colors cursor-pointer {transportStyle.secondary}"
-            aria-label={t("previous", lang)}
-          >
-            <SkipBack size={16} />
-          </button>
+            <button
+              onclick={() => void useMusicStore.getState().previousTrack()}
+              class="p-1.5 text-slate-300 transition-colors cursor-pointer {transportStyle.secondary}"
+              aria-label={t("previous", lang)}
+            >
+              <SkipBack size={16} />
+            </button>
 
-          <button
-            onclick={handlePlayClick}
-            class="flex h-10 w-10 items-center justify-center text-slate-950 hover:scale-105 active:scale-95 transition-all font-bold cursor-pointer {transportStyle.primary}"
-            style="background-color: {accentColor}; box-shadow: {appearance.neonGlow ? `0 0 15px ${accentColor}66` : '0 4px 12px rgba(0,0,0,0.4)'}; animation: {isPlaying && appearance.playButtonBpmPulseEnabled ? `bpm-play-button ${beatPeriod}s ease-in-out infinite` : 'none'};"
-            aria-label={isPlaying ? t("pause", lang) : t("play", lang)}
-          >
-            {#if isPlaying}
-              <Pause size={18} fill="currentColor" class={isPlayFlipping && appearance.playButtonClickEffect !== "none" ? `animate-play-button-${appearance.playButtonClickEffect || "pulse"}` : ""} />
-            {:else}
-              <Play size={18} fill="currentColor" class="ml-0.5 {isPlayFlipping && appearance.playButtonClickEffect !== 'none' ? `animate-play-button-${appearance.playButtonClickEffect || 'pulse'}` : ''}" />
-            {/if}
-          </button>
+            <button
+              onclick={handlePlayClick}
+              class="flex h-10 w-10 items-center justify-center text-slate-950 hover:scale-105 active:scale-95 transition-all font-bold cursor-pointer {transportStyle.primary}"
+              style="background-color: {accentColor}; box-shadow: {appearance.neonGlow ? `0 0 15px ${accentColor}66` : '0 4px 12px rgba(0,0,0,0.4)'}; animation: {isPlaying && appearance.playButtonBpmPulseEnabled ? `bpm-play-button ${beatPeriod}s ease-in-out infinite` : 'none'};"
+              aria-label={isPlaying ? t("pause", lang) : t("play", lang)}
+            >
+              {#if isPlaying}
+                <Pause size={18} fill="currentColor" class={isPlayFlipping && appearance.playButtonClickEffect !== "none" ? `animate-play-button-${appearance.playButtonClickEffect || "pulse"}` : ""} />
+              {:else}
+                <Play size={18} fill="currentColor" class="ml-0.5 {isPlayFlipping && appearance.playButtonClickEffect !== 'none' ? `animate-play-button-${appearance.playButtonClickEffect || 'pulse'}` : ''}" />
+              {/if}
+            </button>
 
-          <button
-            onclick={() => void useMusicStore.getState().nextTrack()}
-            class="p-1.5 text-slate-300 transition-colors cursor-pointer {transportStyle.secondary}"
-            aria-label={t("next", lang)}
-          >
-            <SkipForward size={16} />
-          </button>
+            <button
+              onclick={() => void useMusicStore.getState().nextTrack()}
+              class="p-1.5 text-slate-300 transition-colors cursor-pointer {transportStyle.secondary}"
+              aria-label={t("next", lang)}
+            >
+              <SkipForward size={16} />
+            </button>
 
-          <button
-            onclick={() => useMusicStore.getState().cycleRepeat()}
-            class="p-1.5 transition-colors {transportStyle.secondary}"
-            style="color: {repeat !== 'off' ? accentColor : '#94a3b8'};"
-            aria-label={lang === "ca" ? `Repetir: ${repeat}` : lang === "en" ? `Repeat: ${repeat}` : `Repetir: ${repeat}`}
-          >
-            {#if repeat === "one"}
-              <Repeat1 size={14} />
-            {:else}
-              <Repeat size={14} />
-            {/if}
-          </button>
-        </div>
-
-        <div bind:this={seekbarAreaRef} class="relative flex h-7 w-full min-w-0 items-center justify-center">
-          <div
-            class="relative flex h-full shrink-0 items-center justify-center"
-            style="width: {playerBarWidth}%; flex: 0 0 {playerBarWidth}%;"
-          >
-            {#if isEditing}
-              <!-- svelte-ignore a11y_interactive_supports_focus -->
-              <div
-                role="separator"
-                aria-orientation="vertical"
-                aria-label="Cambiar ancho de la barra de reproducción"
-                aria-valuemin={0}
-                aria-valuemax={100}
-                aria-valuenow={playerBarWidth}
-                onpointerdown={(event) => {
-                  event.preventDefault();
-                  event.stopPropagation();
-                  resizeStart = { x: event.clientX, width: playerBarWidth };
-                  event.currentTarget.setPointerCapture(event.pointerId);
-                }}
-                onpointermove={(event) => {
-                  if (!resizeStart) return;
-                  const delta = ((event.clientX - resizeStart.x) / Math.max(1, seekbarAreaWidth)) * 100;
-                  playerBarWidthPreview = Math.max(0, Math.min(100, resizeStart.width + delta));
-                }}
-                onpointerup={() => {
-                  if (playerBarWidthPreview !== null) useMusicStore.getState().setPlaybackSettings({ playerBarWidth: playerBarWidthPreview });
-                  playerBarWidthPreview = null;
-                  resizeStart = null;
-                }}
-                onpointercancel={() => {
-                  playerBarWidthPreview = null;
-                  resizeStart = null;
-                }}
-                class="absolute right-0 top-1/2 z-50 h-8 w-3 -translate-y-1/2 cursor-col-resize touch-none rounded hover:bg-cyan-400/30"
-                title="Arrastrar horizontalmente para cambiar el ancho de la barra"
-              >
-                <span class="absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-cyan-400/50"></span>
-              </div>
-            {/if}
-
-            {#if showSeekbar}
-              <div class="flex w-full min-w-0 items-center gap-2 font-mono text-[10px] text-slate-400">
-                {#if isRadio}
-                  <span class="w-[52px] shrink-0" aria-hidden="true"></span>
-                {:else}
-                  <span class="w-10 shrink-0 text-right">{formatTime(currentTime)}</span>
-                {/if}
-
-                <!-- svelte-ignore a11y_no_static_element_interactions -->
-                <div
-                  bind:this={scrubberRef}
-                  onmousedown={handleMouseDownSeek}
-                  onmousemove={(e) => {
-                    const rect = e.currentTarget.getBoundingClientRect();
-                    scrubberHoverX = Math.max(0, Math.min(rect.width, e.clientX - rect.left));
-                  }}
-                  onmouseleave={() => {
-                    scrubberHoverX = null;
-                  }}
-                  class="flex-1 h-7 bg-slate-900/90 hover:bg-slate-900 border border-slate-800 rounded-lg px-2 flex items-center justify-between gap-[2px] cursor-pointer select-none relative overflow-hidden group shadow-inner transition-colors"
-                  aria-label="Barra de reproducción; haz clic o arrastra para desplazarte"
-                >
-                  {#if scrubberHoverX !== null}
-                    <div
-                      class="pointer-events-none absolute top-0 bottom-0 w-px bg-white/70 shadow-[0_0_6px_#fff] z-30"
-                      style="left: {scrubberHoverX}px;"
-                    ></div>
-                  {/if}
-
-                  {#if seekbarStyle === "spectrum"}
-                    {#each songPeaks as p, i (i)}
-                      {@const isPassed = i <= activeBarIdx}
-                      {@const heightPct = Math.max(18, Math.floor(p * 90))}
-                      <div
-                        class="flex-1 rounded-full"
-                        style="height: {heightPct}%; background-color: {isPassed ? accentColor : 'rgba(255, 255, 255, 0.14)'}; box-shadow: {isPassed ? `0 0 5px ${accentColor}60` : 'none'};"
-                      ></div>
-                    {/each}
-                  {:else if seekbarStyle === "classic"}
-                    <div class="w-full h-full flex items-center relative">
-                      <div class="w-full h-2 bg-slate-800 rounded-full relative overflow-hidden">
-                        <div
-                          class="h-full rounded-full transition-all duration-100"
-                          style="width: {progress * 100}%; background-color: {accentColor}; box-shadow: 0 0 8px {accentColor}aa;"
-                        ></div>
-                      </div>
-                    </div>
-                  {:else if seekbarStyle === "hybrid"}
-                    <div class="w-full h-full relative pointer-events-none">
-                      <svg viewBox="0 0 1000 100" preserveAspectRatio="none" class="absolute inset-0 h-full w-full">
-                        <defs>
-                          <clipPath id="seek-wave-progress">
-                            <rect x="0" y="0" width={progress * 1000} height="100" />
-                          </clipPath>
-                        </defs>
-                        <path d={waveformPath} fill="rgba(255,255,255,0.10)" stroke="rgba(255,255,255,0.4)" stroke-width="1.5" vector-effect="non-scaling-stroke" />
-                        <path d={waveformPath} fill="{accentColor}28" stroke={accentColor} stroke-width="1.5" vector-effect="non-scaling-stroke" clip-path="url(#seek-wave-progress)" />
-                        <line x1="0" y1="50" x2="1000" y2="50" stroke="rgba(255,255,255,0.18)" stroke-width="1" vector-effect="non-scaling-stroke" />
-                      </svg>
-                    </div>
-                  {:else if seekbarStyle === "aurora"}
-                    <div class="pointer-events-none absolute inset-0 overflow-hidden">
-                      <div class="absolute inset-0 opacity-35" style="background: linear-gradient(90deg, {accentColor}55, #38bdf855 50%, #f472b655);"></div>
-                      <svg viewBox="0 0 1000 100" preserveAspectRatio="none" class="absolute inset-0 h-full w-full">
-                        <defs>
-                          <clipPath id="seek-aurora-progress"><rect x="0" y="0" width={progress * 1000} height="100" /></clipPath>
-                          <linearGradient id="seek-aurora-fill" x1="0" x2="1">
-                            <stop offset="0" stop-color={accentColor} />
-                            <stop offset="0.55" stop-color="#38bdf8" />
-                            <stop offset="1" stop-color="#f472b6" />
-                          </linearGradient>
-                        </defs>
-                        <path d={waveformPath} fill="url(#seek-aurora-fill)" fill-opacity="0.18" stroke="rgba(226,232,240,0.35)" stroke-width="1" vector-effect="non-scaling-stroke" />
-                        <path d={waveformPath} fill="url(#seek-aurora-fill)" fill-opacity="0.42" stroke="url(#seek-aurora-fill)" stroke-width="2" vector-effect="non-scaling-stroke" clip-path="url(#seek-aurora-progress)" />
-                      </svg>
-                      <div class="absolute inset-y-0 w-px shadow-[0_0_8px_2px_rgba(255,255,255,0.7)]" style="left: {progress * 100}%; background-color: white;"></div>
-                    </div>
-                  {:else if seekbarStyle === "segments"}
-                    <div class="flex h-full w-full items-center gap-[2px] px-0.5 pointer-events-none">
-                      {#each songPeaks.slice(0, 48) as peak, index}
-                        {@const passed = index / 48 <= progress}
-                        {@const barHeight = `${Math.max(22, peak * 100)}%`}
-                        <span class="min-w-0 flex-1 rounded-[1px]" style="height: {barHeight}; background-color: {passed ? accentColor : 'rgba(148,163,184,0.23)'}; {passed ? `box-shadow: 0 0 5px ${accentColor}66;` : ''}"></span>
-                      {/each}
-                    </div>
-                  {:else if seekbarStyle === "ribbon"}
-                    <div class="pointer-events-none absolute inset-0 overflow-hidden">
-                      <div class="absolute inset-0 opacity-60" style="background: repeating-linear-gradient(135deg, {accentColor}22 0px, {accentColor}22 3px, transparent 3px, transparent 7px);"></div>
-                      <div class="absolute inset-y-0 left-0 overflow-hidden" style="width: {progress * 100}%;">
-                        <div class="absolute inset-0" style="width: {progress > 0 ? 100 / progress : 100}%; background: linear-gradient(180deg, {accentColor}cc, {accentColor}55); box-shadow: 0 0 16px {accentColor}88;"></div>
-                        <div class="absolute inset-0 opacity-70" style="background: repeating-linear-gradient(135deg, rgba(255,255,255,0.72) 0px, rgba(255,255,255,0.72) 2px, transparent 2px, transparent 7px);"></div>
-                      </div>
-                      <div class="absolute inset-y-0 w-[2px] bg-white shadow-[0_0_10px_2px_white]" style="left: {progress * 100}%;"></div>
-                    </div>
-                  {/if}
-                </div>
-
-                {#if isRadio}
-                  <span class="w-10 shrink-0" aria-hidden="true"></span>
-                {:else}
-                  <span class="w-10 text-left shrink-0">{formatTime(duration)}</span>
-                {/if}
-              </div>
-            {/if}
+            <button
+              onclick={() => useMusicStore.getState().cycleRepeat()}
+              class="p-1.5 transition-colors {transportStyle.secondary}"
+              style="color: {repeat !== 'off' ? accentColor : '#94a3b8'};"
+              aria-label={lang === "ca" ? `Repetir: ${repeat}` : lang === "en" ? `Repeat: ${repeat}` : `Repetir: ${repeat}`}
+            >
+              {#if repeat === "one"}
+                <Repeat1 size={14} />
+              {:else}
+                <Repeat size={14} />
+              {/if}
+            </button>
           </div>
-        </div>
-      </div>
-    {:else}
-      <!-- DYNAMIC DOUBLE-HEIGHT WAVEFORM SEEKBAR BEHIND PLAY BUTTON -->
-      <div class="relative z-10 flex h-full w-full min-w-0 items-center justify-center">
-        <div bind:this={seekbarAreaRef} class="relative flex h-14 w-full min-w-0 items-center justify-center transition-[height] duration-200">
-          <div
-            class="relative flex h-full shrink-0 items-center justify-center"
-            style="width: {playerBarWidth}%; flex: 0 0 {playerBarWidth}%;"
-          >
-            {#if isEditing}
-              <!-- svelte-ignore a11y_interactive_supports_focus -->
-              <div
-                role="separator"
-                aria-orientation="vertical"
-                aria-label="Cambiar ancho de la barra de reproducción"
-                aria-valuemin={0}
-                aria-valuemax={100}
-                aria-valuenow={playerBarWidth}
-                onpointerdown={(event) => {
-                  event.preventDefault();
-                  event.stopPropagation();
-                  resizeStart = { x: event.clientX, width: playerBarWidth };
-                  event.currentTarget.setPointerCapture(event.pointerId);
-                }}
-                onpointermove={(event) => {
-                  if (!resizeStart) return;
-                  const delta = ((event.clientX - resizeStart.x) / Math.max(1, seekbarAreaWidth)) * 100;
-                  playerBarWidthPreview = Math.max(0, Math.min(100, resizeStart.width + delta));
-                }}
-                onpointerup={() => {
-                  if (playerBarWidthPreview !== null) useMusicStore.getState().setPlaybackSettings({ playerBarWidth: playerBarWidthPreview });
-                  playerBarWidthPreview = null;
-                  resizeStart = null;
-                }}
-                onpointercancel={() => {
-                  playerBarWidthPreview = null;
-                  resizeStart = null;
-                }}
-                class="absolute right-0 top-1/2 z-50 h-8 w-3 -translate-y-1/2 cursor-col-resize touch-none rounded hover:bg-cyan-400/30"
-                title="Arrastrar horizontalmente para cambiar el ancho de la barra"
-              >
-                <span class="absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-cyan-400/50"></span>
-              </div>
-            {/if}
 
-            {#if showSeekbar}
-              <div class="flex w-full h-full min-w-0 items-center gap-2 font-mono text-[10px] text-slate-400 relative">
-                {#if isRadio}
-                  <span class="w-[52px] shrink-0" aria-hidden="true"></span>
-                {:else}
-                  <span class="w-10 shrink-0 text-right z-30">{formatTime(currentTime)}</span>
-                {/if}
-
-                <!-- Scrubber Container: h-14 with waveform in background and buttons in foreground -->
-                <!-- svelte-ignore a11y_no_static_element_interactions -->
+          <div class="relative flex h-7 w-full min-w-0 items-center justify-center">
+            <div
+              class="relative flex h-full shrink-0 items-center justify-center"
+              style="width: {playerBarWidth}%; flex: 0 0 {playerBarWidth}%;"
+            >
+              {#if isEditing}
+                <!-- svelte-ignore a11y_interactive_supports_focus -->
                 <div
-                  bind:this={scrubberRef}
-                  onmousedown={handleMouseDownSeek}
-                  onmousemove={(e) => {
-                    const rect = e.currentTarget.getBoundingClientRect();
-                    scrubberHoverX = Math.max(0, Math.min(rect.width, e.clientX - rect.left));
+                  role="separator"
+                  aria-orientation="vertical"
+                  aria-label="Cambiar ancho de la barra de reproducción"
+                  aria-valuemin={0}
+                  aria-valuemax={100}
+                  aria-valuenow={playerBarWidth}
+                  onpointerdown={(event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    resizeStart = { x: event.clientX, width: playerBarWidth };
+                    event.currentTarget.setPointerCapture(event.pointerId);
                   }}
-                  onmouseleave={() => {
-                    scrubberHoverX = null;
+                  onpointermove={(event) => {
+                    if (!resizeStart) return;
+                    const delta = ((event.clientX - resizeStart.x) / Math.max(1, centerBlockWidth)) * 100;
+                    playerBarWidthPreview = Math.max(0, Math.min(100, resizeStart.width + delta));
                   }}
-                  class="flex-1 h-14 bg-slate-900/90 hover:bg-slate-900/95 border border-slate-800 rounded-xl px-2 flex items-center justify-between cursor-pointer select-none relative overflow-hidden group shadow-inner transition-colors"
-                  aria-label="Barra de reproducción; haz clic o arrastra para desplazarte"
+                  onpointerup={() => {
+                    if (playerBarWidthPreview !== null) useMusicStore.getState().setPlaybackSettings({ playerBarWidth: playerBarWidthPreview });
+                    playerBarWidthPreview = null;
+                    resizeStart = null;
+                  }}
+                  onpointercancel={() => {
+                    playerBarWidthPreview = null;
+                    resizeStart = null;
+                  }}
+                  class="absolute right-0 top-1/2 z-50 h-8 w-3 -translate-y-1/2 cursor-col-resize touch-none rounded hover:bg-cyan-400/30"
+                  title="Arrastrar horizontalmente para cambiar el ancho de la barra"
                 >
-                  <!-- LAYER 1: WAVEFORM IN THE BACKGROUND BEHIND PLAY BUTTON (z-0 / z-10) -->
-                  {#if seekbarStyle === "waveform_bars"}
-                    <div class="flex h-full w-full items-center gap-[1.5px] px-1 pointer-events-none opacity-85">
+                  <span class="absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-cyan-400/50"></span>
+                </div>
+              {/if}
+
+              {#if showSeekbar}
+                <div class="flex w-full min-w-0 items-center gap-2 font-mono text-[10px] text-slate-400">
+                  {#if isRadio}
+                    <span class="w-[52px] shrink-0" aria-hidden="true"></span>
+                  {:else}
+                    <span class="w-10 shrink-0 text-right">{formatTime(currentTime)}</span>
+                  {/if}
+
+                  <!-- svelte-ignore a11y_no_static_element_interactions -->
+                  <div
+                    bind:this={scrubberRef}
+                    onmousedown={handleMouseDownSeek}
+                    ondblclick={(e) => { e.stopPropagation(); cycleSeekbarStyle(); }}
+                    onmousemove={(e) => {
+                      const rect = e.currentTarget.getBoundingClientRect();
+                      scrubberHoverX = Math.max(0, Math.min(rect.width, e.clientX - rect.left));
+                    }}
+                    onmouseleave={() => {
+                      scrubberHoverX = null;
+                    }}
+                    class="flex-1 h-7 bg-slate-900/90 hover:bg-slate-900 border border-slate-800 rounded-lg px-2 flex items-center justify-between gap-[2px] cursor-pointer select-none relative overflow-hidden group shadow-inner transition-colors"
+                    title="Doble clic para alternar estilo de barra de reproducción"
+                    aria-label="Barra de reproducción; haz clic o arrastra para desplazarte"
+                  >
+                    {#if scrubberHoverX !== null}
+                      <div
+                        class="pointer-events-none absolute top-0 bottom-0 w-px bg-white/70 shadow-[0_0_6px_#fff] z-30"
+                        style="left: {scrubberHoverX}px;"
+                      ></div>
+                    {/if}
+
+                    {#if seekbarStyle === "spectrum"}
                       {#each songPeaks as p, i (i)}
                         {@const isPassed = i <= activeBarIdx}
-                        {@const heightPct = Math.max(12, Math.floor(p * 94))}
+                        {@const heightPct = Math.max(18, Math.floor(p * 90))}
                         <div
-                          class="flex-1 rounded-[1px] transition-[height] duration-75"
-                          style="height: {heightPct}%; background-color: {isPassed ? accentColor : 'rgba(255, 255, 255, 0.16)'}; {isPassed ? `box-shadow: 0 0 6px ${accentColor}80;` : ''}"
+                          class="flex-1 rounded-full"
+                          style="height: {heightPct}%; background-color: {isPassed ? accentColor : 'rgba(255, 255, 255, 0.14)'}; box-shadow: {isPassed ? `0 0 5px ${accentColor}60` : 'none'};"
                         ></div>
                       {/each}
-                    </div>
-                  {:else if seekbarStyle === "waveform_envelope"}
-                    <div class="pointer-events-none absolute inset-0 overflow-hidden opacity-90">
-                      <div class="absolute inset-0 opacity-25" style="background: radial-gradient(ellipse at center, {accentColor}55 0%, transparent 80%);"></div>
-                      <svg viewBox="0 0 1000 100" preserveAspectRatio="none" class="absolute inset-0 h-full w-full">
-                        <defs>
-                          <clipPath id="seek-envelope-progress">
-                            <rect x="0" y="0" width={progress * 1000} height="100" />
-                          </clipPath>
-                          <linearGradient id="seek-envelope-fill" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="0%" stop-color={accentColor} stop-opacity="0.85" />
-                            <stop offset="50%" stop-color={accentColor} stop-opacity="0.2" />
-                            <stop offset="100%" stop-color={accentColor} stop-opacity="0.85" />
-                          </linearGradient>
-                        </defs>
-                        <path d={waveformPath} fill="rgba(255,255,255,0.08)" stroke="rgba(255,255,255,0.3)" stroke-width="1.2" vector-effect="non-scaling-stroke" />
-                        <path d={waveformPath} fill="url(#seek-envelope-fill)" stroke={accentColor} stroke-width="2" vector-effect="non-scaling-stroke" clip-path="url(#seek-envelope-progress)" filter="drop-shadow(0 0 4px {accentColor})" />
-                        <line x1="0" y1="50" x2="1000" y2="50" stroke="{accentColor}44" stroke-width="1" vector-effect="non-scaling-stroke" />
-                      </svg>
-                      <div class="absolute inset-y-0 w-[2px] bg-white shadow-[0_0_10px_2px_white]" style="left: {progress * 100}%;"></div>
-                    </div>
-                  {:else if seekbarStyle === "waveform_matrix"}
-                    <div class="flex h-full w-full items-center justify-between gap-[2px] px-1 pointer-events-none py-1 opacity-85">
-                      {#each songPeaks.slice(0, 72) as peak, colIdx}
-                        {@const isPassed = (colIdx / 72) <= progress}
-                        {@const litCells = Math.max(1, Math.round(peak * 8))}
-                        <div class="flex flex-col-reverse justify-between flex-1 h-full gap-[1.5px]">
-                          {#each Array.from({ length: 8 }) as _, rowIdx}
-                            {@const isLit = rowIdx < litCells}
-                            {@const cellColor = rowIdx >= 7 ? '#ef4444' : rowIdx >= 5 ? '#f59e0b' : accentColor}
-                            <span
-                              class="w-full rounded-[0.5px]"
-                              style="height: 10%; background-color: {isLit ? (isPassed ? cellColor : `${cellColor}40`) : 'rgba(255,255,255,0.04)'}; {isLit && isPassed ? `box-shadow: 0 0 3px ${cellColor};` : ''}"
-                            ></span>
-                          {/each}
+                    {:else if seekbarStyle === "classic"}
+                      <div class="w-full h-full flex items-center relative">
+                        <div class="w-full h-2 bg-slate-800 rounded-full relative overflow-hidden">
+                          <div
+                            class="h-full rounded-full transition-all duration-100"
+                            style="width: {progress * 100}%; background-color: {accentColor}; box-shadow: 0 0 8px {accentColor}aa;"
+                          ></div>
                         </div>
-                      {/each}
-                    </div>
-                  {/if}
-
-                  <!-- LAYER 2: PLAY BUTTONS SITTING IN FRONT OF WAVEFORM (z-20) -->
-                  <div class="absolute inset-0 flex items-center justify-center gap-2 pointer-events-none z-20">
-                    <button
-                      onclick={(e) => { e.stopPropagation(); useMusicStore.getState().toggleShuffle(); }}
-                      class="pointer-events-auto p-1.5 rounded-full bg-slate-950/75 backdrop-blur-sm border border-slate-700/60 hover:bg-slate-900 transition-colors cursor-pointer"
-                      style="color: {shuffle ? accentColor : '#94a3b8'};"
-                      aria-label={lang === "ca" ? `Aleatori: ${shuffle ? "Activat" : "Desactivat"}` : lang === "en" ? `Shuffle: ${shuffle ? "On" : "Off"}` : `Aleatorio: ${shuffle ? "Activado" : "Desactivado"}`}
-                    >
-                      <Shuffle size={13} />
-                    </button>
-
-                    <button
-                      onclick={(e) => { e.stopPropagation(); void useMusicStore.getState().previousTrack(); }}
-                      class="pointer-events-auto p-1.5 rounded-full bg-slate-950/75 backdrop-blur-sm border border-slate-700/60 text-slate-300 hover:text-white hover:bg-slate-900 transition-colors cursor-pointer"
-                      aria-label={t("previous", lang)}
-                    >
-                      <SkipBack size={15} />
-                    </button>
-
-                    <button
-                      onclick={(e) => { e.stopPropagation(); handlePlayClick(); }}
-                      class="pointer-events-auto flex h-10 w-10 items-center justify-center text-slate-950 hover:scale-105 active:scale-95 transition-all font-bold cursor-pointer rounded-full shadow-xl"
-                      style="background-color: {accentColor}; box-shadow: {appearance.neonGlow ? `0 0 16px ${accentColor}88` : '0 4px 14px rgba(0,0,0,0.6)'}; animation: {isPlaying && appearance.playButtonBpmPulseEnabled ? `bpm-play-button ${beatPeriod}s ease-in-out infinite` : 'none'};"
-                      aria-label={isPlaying ? t("pause", lang) : t("play", lang)}
-                    >
-                      {#if isPlaying}
-                        <Pause size={18} fill="currentColor" class={isPlayFlipping && appearance.playButtonClickEffect !== "none" ? `animate-play-button-${appearance.playButtonClickEffect || "pulse"}` : ""} />
-                      {:else}
-                        <Play size={18} fill="currentColor" class="ml-0.5 {isPlayFlipping && appearance.playButtonClickEffect !== 'none' ? `animate-play-button-${appearance.playButtonClickEffect || 'pulse'}` : ''}" />
-                      {/if}
-                    </button>
-
-                    <button
-                      onclick={(e) => { e.stopPropagation(); void useMusicStore.getState().nextTrack(); }}
-                      class="pointer-events-auto p-1.5 rounded-full bg-slate-950/75 backdrop-blur-sm border border-slate-700/60 text-slate-300 hover:text-white hover:bg-slate-900 transition-colors cursor-pointer"
-                      aria-label={t("next", lang)}
-                    >
-                      <SkipForward size={15} />
-                    </button>
-
-                    <button
-                      onclick={(e) => { e.stopPropagation(); useMusicStore.getState().cycleRepeat(); }}
-                      class="pointer-events-auto p-1.5 rounded-full bg-slate-950/75 backdrop-blur-sm border border-slate-700/60 hover:bg-slate-900 transition-colors cursor-pointer"
-                      style="color: {repeat !== 'off' ? accentColor : '#94a3b8'};"
-                      aria-label={lang === "ca" ? `Repetir: ${repeat}` : lang === "en" ? `Repeat: ${repeat}` : `Repetir: ${repeat}`}
-                    >
-                      {#if repeat === "one"}
-                        <Repeat1 size={13} />
-                      {:else}
-                        <Repeat size={13} />
-                      {/if}
-                    </button>
+                      </div>
+                    {:else if seekbarStyle === "hybrid"}
+                      <div class="w-full h-full relative pointer-events-none">
+                        <svg viewBox="0 0 1000 100" preserveAspectRatio="none" class="absolute inset-0 h-full w-full">
+                          <defs>
+                            <clipPath id="seek-wave-progress">
+                              <rect x="0" y="0" width={progress * 1000} height="100" />
+                            </clipPath>
+                          </defs>
+                          <path d={waveformPath} fill="rgba(255,255,255,0.10)" stroke="rgba(255,255,255,0.4)" stroke-width="1.5" vector-effect="non-scaling-stroke" />
+                          <path d={waveformPath} fill="{accentColor}28" stroke={accentColor} stroke-width="1.5" vector-effect="non-scaling-stroke" clip-path="url(#seek-wave-progress)" />
+                          <line x1="0" y1="50" x2="1000" y2="50" stroke="rgba(255,255,255,0.18)" stroke-width="1" vector-effect="non-scaling-stroke" />
+                        </svg>
+                      </div>
+                    {:else if seekbarStyle === "aurora"}
+                      <div class="pointer-events-none absolute inset-0 overflow-hidden">
+                        <div class="absolute inset-0 opacity-35" style="background: linear-gradient(90deg, {accentColor}55, #38bdf855 50%, #f472b655);"></div>
+                        <svg viewBox="0 0 1000 100" preserveAspectRatio="none" class="absolute inset-0 h-full w-full">
+                          <defs>
+                            <clipPath id="seek-aurora-progress"><rect x="0" y="0" width={progress * 1000} height="100" /></clipPath>
+                            <linearGradient id="seek-aurora-fill" x1="0" x2="1">
+                              <stop offset="0%" stop-color={accentColor} />
+                              <stop offset="0.55" stop-color="#38bdf8" />
+                              <stop offset="1" stop-color="#f472b6" />
+                            </linearGradient>
+                          </defs>
+                          <path d={waveformPath} fill="url(#seek-aurora-fill)" fill-opacity="0.18" stroke="rgba(226,232,240,0.35)" stroke-width="1" vector-effect="non-scaling-stroke" />
+                          <path d={waveformPath} fill="url(#seek-aurora-fill)" fill-opacity="0.42" stroke="url(#seek-aurora-fill)" stroke-width="2" vector-effect="non-scaling-stroke" clip-path="url(#seek-aurora-progress)" />
+                        </svg>
+                        <div class="absolute inset-y-0 w-px shadow-[0_0_8px_2px_rgba(255,255,255,0.7)]" style="left: {progress * 100}%; background-color: white;"></div>
+                      </div>
+                    {:else if seekbarStyle === "segments"}
+                      <div class="flex h-full w-full items-center gap-[2px] px-0.5 pointer-events-none">
+                        {#each songPeaks.slice(0, 48) as peak, index}
+                          {@const passed = index / 48 <= progress}
+                          {@const barHeight = `${Math.max(22, peak * 100)}%`}
+                          <span class="min-w-0 flex-1 rounded-[1px]" style="height: {barHeight}; background-color: {passed ? accentColor : 'rgba(148,163,184,0.23)'}; {passed ? `box-shadow: 0 0 5px ${accentColor}66;` : ''}"></span>
+                        {/each}
+                      </div>
+                    {:else if seekbarStyle === "ribbon"}
+                      <div class="pointer-events-none absolute inset-0 overflow-hidden">
+                        <div class="absolute inset-0 opacity-60" style="background: repeating-linear-gradient(135deg, {accentColor}22 0px, {accentColor}22 3px, transparent 3px, transparent 7px);"></div>
+                        <div class="absolute inset-y-0 left-0 overflow-hidden" style="width: {progress * 100}%;">
+                          <div class="absolute inset-0" style="width: {progress > 0 ? 100 / progress : 100}%; background: linear-gradient(180deg, {accentColor}cc, {accentColor}55); box-shadow: 0 0 16px {accentColor}88;"></div>
+                          <div class="absolute inset-0 opacity-70" style="background: repeating-linear-gradient(135deg, rgba(255,255,255,0.72) 0px, rgba(255,255,255,0.72) 2px, transparent 2px, transparent 7px);"></div>
+                        </div>
+                        <div class="absolute inset-y-0 w-[2px] bg-white shadow-[0_0_10px_2px_white]" style="left: {progress * 100}%;"></div>
+                      </div>
+                    {/if}
                   </div>
 
-                  <!-- LAYER 3: Hover Needle (perceptible por debajo como la clasica) -->
-                  {#if scrubberHoverX !== null}
-                    <div
-                      class="pointer-events-none absolute bottom-0 h-6 w-px bg-white/90 shadow-[0_0_8px_#fff] z-30"
-                      style="left: {scrubberHoverX}px;"
-                    ></div>
+                  {#if isRadio}
+                    <span class="w-10 shrink-0" aria-hidden="true"></span>
+                  {:else}
+                    <span class="w-10 text-left shrink-0">{formatTime(duration)}</span>
                   {/if}
                 </div>
-
-                {#if isRadio}
-                  <span class="w-10 shrink-0" aria-hidden="true"></span>
-                {:else}
-                  <span class="w-10 text-left shrink-0 z-30">{formatTime(duration)}</span>
-                {/if}
-              </div>
-            {/if}
+              {/if}
+            </div>
           </div>
         </div>
-      </div>
-    {/if}
+      {:else}
+        <!-- DYNAMIC DOUBLE-HEIGHT WAVEFORM SEEKBAR BEHIND PLAY BUTTON (h-14 / 56px) -->
+        <div class="relative flex h-14 w-full min-w-0 items-center justify-center transition-[height] duration-200">
+          <div
+            class="relative flex h-full shrink-0 items-center justify-center"
+            style="width: {playerBarWidth}%; flex: 0 0 {playerBarWidth}%;"
+          >
+            {#if isEditing}
+              <!-- svelte-ignore a11y_interactive_supports_focus -->
+              <div
+                role="separator"
+                aria-orientation="vertical"
+                aria-label="Cambiar ancho de la barra de reproducción"
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-valuenow={playerBarWidth}
+                onpointerdown={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  resizeStart = { x: event.clientX, width: playerBarWidth };
+                  event.currentTarget.setPointerCapture(event.pointerId);
+                }}
+                onpointermove={(event) => {
+                  if (!resizeStart) return;
+                  const delta = ((event.clientX - resizeStart.x) / Math.max(1, centerBlockWidth)) * 100;
+                  playerBarWidthPreview = Math.max(0, Math.min(100, resizeStart.width + delta));
+                }}
+                onpointerup={() => {
+                  if (playerBarWidthPreview !== null) useMusicStore.getState().setPlaybackSettings({ playerBarWidth: playerBarWidthPreview });
+                  playerBarWidthPreview = null;
+                  resizeStart = null;
+                }}
+                onpointercancel={() => {
+                  playerBarWidthPreview = null;
+                  resizeStart = null;
+                }}
+                class="absolute right-0 top-1/2 z-50 h-8 w-3 -translate-y-1/2 cursor-col-resize touch-none rounded hover:bg-cyan-400/30"
+                title="Arrastrar horizontalmente para cambiar el ancho de la barra"
+              >
+                <span class="absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-cyan-400/50"></span>
+              </div>
+            {/if}
+
+            <div class="flex w-full h-full min-w-0 items-center gap-2 font-mono text-[10px] text-slate-400 relative">
+              {#if isRadio}
+                <span class="w-[52px] shrink-0" aria-hidden="true"></span>
+              {:else}
+                <span class="w-10 shrink-0 text-right z-30">{formatTime(currentTime)}</span>
+              {/if}
+
+              <!-- Scrubber Container: h-14 with waveform in background and buttons in foreground -->
+              <!-- svelte-ignore a11y_no_static_element_interactions -->
+              <div
+                bind:this={scrubberRef}
+                onmousedown={handleMouseDownSeek}
+                ondblclick={(e) => { e.stopPropagation(); cycleSeekbarStyle(); }}
+                onmousemove={(e) => {
+                  const rect = e.currentTarget.getBoundingClientRect();
+                  scrubberHoverX = Math.max(0, Math.min(rect.width, e.clientX - rect.left));
+                }}
+                onmouseleave={() => {
+                  scrubberHoverX = null;
+                }}
+                class="flex-1 h-14 bg-slate-900/90 hover:bg-slate-900/95 border border-slate-800 rounded-xl px-2 flex items-center justify-between cursor-pointer select-none relative overflow-hidden group shadow-inner transition-colors"
+                title="Doble clic para alternar estilo de barra de reproducción"
+                aria-label="Barra de reproducción; haz clic o arrastra para desplazarte"
+              >
+                <!-- LAYER 1: WAVEFORM IN THE BACKGROUND BEHIND PLAY BUTTON (z-0 / z-10) -->
+                {#if seekbarStyle === "waveform_bars"}
+                  <div class="flex h-full w-full items-center gap-[1.5px] px-1 pointer-events-none opacity-85">
+                    {#each songPeaks as p, i (i)}
+                      {@const isPassed = i <= activeBarIdx}
+                      {@const heightPct = Math.max(12, Math.floor(p * 94))}
+                      <div
+                        class="flex-1 rounded-[1px] transition-[height] duration-75"
+                        style="height: {heightPct}%; background-color: {isPassed ? accentColor : 'rgba(255, 255, 255, 0.16)'}; {isPassed ? `box-shadow: 0 0 6px ${accentColor}80;` : ''}"
+                      ></div>
+                    {/each}
+                  </div>
+                  <!-- Vertical playhead line -->
+                  <div class="pointer-events-none absolute inset-y-0 w-[2px] bg-white shadow-[0_0_10px_2px_white] z-10" style="left: {progress * 100}%;"></div>
+                {:else if seekbarStyle === "waveform_envelope"}
+                  <div class="pointer-events-none absolute inset-0 overflow-hidden opacity-90">
+                    <div class="absolute inset-0 opacity-25" style="background: radial-gradient(ellipse at center, {accentColor}55 0%, transparent 80%);"></div>
+                    <svg viewBox="0 0 1000 100" preserveAspectRatio="none" class="absolute inset-0 h-full w-full">
+                      <defs>
+                        <clipPath id="seek-envelope-progress">
+                          <rect x="0" y="0" width={progress * 1000} height="100" />
+                        </clipPath>
+                        <linearGradient id="seek-envelope-fill" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stop-color={accentColor} stop-opacity="0.85" />
+                          <stop offset="50%" stop-color={accentColor} stop-opacity="0.2" />
+                          <stop offset="100%" stop-color={accentColor} stop-opacity="0.85" />
+                        </linearGradient>
+                      </defs>
+                      <path d={waveformPath} fill="rgba(255,255,255,0.08)" stroke="rgba(255,255,255,0.3)" stroke-width="1.2" vector-effect="non-scaling-stroke" />
+                      <path d={waveformPath} fill="url(#seek-envelope-fill)" stroke={accentColor} stroke-width="2" vector-effect="non-scaling-stroke" clip-path="url(#seek-envelope-progress)" filter="drop-shadow(0 0 4px {accentColor})" />
+                      <line x1="0" y1="50" x2="1000" y2="50" stroke="{accentColor}44" stroke-width="1" vector-effect="non-scaling-stroke" />
+                    </svg>
+                    <div class="absolute inset-y-0 w-[2px] bg-white shadow-[0_0_10px_2px_white]" style="left: {progress * 100}%;"></div>
+                  </div>
+                {:else if seekbarStyle === "waveform_matrix"}
+                  <div class="flex h-full w-full items-center justify-between gap-[2px] px-1 pointer-events-none py-1 opacity-85">
+                    {#each songPeaks.slice(0, 72) as peak, colIdx}
+                      {@const isPassed = (colIdx / 72) <= progress}
+                      {@const litCells = Math.max(1, Math.round(peak * 8))}
+                      <div class="flex flex-col-reverse justify-between flex-1 h-full gap-[1.5px]">
+                        {#each Array.from({ length: 8 }) as _, rowIdx}
+                          {@const isLit = rowIdx < litCells}
+                          {@const cellColor = rowIdx >= 7 ? '#ef4444' : rowIdx >= 5 ? '#f59e0b' : accentColor}
+                          <span
+                            class="w-full rounded-[0.5px]"
+                            style="height: 10%; background-color: {isLit ? (isPassed ? cellColor : `${cellColor}40`) : 'rgba(255,255,255,0.04)'}; {isLit && isPassed ? `box-shadow: 0 0 3px ${cellColor};` : ''}"
+                          ></span>
+                        {/each}
+                      </div>
+                    {/each}
+                  </div>
+                  <!-- Vertical playhead line -->
+                  <div class="pointer-events-none absolute inset-y-0 w-[2px] bg-white shadow-[0_0_10px_2px_white] z-10" style="left: {progress * 100}%;"></div>
+                {/if}
+
+                <!-- LAYER 2: PLAY BUTTONS SITTING IN FRONT OF WAVEFORM (z-20) -->
+                <div class="absolute inset-0 flex items-center justify-center gap-2 pointer-events-none z-20">
+                  <button
+                    onclick={(e) => { e.stopPropagation(); useMusicStore.getState().toggleShuffle(); }}
+                    class="pointer-events-auto p-1.5 rounded-full bg-slate-950/75 backdrop-blur-sm border border-slate-700/60 hover:bg-slate-900 transition-colors cursor-pointer"
+                    style="color: {shuffle ? accentColor : '#94a3b8'};"
+                    aria-label={lang === "ca" ? `Aleatori: ${shuffle ? "Activat" : "Desactivat"}` : lang === "en" ? `Shuffle: ${shuffle ? "On" : "Off"}` : `Aleatorio: ${shuffle ? "Activado" : "Desactivado"}`}
+                  >
+                    <Shuffle size={13} />
+                  </button>
+
+                  <button
+                    onclick={(e) => { e.stopPropagation(); void useMusicStore.getState().previousTrack(); }}
+                    class="pointer-events-auto p-1.5 rounded-full bg-slate-950/75 backdrop-blur-sm border border-slate-700/60 text-slate-300 hover:text-white hover:bg-slate-900 transition-colors cursor-pointer"
+                    aria-label={t("previous", lang)}
+                  >
+                    <SkipBack size={15} />
+                  </button>
+
+                  <button
+                    onclick={(e) => { e.stopPropagation(); handlePlayClick(); }}
+                    class="pointer-events-auto flex h-10 w-10 items-center justify-center text-slate-950 hover:scale-105 active:scale-95 transition-all font-bold cursor-pointer rounded-full shadow-xl"
+                    style="background-color: {accentColor}; box-shadow: {appearance.neonGlow ? `0 0 16px ${accentColor}88` : '0 4px 14px rgba(0,0,0,0.6)'}; animation: {isPlaying && appearance.playButtonBpmPulseEnabled ? `bpm-play-button ${beatPeriod}s ease-in-out infinite` : 'none'};"
+                    aria-label={isPlaying ? t("pause", lang) : t("play", lang)}
+                  >
+                    {#if isPlaying}
+                      <Pause size={18} fill="currentColor" class={isPlayFlipping && appearance.playButtonClickEffect !== "none" ? `animate-play-button-${appearance.playButtonClickEffect || "pulse"}` : ""} />
+                    {:else}
+                      <Play size={18} fill="currentColor" class="ml-0.5 {isPlayFlipping && appearance.playButtonClickEffect !== 'none' ? `animate-play-button-${appearance.playButtonClickEffect || 'pulse'}` : ''}" />
+                    {/if}
+                  </button>
+
+                  <button
+                    onclick={(e) => { e.stopPropagation(); void useMusicStore.getState().nextTrack(); }}
+                    class="pointer-events-auto p-1.5 rounded-full bg-slate-950/75 backdrop-blur-sm border border-slate-700/60 text-slate-300 hover:text-white hover:bg-slate-900 transition-colors cursor-pointer"
+                    aria-label={t("next", lang)}
+                  >
+                    <SkipForward size={15} />
+                  </button>
+
+                  <button
+                    onclick={(e) => { e.stopPropagation(); useMusicStore.getState().cycleRepeat(); }}
+                    class="pointer-events-auto p-1.5 rounded-full bg-slate-950/75 backdrop-blur-sm border border-slate-700/60 hover:bg-slate-900 transition-colors cursor-pointer"
+                    style="color: {repeat !== 'off' ? accentColor : '#94a3b8'};"
+                    aria-label={lang === "ca" ? `Repetir: ${repeat}` : lang === "en" ? `Repeat: ${repeat}` : `Repetir: ${repeat}`}
+                  >
+                    {#if repeat === "one"}
+                      <Repeat1 size={13} />
+                    {:else}
+                      <Repeat size={13} />
+                    {/if}
+                  </button>
+                </div>
+
+                <!-- LAYER 3: Hover Needle (perceptible por debajo como la clasica) -->
+                {#if scrubberHoverX !== null}
+                  <div
+                    class="pointer-events-none absolute bottom-0 h-6 w-px bg-white/90 shadow-[0_0_8px_#fff] z-30"
+                    style="left: {scrubberHoverX}px;"
+                  ></div>
+                {/if}
+              </div>
+
+              {#if isRadio}
+                <span class="w-10 shrink-0" aria-hidden="true"></span>
+              {:else}
+                <span class="w-10 text-left shrink-0 z-30">{formatTime(duration)}</span>
+              {/if}
+            </div>
+          </div>
+        </div>
+      {/if}
+    </div>
 
     <!-- Right block: Upper Row (EQ +, NORM, STEREO/MONO, Speaker Device) | Lower Row (Volume Slider) -->
     <div class="relative z-10 flex h-full w-full min-w-0 flex-col items-stretch justify-center gap-1.5">
