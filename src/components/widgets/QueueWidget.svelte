@@ -190,7 +190,6 @@
     const labelCavaLines = lang === "ca" ? "CAVA: Línies" : lang === "en" ? "CAVA: Lines" : "CAVA: Líneas";
     const labelLiveMatrix = lang === "ca" ? "En Viu: Matriu LED" : lang === "en" ? "Live: LED Matrix" : "En Vivo: Matriz LED";
     const labelLivePeakFall = lang === "ca" ? "En Viu: Caiguda de Pics" : lang === "en" ? "Live: Peak Fall" : "En Vivo: Caída de Picos";
-    const labelLiveFluidWave = lang === "ca" ? "En Viu: Ona Fluida Contínua Millorada" : lang === "en" ? "Live: Enhanced Fluid Wave" : "En Vivo: Onda Fluida Continua Mejorada";
 
     const liveTelemetry = useMusicStore.getState().telemetry;
     const isCurrent = currentTrack && liveTelemetry.filepath && currentTrack.filepath === liveTelemetry.filepath;
@@ -251,13 +250,19 @@
         cells: [],
       },
       {
+        id: "blank",
+        label: lang === "ca" ? "HUD Blanc (Buit)" : lang === "en" ? "Blank HUD (Empty)" : "HUD Blanco (Vacío)",
+        type: "blank" as const,
+        cells: [],
+      },
+      // Second column of 6 panels (starts with Vúmetro in 7th place):
+      {
         id: "stereo_vu",
         label: labelVuMeter,
         type: "visualizer" as const,
         mode: "stereo_vu" as const,
         cells: [],
       },
-      // Second column/row of 6 spectrums:
       {
         id: "cava_fluid",
         label: labelCavaFluid,
@@ -291,13 +296,6 @@
         label: labelLivePeakFall,
         type: "visualizer" as const,
         mode: "live_peak_fall" as const,
-        cells: [],
-      },
-      {
-        id: "live_fluid_wave",
-        label: labelLiveFluidWave,
-        type: "visualizer" as const,
-        mode: "live_fluid_wave" as const,
         cells: [],
       },
     ];
@@ -562,14 +560,14 @@
     {/if}
 
     <div
-      class="border-t shrink-0 cursor-pointer select-none transition-colors h-[50px] px-3 py-1 flex items-center bg-audiophile-surface"
+      class="border-t shrink-0 cursor-pointer select-none transition-colors h-[50px] px-1.5 py-0.5 flex items-center bg-audiophile-surface"
       style="border-color: {appearance.accentColor}25;"
       title={lang === "ca" ? "Doble clic per canviar vista" : lang === "en" ? "Double click to cycle view" : "Doble clic para cambiar vista"}
       ondblclick={() => { queueHudMode = (queueHudMode + 1) % hudPanels.length; }}
     >
-      <div class="flex items-center gap-2.5 w-full h-full">
-        <!-- Two columns/rows of 6 pagination dots (Col 1: Datos & Pista, Col 2: Espectros CAVA & En Vivo) -->
-        <div class="grid grid-flow-col grid-rows-6 gap-x-2 gap-y-0.5 items-center justify-center shrink-0 h-full py-0.5" role="tablist">
+      <div class="flex items-center gap-1.5 w-full h-full">
+        <!-- Two columns/rows of 6 pagination dots (squeezed, minimal margins) -->
+        <div class="grid grid-flow-col grid-rows-6 gap-x-1 gap-y-[1px] items-center justify-center shrink-0 h-full py-0.5" role="tablist">
           {#each hudPanels as panel, index}
             <button
               type="button"
@@ -577,15 +575,15 @@
                 e.stopPropagation();
                 queueHudMode = index;
               }}
-              class="group relative flex items-center justify-center w-2.5 h-[5px] p-0 cursor-pointer focus:outline-none"
+              class="group relative flex items-center justify-center w-2 h-1 p-0 cursor-pointer focus:outline-none"
               title={`${index + 1}/${hudPanels.length} · ${panel.label}`}
               aria-label={panel.label}
             >
               <span
                 class="transition-all duration-200 rounded-full block shrink-0"
                 style={index === queueHudMode
-                  ? `width: 4.5px; height: 4.5px; background: #ffffff; box-shadow: 0 0 6px ${appearance.accentColor}, 0 0 2px ${appearance.accentColor}; outline: 1px solid ${appearance.accentColor};`
-                  : `width: 3px; height: 3px; background: ${appearance.accentColor}35;`}
+                  ? `width: 3.8px; height: 3.8px; background: #ffffff; box-shadow: 0 0 5px ${appearance.accentColor}, 0 0 2px ${appearance.accentColor}; outline: 1px solid ${appearance.accentColor};`
+                  : `width: 2.2px; height: 2.2px; background: ${appearance.accentColor}35;`}
               ></span>
             </button>
           {/each}
@@ -599,6 +597,9 @@
               accentColor={appearance.accentColor}
             />
           </div>
+        {:else if currentHudPanel.type === "blank"}
+          <!-- Blank mode: strictly clean/empty space in HUD -->
+          <div class="flex-1 h-full"></div>
         {:else}
           <div class="flex-1 grid grid-cols-4 gap-1.5 h-full items-center">
             {#each currentHudPanel.cells as cell}
