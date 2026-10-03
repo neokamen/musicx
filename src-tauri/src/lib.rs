@@ -18,6 +18,17 @@ use tauri::{Emitter, Manager};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // WebKitGTK puede renderizar una ventana en blanco (AppImage / Wayland / drivers Mesa recientes)
+    // cuando usa el renderer DMABUF o el modo de composición acelerada. Se desactivan salvo que el usuario ya los defina.
+    #[cfg(target_os = "linux")]
+    {
+        for key in ["WEBKIT_DISABLE_DMABUF_RENDERER", "WEBKIT_DISABLE_COMPOSITING_MODE"] {
+            if std::env::var_os(key).is_none() {
+                std::env::set_var(key, "1");
+            }
+        }
+    }
+
     let audio_engine = Arc::new(AudioEngineHandle::new());
 
     #[cfg(target_os = "linux")]

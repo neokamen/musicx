@@ -34,7 +34,7 @@ async function download(url, dest) {
 
 mkdirSync(binariesDir, { recursive: true });
 
-const ytDest = sidecarPath("yt-dlp");
+const ytDest = sidecarPath("neo-yt-dlp");
 if (force || !existsSync(ytDest)) {
   const ytUrl = process.platform === "win32"
     ? "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe"
