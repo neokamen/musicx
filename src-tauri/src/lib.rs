@@ -19,13 +19,13 @@ use tauri::{Emitter, Manager};
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     // WebKitGTK puede renderizar una ventana en blanco (AppImage / Wayland / drivers Mesa recientes)
-    // cuando usa el renderer DMABUF o el modo de composición acelerada. Se desactivan salvo que el usuario ya los defina.
+    // cuando usa el renderer DMABUF. Se desactiva DMABUF salvo que el usuario ya lo defina.
+    // NOTA: WEBKIT_DISABLE_COMPOSITING_MODE NO se debe activar porque desactiva la aceleración GPU
+    // obligando a la CPU a renderizar todo por software (causando 100% CPU y calentamiento).
     #[cfg(target_os = "linux")]
     {
-        for key in ["WEBKIT_DISABLE_DMABUF_RENDERER", "WEBKIT_DISABLE_COMPOSITING_MODE"] {
-            if std::env::var_os(key).is_none() {
-                std::env::set_var(key, "1");
-            }
+        if std::env::var_os("WEBKIT_DISABLE_DMABUF_RENDERER").is_none() {
+            std::env::set_var("WEBKIT_DISABLE_DMABUF_RENDERER", "1");
         }
     }
 
@@ -64,25 +64,29 @@ pub fn run() {
                     let _ = crate::ytdlp::ensure_runtime_deps().await;
                 });
 
-                // Real-time audio telemetry broadcaster (~33 FPS)
+                // Real-time audio telemetry broadcaster (30 FPS en reproducción, 4 FPS en reposo)
                 let app_handle = app.handle().clone();
                 let audio_for_telemetry = Arc::clone(&audio_engine);
                 std::thread::Builder::new()
                     .name("musicx-telemetry-broadcaster".to_string())
                     .spawn(move || loop {
-                        std::thread::sleep(std::time::Duration::from_millis(30));
+                        let is_playing = audio_for_telemetry.is_playing();
+                        let sleep_ms = if is_playing { 33 } else { 250 };
+                        std::thread::sleep(std::time::Duration::from_millis(sleep_ms));
                         let tele = audio_for_telemetry.get_telemetry();
                         let _ = app_handle.emit("audio-telemetry", &tele);
                     })
                     .expect("Failed to spawn telemetry broadcaster thread");
 
-                // Buffer telemetry broadcaster (10 Hz)
+                // Buffer telemetry broadcaster (10 Hz en reproducción, 2 Hz en reposo)
                 let app_handle_buf = app.handle().clone();
                 let audio_for_buffer = Arc::clone(&audio_engine);
                 std::thread::Builder::new()
                     .name("musicx-buffer-telemetry-broadcaster".to_string())
                     .spawn(move || loop {
-                        std::thread::sleep(std::time::Duration::from_millis(100));
+                        let is_playing = audio_for_buffer.is_playing();
+                        let sleep_ms = if is_playing { 100 } else { 500 };
+                        std::thread::sleep(std::time::Duration::from_millis(sleep_ms));
                         let b_tele = audio_for_buffer.get_buffer_telemetry();
                         let _ = app_handle_buf.emit("buffer-telemetry", &b_tele);
                     })

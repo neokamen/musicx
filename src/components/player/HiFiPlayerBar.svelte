@@ -159,20 +159,26 @@
   let activeBarIdx = $derived(Math.floor(progress * songPeaks.length));
   let liveSpectrum = $derived(telemetry.spectrum || []);
 
+  let seekbarStyle = $derived(playbackSettings?.playerBarStyle || "spectrum");
+  let isWaveSeekbar = $derived(seekbarStyle === "wave" || seekbarStyle === "aurora");
+
   let waveformSamples = $derived(
-    Array.from({ length: 65 }, (_, index) => {
-      const sourceIndex = liveSpectrum.length
-        ? Math.min(liveSpectrum.length - 1, Math.floor(index / 64 * liveSpectrum.length))
-        : -1;
-      const band = sourceIndex >= 0 ? Math.max(0, Math.min(1, liveSpectrum[sourceIndex] || 0)) : 0.08;
-      const phase = index * 0.34 + currentTime * 9;
-      const amplitude = Math.max(2, Math.min(42, band * 54));
-      const wave = Math.sin(phase) * amplitude;
-      return { x: (index / 64) * 1000, upper: 50 + wave, lower: 50 - wave };
-    })
+    isWaveSeekbar
+      ? Array.from({ length: 65 }, (_, index) => {
+          const sourceIndex = liveSpectrum.length
+            ? Math.min(liveSpectrum.length - 1, Math.floor(index / 64 * liveSpectrum.length))
+            : -1;
+          const band = sourceIndex >= 0 ? Math.max(0, Math.min(1, liveSpectrum[sourceIndex] || 0)) : 0.08;
+          const phase = index * 0.34 + currentTime * 9;
+          const amplitude = Math.max(2, Math.min(42, band * 54));
+          const wave = Math.sin(phase) * amplitude;
+          return { x: (index / 64) * 1000, upper: 50 + wave, lower: 50 - wave };
+        })
+      : []
   );
 
   const smoothPath = (points: { x: number; y: number }[]) => {
+    if (points.length === 0) return "";
     let path = `M ${points[0].x} ${points[0].y}`;
     for (let index = 1; index < points.length; index++) {
       const previous = points[index - 1];
@@ -185,9 +191,9 @@
     return `${path} T ${last.x} ${last.y}`;
   };
 
-  let upperWave = $derived(smoothPath(waveformSamples.map(({ x, upper }) => ({ x, y: upper }))));
-  let lowerWave = $derived(smoothPath(waveformSamples.map(({ x, lower }) => ({ x, y: lower })).reverse()));
-  let waveformPath = $derived(`${upperWave} L 1000 50 ${lowerWave.replace(/^M [^ ]+ [^ ]+/, "L 1000 50")} Z`);
+  let upperWave = $derived(isWaveSeekbar && waveformSamples.length > 0 ? smoothPath(waveformSamples.map(({ x, upper }) => ({ x, y: upper }))) : "");
+  let lowerWave = $derived(isWaveSeekbar && waveformSamples.length > 0 ? smoothPath(waveformSamples.map(({ x, lower }) => ({ x, y: lower })).reverse()) : "");
+  let waveformPath = $derived(isWaveSeekbar && upperWave ? `${upperWave} L 1000 50 ${lowerWave.replace(/^M [^ ]+ [^ ]+/, "L 1000 50")} Z` : "");
 
   const handlePointerSeek = (clientX: number) => {
     if (isRadio || !scrubberRef || duration <= 0) return;
@@ -248,7 +254,6 @@
   };
 
   const freqs = ["31", "62", "125", "250", "500", "1k", "2k", "4k", "8k", "16k"];
-  let seekbarStyle = $derived(playbackSettings?.playerBarStyle || "spectrum");
 
   let activePreset = $derived(
     SOUNDIX_PRESETS.find((p) =>

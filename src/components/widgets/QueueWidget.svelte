@@ -50,9 +50,9 @@
       return "  Stream   ";
     }
 
-    const isCurrent = telemetry.filepath && track.filepath === telemetry.filepath;
-    const bitrate = isCurrent && telemetry.bitrate ? telemetry.bitrate : track.bitrate_kbps;
-    const sampleRate = isCurrent && telemetry.sample_rate ? telemetry.sample_rate : track.sample_rate;
+    const isCurrent = currentTrack && track.filepath === currentTrack.filepath;
+    const bitrate = isCurrent && currentTrack.bitrate_kbps > 0 ? currentTrack.bitrate_kbps : track.bitrate_kbps;
+    const sampleRate = isCurrent && currentTrack.sample_rate > 0 ? currentTrack.sample_rate : track.sample_rate;
 
     const hzNum = sampleRate > 0 ? Math.round(sampleRate / 1000) : 44;
     const brNum = bitrate > 0 ? bitrate : 0;
@@ -476,7 +476,7 @@
             {/if}
             {#if visibleCols.duration}
               <span class="text-right text-[10px] font-mono text-audiophile-muted tabular-nums">
-                {formatDuration(telemetry.filepath && track.filepath === telemetry.filepath && telemetry.duration > 0 ? telemetry.duration : track.duration_seconds)}
+                {formatDuration(currentTrack && track.filepath === currentTrack.filepath && currentTrack.duration_seconds > 0 ? currentTrack.duration_seconds : track.duration_seconds)}
               </span>
             {/if}
             {#if visibleCols.download}

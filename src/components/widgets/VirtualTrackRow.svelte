@@ -45,12 +45,11 @@
     onContextMenu,
   }: Props = $props();
 
-  let appearance = $derived($useMusicStore.appearance);
   let isHoveredLong = $state(false);
   let hoverTimer: ReturnType<typeof setTimeout> | null = null;
 
   const handleMouseEnter = () => {
-    const delayMs = Math.max(200, (appearance.marqueeDelay ?? 2) * 1000);
+    const delayMs = Math.max(200, (useMusicStore.getState().appearance.marqueeDelay ?? 2) * 1000);
     hoverTimer = setTimeout(() => {
       isHoveredLong = true;
     }, delayMs);

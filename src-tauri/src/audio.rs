@@ -337,6 +337,10 @@ impl AudioEngineHandle {
         self.buffer_telemetry.lock().unwrap().clone()
     }
 
+    pub fn is_playing(&self) -> bool {
+        matches!(self.telemetry.lock().unwrap().state, PlaybackState::Playing)
+    }
+
     pub fn set_buffer_size(&self, frames: u32) -> Result<u32, String> {
         let clamped = match frames {
             0..=95 => 64,
@@ -1137,49 +1141,47 @@ impl AudioEngineInternal {
             .clone()
             .unwrap_or_else(|| "System Default (PipeWire/ALSA)".to_string());
 
-        let (left_frame, right_frame, mono_frame) = {
-            let buffer_lock = self.pcm_buffer.lock().unwrap();
-            let channel_count = (self.active_channels as usize).max(1);
-            let interleaved = buffer_lock
-                .iter()
-                .take(1024 * channel_count)
-                .copied()
-                .collect::<Vec<_>>();
-            let mut left = Vec::with_capacity(1024);
-            let mut right = Vec::with_capacity(1024);
-            let mut mono = Vec::with_capacity(1024);
-            for frame in interleaved.chunks(channel_count) {
-                let left_sample = frame.first().copied().unwrap_or_default();
-                let right_sample = frame.get(1).copied().unwrap_or(left_sample);
-                left.push(left_sample);
-                right.push(right_sample);
-                mono.push((left_sample + right_sample) * 0.5);
-            }
-            (left, right, mono)
-        };
-        let tempo_frame = {
-            let buffer_lock = self.pcm_buffer.lock().unwrap();
-            buffer_lock
-                .iter()
-                .take(2048 * self.active_channels as usize)
-                .copied()
-                .collect::<Vec<_>>()
-        };
         if is_playing {
+            let (left_frame, right_frame, mono_frame) = {
+                let buffer_lock = self.pcm_buffer.lock().unwrap();
+                let channel_count = (self.active_channels as usize).max(1);
+                let interleaved = buffer_lock
+                    .iter()
+                    .take(1024 * channel_count)
+                    .copied()
+                    .collect::<Vec<_>>();
+                let mut left = Vec::with_capacity(1024);
+                let mut right = Vec::with_capacity(1024);
+                let mut mono = Vec::with_capacity(1024);
+                for frame in interleaved.chunks(channel_count) {
+                    let left_sample = frame.first().copied().unwrap_or_default();
+                    let right_sample = frame.get(1).copied().unwrap_or(left_sample);
+                    left.push(left_sample);
+                    right.push(right_sample);
+                    mono.push((left_sample + right_sample) * 0.5);
+                }
+                (left, right, mono)
+            };
+            let tempo_frame = {
+                let buffer_lock = self.pcm_buffer.lock().unwrap();
+                buffer_lock
+                    .iter()
+                    .take(2048 * self.active_channels as usize)
+                    .copied()
+                    .collect::<Vec<_>>()
+            };
             tele.spectrum_left = calculate_spectrum(&left_frame, self.spectrum_fft.as_ref());
             tele.spectrum_right = calculate_spectrum(&right_frame, self.spectrum_fft.as_ref());
             tele.spectrum = calculate_spectrum(&mono_frame, self.spectrum_fft.as_ref());
-        } else {
+            self.tempo_detector
+                .update(&tempo_frame, self.active_channels as usize);
+            tele.tempo_bpm = self.tempo_detector.bpm;
+            tele.tempo_confidence = self.tempo_detector.confidence;
+        } else if tele.spectrum.iter().any(|&v| v > 0.0) {
             tele.spectrum_left = vec![0.0; 64];
             tele.spectrum_right = vec![0.0; 64];
             tele.spectrum = vec![0.0; 64];
         }
-        if is_playing {
-            self.tempo_detector
-                .update(&tempo_frame, self.active_channels as usize);
-        }
-        tele.tempo_bpm = self.tempo_detector.bpm;
-        tele.tempo_confidence = self.tempo_detector.confidence;
 
         if let Some(ref src) = self.current_source {
             tele.sample_rate = src.sample_rate;

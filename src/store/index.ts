@@ -1506,28 +1506,73 @@ export const useMusicStore = create<MusicPlayerStore>((set, get) => ({
 
       // Check for track completion in playback queue:
       // If current track was playing and finishes (current_time reaches duration or telemetry switches from Playing to Stopped)
-      const currentTrack = state.currentTrack && state.currentTrack.filepath === telemetry.filepath
-        ? {
+      let currentTrack = state.currentTrack;
+      if (state.currentTrack && state.currentTrack.filepath === telemetry.filepath) {
+        const newDur = telemetry.duration > 0 ? telemetry.duration : state.currentTrack.duration_seconds;
+        const newSr = telemetry.sample_rate || state.currentTrack.sample_rate;
+        const newBd = telemetry.bits_per_sample || state.currentTrack.bit_depth;
+        const newBr = telemetry.bitrate || state.currentTrack.bitrate_kbps;
+        if (
+          state.currentTrack.duration_seconds !== newDur ||
+          state.currentTrack.sample_rate !== newSr ||
+          state.currentTrack.bit_depth !== newBd ||
+          state.currentTrack.bitrate_kbps !== newBr
+        ) {
+          currentTrack = {
             ...state.currentTrack,
-            duration_seconds: telemetry.duration > 0 ? telemetry.duration : state.currentTrack.duration_seconds,
-            sample_rate: telemetry.sample_rate || state.currentTrack.sample_rate,
-            bit_depth: telemetry.bits_per_sample || state.currentTrack.bit_depth,
-            bitrate_kbps: telemetry.bitrate || state.currentTrack.bitrate_kbps,
-          }
-        : state.currentTrack;
-
-      const updatedQueue = state.queue.map((t) => {
-        if (telemetry.filepath && t.filepath === telemetry.filepath) {
-          return {
-            ...t,
-            duration_seconds: telemetry.duration > 0 ? telemetry.duration : t.duration_seconds,
-            sample_rate: telemetry.sample_rate > 0 ? telemetry.sample_rate : t.sample_rate,
-            bit_depth: telemetry.bits_per_sample > 0 ? telemetry.bits_per_sample : t.bit_depth,
-            bitrate_kbps: telemetry.bitrate > 0 ? telemetry.bitrate : t.bitrate_kbps,
+            duration_seconds: newDur,
+            sample_rate: newSr,
+            bit_depth: newBd,
+            bitrate_kbps: newBr,
           };
         }
-        return t;
-      });
+      }
+
+      let queueChanged = false;
+      let updatedQueue = state.queue;
+      if (telemetry.filepath && state.queue.length > 0) {
+        for (let i = 0; i < state.queue.length; i++) {
+          const t = state.queue[i];
+          if (t.filepath === telemetry.filepath) {
+            const newDur = telemetry.duration > 0 ? telemetry.duration : t.duration_seconds;
+            const newSr = telemetry.sample_rate > 0 ? telemetry.sample_rate : t.sample_rate;
+            const newBd = telemetry.bits_per_sample > 0 ? telemetry.bits_per_sample : t.bit_depth;
+            const newBr = telemetry.bitrate > 0 ? telemetry.bitrate : t.bitrate_kbps;
+            if (
+              t.duration_seconds !== newDur ||
+              t.sample_rate !== newSr ||
+              t.bit_depth !== newBd ||
+              t.bitrate_kbps !== newBr
+            ) {
+              if (!queueChanged) {
+                updatedQueue = [...state.queue];
+                queueChanged = true;
+              }
+              updatedQueue[i] = {
+                ...t,
+                duration_seconds: newDur,
+                sample_rate: newSr,
+                bit_depth: newBd,
+                bitrate_kbps: newBr,
+              };
+            }
+          }
+        }
+      }
+
+      const isPlaying = telemetry.state === "Playing";
+
+      // If idle/stopped and nothing relevant changed, avoid triggering subscribers
+      if (
+        !isPlaying &&
+        state.telemetry.state === telemetry.state &&
+        Math.abs(state.telemetry.current_time - telemetry.current_time) < 0.05 &&
+        state.telemetry.volume === telemetry.volume &&
+        state.telemetry.filepath === telemetry.filepath &&
+        !queueChanged
+      ) {
+        return state;
+      }
 
       const wasPlaying = state.isPlaying && state.telemetry.state === "Playing";
       const duration = telemetry.duration || currentTrack?.duration_seconds || 0;
@@ -1552,7 +1597,7 @@ export const useMusicStore = create<MusicPlayerStore>((set, get) => ({
 
       return {
         telemetry,
-        isPlaying: telemetry.state === "Playing",
+        isPlaying,
         volume: telemetry.volume,
         bitPerfectMode: telemetry.is_bit_perfect,
         selectedDevice: telemetry.output_device,

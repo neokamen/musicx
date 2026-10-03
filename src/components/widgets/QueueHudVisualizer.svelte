@@ -39,14 +39,14 @@
     const resizeObserver = new ResizeObserver(resize);
     resizeObserver.observe(canvas);
 
+    let lastRenderedTime = -1;
+    let lastRenderedTrack = "";
+    let lastRenderedProgress = -1;
+    let lastRenderedWidth = 0;
+    let lastRenderedHeight = 0;
+
     const render = (time: number) => {
       animId = requestAnimationFrame(render);
-      const dt = Math.min((time - lastTime) / 1000, 0.1);
-      lastTime = time;
-
-      const width = canvas.width;
-      const height = canvas.height;
-      if (width <= 0 || height <= 0) return;
 
       const store = useMusicStore.getState();
       const tele = store.telemetry;
@@ -55,6 +55,36 @@
       const curTime = tele.current_time || 0;
       const progress = duration > 0 ? Math.min(1, Math.max(0, curTime / duration)) : 0;
       const isPlaying = (store.isPlaying || tele.state === "Playing") && tele.state !== "Stopped" && tele.state !== "Paused";
+
+      // Throttle to max 45 FPS to reduce GPU/CPU load without loss of fluidity
+      const minInterval = isPlaying ? (mode === "fluid_wave" ? 16 : 22) : 100;
+      if (time - lastTime < minInterval) return;
+
+      const width = canvas.width;
+      const height = canvas.height;
+      if (width <= 0 || height <= 0) return;
+
+      // In static waveform mode when paused/stopped, skip redraw if state has not changed
+      if (mode === "waveform" && !isPlaying) {
+        if (
+          Math.abs(curTime - lastRenderedTime) < 0.05 &&
+          Math.abs(progress - lastRenderedProgress) < 0.001 &&
+          curTrack?.filepath === lastRenderedTrack &&
+          width === lastRenderedWidth &&
+          height === lastRenderedHeight
+        ) {
+          return;
+        }
+      }
+
+      lastRenderedTime = curTime;
+      lastRenderedProgress = progress;
+      lastRenderedTrack = curTrack?.filepath || "";
+      lastRenderedWidth = width;
+      lastRenderedHeight = height;
+
+      const dt = Math.min((time - lastTime) / 1000, 0.1);
+      lastTime = time;
 
       ctx.clearRect(0, 0, width, height);
 
@@ -71,6 +101,13 @@
         const barW = Math.max(0.65, (width / binCount) * 0.72);
         const gap = (width - binCount * barW) / Math.max(1, binCount - 1);
         const cursorX = progress * width;
+
+        // Create linear gradient ONCE outside the loop to avoid 20,000+ allocations/sec
+        const playedGrad = ctx.createLinearGradient(0, centerY - maxH, 0, centerY + maxH);
+        playedGrad.addColorStop(0, `${accentColor}99`);
+        playedGrad.addColorStop(0.5, `${accentColor}dd`);
+        playedGrad.addColorStop(1, `${accentColor}99`);
+        const unplayedFill = `${accentColor}38`;
 
         for (let i = 0; i < binCount; i++) {
           let amp = 0;
@@ -93,16 +130,7 @@
           const x = i * (barW + gap);
           const isPlayed = x <= cursorX;
 
-          if (isPlayed) {
-            const grad = ctx.createLinearGradient(0, centerY - barH, 0, centerY + barH);
-            grad.addColorStop(0, `${accentColor}99`);
-            grad.addColorStop(0.5, `${accentColor}dd`);
-            grad.addColorStop(1, `${accentColor}99`);
-            ctx.fillStyle = grad;
-          } else {
-            ctx.fillStyle = `${accentColor}38`;
-          }
-
+          ctx.fillStyle = isPlayed ? playedGrad : unplayedFill;
           ctx.fillRect(x, centerY - barH, barW, barH * 2);
         }
 

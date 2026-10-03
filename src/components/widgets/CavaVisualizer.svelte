@@ -100,6 +100,17 @@
       }
     };
 
+    const resizeObserver = new ResizeObserver((entries) => {
+      const entry = entries[0];
+      if (!entry || !canvas) return;
+      canvasWidth = entry.contentRect.width;
+      canvasHeight = entry.contentRect.height;
+      const ratio = window.devicePixelRatio || 1;
+      canvas.width = Math.max(1, Math.floor(canvasWidth * ratio));
+      canvas.height = Math.max(1, Math.floor(canvasHeight * ratio));
+    });
+    resizeObserver.observe(canvas);
+
     const render = (time: number) => {
       frameId = requestAnimationFrame(render);
       const storeState = useMusicStore.getState();
@@ -108,27 +119,26 @@
       const liveAppearance = storeState.appearance;
       const liveStyle = visualStyle;
 
+      const playing = liveIsPlaying || liveTelemetry.state === "Playing";
+
+      // Throttle when silent and paused
+      if (!playing && levels.every((l) => l < 0.001)) {
+        if (time - previousFrame < 200) return;
+      }
+
       const fps = Math.max(30, liveAppearance.cavaFps || 60);
       if (time - previousFrame < 1000 / fps) return;
       const delta = Math.min((time - (previousFrame || time)) / 1000, 0.08);
       previousFrame = time;
       elapsed += delta;
 
-      const bounds = canvas.getBoundingClientRect();
       const ratio = window.devicePixelRatio || 1;
-      if (bounds.width !== canvasWidth || bounds.height !== canvasHeight) {
-        canvasWidth = bounds.width;
-        canvasHeight = bounds.height;
-        canvas.width = Math.max(1, Math.floor(bounds.width * ratio));
-        canvas.height = Math.max(1, Math.floor(bounds.height * ratio));
-      }
       context.setTransform(ratio, 0, 0, ratio, 0, 0);
-      context.clearRect(0, 0, bounds.width, bounds.height);
+      context.clearRect(0, 0, canvasWidth, canvasHeight);
 
-      const width = bounds.width;
-      const height = bounds.height;
+      const width = canvasWidth;
+      const height = canvasHeight;
       const spectrum = liveTelemetry.spectrum || [];
-      const playing = liveIsPlaying || liveTelemetry.state === "Playing";
       const sensitivity = (liveAppearance.cavaSensitivity || 100) / 100;
       const hasSignal = playing && (spectrum.some((value) => value > 0.002) || liveAppearance.cavaOfflineFallback);
       const smoothing = (liveAppearance.cavaSmoothing || 0) / 100;
@@ -414,7 +424,10 @@
     };
 
     frameId = requestAnimationFrame(render);
-    return () => cancelAnimationFrame(frameId);
+    return () => {
+      cancelAnimationFrame(frameId);
+      resizeObserver.disconnect();
+    };
   });
 </script>
 
