@@ -9,7 +9,7 @@ pub fn start_mpris_service(audio_engine: Arc<AudioEngineHandle>) {
     // Must be called on the main GTK/GLib thread
     let mpris = MprisPlayer::new(
         "musicx".to_string(),
-        "musicx - the audio player".to_string(),
+        "musicx".to_string(),
         "musicx".to_string(),
     );
 

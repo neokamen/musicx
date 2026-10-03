@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "musicx - the audio player",
+  "productName": "musicx",
   "mainBinaryName": "musicx",
-  "version": "0.3.56",
+  "version": "0.4.0",
   "identifier": "com.musicx.audioplayer",
   "build": {
     "beforeDevCommand": "node scripts/fetch-runtime-sidecars.mjs && npm run dev",
@@ -13,7 +13,7 @@
   "app": {
     "windows": [
       {
-        "title": "musicx - the audio player",
+        "title": "musicx",
         "width": 1100,
         "height": 720,
         "minWidth": 800,
