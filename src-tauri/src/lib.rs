@@ -64,29 +64,25 @@ pub fn run() {
                     let _ = crate::ytdlp::ensure_runtime_deps().await;
                 });
 
-                // Real-time audio telemetry broadcaster (30 FPS en reproducción, 4 FPS en reposo)
+                // Real-time audio telemetry broadcaster (~33 FPS)
                 let app_handle = app.handle().clone();
                 let audio_for_telemetry = Arc::clone(&audio_engine);
                 std::thread::Builder::new()
                     .name("musicx-telemetry-broadcaster".to_string())
                     .spawn(move || loop {
-                        let is_playing = audio_for_telemetry.is_playing();
-                        let sleep_ms = if is_playing { 33 } else { 250 };
-                        std::thread::sleep(std::time::Duration::from_millis(sleep_ms));
+                        std::thread::sleep(std::time::Duration::from_millis(30));
                         let tele = audio_for_telemetry.get_telemetry();
                         let _ = app_handle.emit("audio-telemetry", &tele);
                     })
                     .expect("Failed to spawn telemetry broadcaster thread");
 
-                // Buffer telemetry broadcaster (10 Hz en reproducción, 2 Hz en reposo)
+                // Buffer telemetry broadcaster (10 Hz)
                 let app_handle_buf = app.handle().clone();
                 let audio_for_buffer = Arc::clone(&audio_engine);
                 std::thread::Builder::new()
                     .name("musicx-buffer-telemetry-broadcaster".to_string())
                     .spawn(move || loop {
-                        let is_playing = audio_for_buffer.is_playing();
-                        let sleep_ms = if is_playing { 100 } else { 500 };
-                        std::thread::sleep(std::time::Duration::from_millis(sleep_ms));
+                        std::thread::sleep(std::time::Duration::from_millis(100));
                         let b_tele = audio_for_buffer.get_buffer_telemetry();
                         let _ = app_handle_buf.emit("buffer-telemetry", &b_tele);
                     })

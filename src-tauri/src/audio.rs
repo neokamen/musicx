@@ -578,7 +578,7 @@ impl AudioEngineInternal {
             }
 
             self.update_telemetry();
-            thread::sleep(Duration::from_millis(15));
+            thread::sleep(Duration::from_millis(25));
         }
     }
 

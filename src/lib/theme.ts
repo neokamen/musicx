@@ -385,6 +385,10 @@ function startRgbAnimation() {
       }
       return;
     }
+    if (time - lastTime < 33) {
+      (window as any).__soundix_rgb_anim_id = requestAnimationFrame(step);
+      return;
+    }
     const delta = Math.min(time - lastTime, 100);
     lastTime = time;
     currentRgbHue = (currentRgbHue + (delta * 0.04)) % 360;
@@ -418,6 +422,7 @@ function startBgGradientAnimation(bgOpacityVal?: number) {
   currentBgOpacityVal = bgOpacityVal !== undefined ? bgOpacityVal : getSavedBgOpacity();
   if ((window as any).__soundix_bg_anim_id) return;
   let startTime = performance.now();
+  let lastAnimTime = performance.now();
   const step = (time: number) => {
     if (typeof window === 'undefined' || !(window as any).__soundix_bg_active) {
       if ((window as any).__soundix_bg_anim_id) {
@@ -426,6 +431,11 @@ function startBgGradientAnimation(bgOpacityVal?: number) {
       }
       return;
     }
+    if (time - lastAnimTime < 33) {
+      (window as any).__soundix_bg_anim_id = requestAnimationFrame(step);
+      return;
+    }
+    lastAnimTime = time;
     const elapsed = (time - startTime) / 1000;
     // Smooth breathing sine cycle over 8.5 seconds
     const progress = (Math.sin(elapsed * (Math.PI * 2 / 8.5)) + 1) / 2; // 0..1

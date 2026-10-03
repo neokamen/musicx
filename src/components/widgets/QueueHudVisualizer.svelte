@@ -36,8 +36,6 @@
     };
 
     resize();
-    const resizeObserver = new ResizeObserver(resize);
-    resizeObserver.observe(canvas);
 
     let lastRenderedTime = -1;
     let lastRenderedTrack = "";
@@ -60,6 +58,7 @@
       const minInterval = isPlaying ? (mode === "fluid_wave" ? 16 : 22) : 100;
       if (time - lastTime < minInterval) return;
 
+      resize();
       const width = canvas.width;
       const height = canvas.height;
       if (width <= 0 || height <= 0) return;
@@ -243,7 +242,6 @@
 
     return () => {
       cancelAnimationFrame(animId);
-      resizeObserver.disconnect();
     };
   });
 </script>

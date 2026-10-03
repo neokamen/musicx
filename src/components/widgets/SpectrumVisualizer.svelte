@@ -68,22 +68,7 @@
     const peaks = new Float32Array(numBands);
     const peakVelocity = new Float32Array(numBands);
     const channelBands = [new Float32Array(numBands), new Float32Array(numBands)];
-    let rectWidth = 300;
-    let rectHeight = 150;
-    const resizeObserver = new ResizeObserver((entries) => {
-      const entry = entries[0];
-      if (!entry || !canvas) return;
-      rectWidth = entry.contentRect.width;
-      rectHeight = entry.contentRect.height;
-      const pixelRatio = window.devicePixelRatio || 1;
-      const canvasWidth = Math.max(1, Math.floor(rectWidth * pixelRatio));
-      const canvasHeight = Math.max(1, Math.floor(rectHeight * pixelRatio));
-      if (canvas.width !== canvasWidth || canvas.height !== canvasHeight) {
-        canvas.width = canvasWidth;
-        canvas.height = canvasHeight;
-      }
-    });
-    resizeObserver.observe(canvas);
+    const channelPeaks = [new Float32Array(numBands), new Float32Array(numBands)];
 
     const render = (now: number) => {
       animId = requestAnimationFrame(render);
@@ -96,20 +81,23 @@
       const currentVol = currentTelemetry.volume ?? store.volume ?? 1;
       const currentApp = store.appearance;
 
-      // Throttle when silent and paused
-      if (!currentIsPlaying && currentBands.every((b) => b < 0.001)) {
-        if (now - lastTime < 200) return;
-      }
-
       const frameInterval = 1000 / Math.max(30, currentApp.spectrumFps || 60);
       if (now - lastTime < frameInterval) return;
       const dt = Math.min((now - lastTime) / 1000, 0.1);
       lastTime = now;
 
+      const rect = canvas.getBoundingClientRect();
       const pixelRatio = window.devicePixelRatio || 1;
+      const canvasWidth = Math.max(1, Math.floor(rect.width * pixelRatio));
+      const canvasHeight = Math.max(1, Math.floor(rect.height * pixelRatio));
+      if (canvas.width !== canvasWidth || canvas.height !== canvasHeight) {
+        canvas.width = canvasWidth;
+        canvas.height = canvasHeight;
+      }
+
       ctx.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
-      const w = rectWidth;
-      const h = rectHeight;
+      const w = rect.width;
+      const h = rect.height;
       ctx.clearRect(0, 0, w, h);
 
       if (w === 0 || h === 0) return;
@@ -862,10 +850,7 @@
     };
 
     animId = requestAnimationFrame(render);
-    return () => {
-      cancelAnimationFrame(animId);
-      resizeObserver.disconnect();
-    };
+    return () => cancelAnimationFrame(animId);
   });
 </script>
 

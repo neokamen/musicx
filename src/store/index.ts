@@ -1560,7 +1560,22 @@ export const useMusicStore = create<MusicPlayerStore>((set, get) => ({
         }
       }
 
-      const isPlaying = telemetry.state === "Playing";
+      const isRadioOrStream =
+        (Boolean(state.activeRadioStation) && state.isRadioPlaying) ||
+        (isStreamTrack(state.currentTrack) && state.isPlaying);
+      const isPlaying = telemetry.state === "Playing" || isRadioOrStream;
+
+      const finalTelemetry = isRadioOrStream
+        ? {
+            ...telemetry,
+            state: "Playing" as PlaybackState,
+            spectrum: state.telemetry.spectrum,
+            spectrum_left: state.telemetry.spectrum_left,
+            spectrum_right: state.telemetry.spectrum_right,
+            current_time: state.telemetry.current_time,
+            duration: state.telemetry.duration,
+          }
+        : telemetry;
 
       // If idle/stopped and nothing relevant changed, avoid triggering subscribers
       if (
@@ -1575,10 +1590,10 @@ export const useMusicStore = create<MusicPlayerStore>((set, get) => ({
       }
 
       const wasPlaying = state.isPlaying && state.telemetry.state === "Playing";
-      const duration = telemetry.duration || currentTrack?.duration_seconds || 0;
+      const duration = finalTelemetry.duration || currentTrack?.duration_seconds || 0;
       const endTolerance = Math.min(0.5, duration > 0 ? duration * 0.05 : 0.5);
-      const isNearEnd = duration > 0 && telemetry.current_time >= duration - endTolerance;
-      const justStoppedAfterPlay = wasPlaying && telemetry.state === "Stopped";
+      const isNearEnd = duration > 0 && finalTelemetry.current_time >= duration - endTolerance;
+      const justStoppedAfterPlay = wasPlaying && finalTelemetry.state === "Stopped";
 
       if (
         !isStreamTrack(currentTrack) &&
@@ -1596,7 +1611,7 @@ export const useMusicStore = create<MusicPlayerStore>((set, get) => ({
       }
 
       return {
-        telemetry,
+        telemetry: finalTelemetry,
         isPlaying,
         volume: telemetry.volume,
         bitPerfectMode: telemetry.is_bit_perfect,
