@@ -125,6 +125,15 @@
   });
 
   $effect(() => {
+    if (appearance.accentPreset && appearance.accentPreset !== accent) {
+      accent = appearance.accentPreset as AccentColor;
+    }
+    if (appearance.accentPreset === 'custom' && appearance.accentColor && appearance.accentColor !== customAccentHex) {
+      customAccentHex = appearance.accentColor;
+    }
+  });
+
+  $effect(() => {
     if (!isSettingsOpen || activeTab !== 'general') return;
     let cancelled = false;
     getRuntimeDepsStatus()
@@ -177,10 +186,18 @@
 
   const handleSelectAccent = (newAccent: AccentColor) => {
     accent = newAccent;
-    triggerApplyTheme(newAccent, bgTheme);
     const opt = ACCENT_OPTIONS.find((a) => a.id === newAccent);
-    if (opt && !opt.isRgb && !opt.isCustom) {
-      useMusicStore.getState().setAppearance({ accentColor: opt.color, accentPreset: newAccent });
+    if (newAccent === 'custom') {
+      const hex = customAccentHex || appearance.accentColor || '#06b6d4';
+      triggerApplyTheme('custom', bgTheme, hex);
+      useMusicStore.getState().setAppearance({ accentColor: hex, accentPreset: 'custom' });
+    } else if (opt) {
+      triggerApplyTheme(newAccent, bgTheme);
+      if (!opt.isRgb) {
+        useMusicStore.getState().setAppearance({ accentColor: opt.color, accentPreset: newAccent });
+      } else {
+        useMusicStore.getState().setAppearance({ accentPreset: 'rgb' });
+      }
     }
   };
 
@@ -774,7 +791,7 @@
                 Selecciona el color para botones, deslizadores, carátulas y telemetría:
               </p>
 
-              <div class="grid grid-cols-4 sm:grid-cols-8 gap-2">
+              <div class="grid grid-cols-3 sm:grid-cols-5 md:grid-cols-9 gap-2">
                 {#each ACCENT_OPTIONS as opt (opt.id)}
                   {@const isSelected = accent === opt.id}
                   {@const swatchBackground = opt.isRgb ? opt.color : opt.isCustom ? customAccentHex : opt.color}

@@ -1,4 +1,4 @@
-export type AccentColor = 'green' | 'orange' | 'yellow' | 'blue' | 'red' | 'purple' | 'rgb' | 'custom';
+export type AccentColor = 'cyan' | 'green' | 'orange' | 'yellow' | 'blue' | 'red' | 'purple' | 'rgb' | 'custom';
 export type BackgroundTheme =
   | 'gray'
   | 'dark_gray'
@@ -32,6 +32,7 @@ export interface ThemeOption {
 }
 
 export const ACCENT_OPTIONS: AccentOption[] = [
+  { id: 'cyan', label: 'Cian', color: '#06b6d4', hoverColor: '#22d3ee' },
   { id: 'green', label: 'Verde', color: '#556b2f', hoverColor: '#68833a' },
   { id: 'orange', label: 'Naranja', color: '#d96b27', hoverColor: '#ea7933' },
   { id: 'yellow', label: 'Amarillo', color: '#d4af37', hoverColor: '#e2be4a' },
@@ -140,8 +141,19 @@ const CUSTOM_ACCENT_STORAGE_KEY = 'audio_converter_custom_accent';
 const CUSTOM_THEME_STORAGE_KEY = 'audio_converter_custom_theme';
 
 export function getCustomAccentColor(): string {
-  if (typeof window === 'undefined') return '#8b5cf6';
-  return localStorage.getItem(CUSTOM_ACCENT_STORAGE_KEY) || '#8b5cf6';
+  if (typeof window === 'undefined') return '#06b6d4';
+  const saved = localStorage.getItem(CUSTOM_ACCENT_STORAGE_KEY);
+  if (saved) return saved;
+  try {
+    const v5 = localStorage.getItem('musicx_settings_v5');
+    if (v5) {
+      const parsed = JSON.parse(v5);
+      if (parsed?.appearance?.accentColor) return parsed.appearance.accentColor;
+    }
+  } catch {
+    // Ignore
+  }
+  return '#06b6d4';
 }
 
 export function setCustomAccentColor(color: string) {
@@ -310,9 +322,21 @@ export function saveMarqueeDelay(val: number): void {
 }
 
 export function getSavedAccent(): AccentColor {
-  if (typeof window === 'undefined') return 'green';
+  if (typeof window === 'undefined') return 'cyan';
   const saved = localStorage.getItem(ACCENT_STORAGE_KEY) as AccentColor;
-  return ACCENT_OPTIONS.some((o) => o.id === saved) ? saved : 'green';
+  if (saved && ACCENT_OPTIONS.some((o) => o.id === saved)) return saved;
+  try {
+    const v5 = localStorage.getItem('musicx_settings_v5');
+    if (v5) {
+      const parsed = JSON.parse(v5);
+      if (parsed?.appearance?.accentPreset && ACCENT_OPTIONS.some((o) => o.id === parsed.appearance.accentPreset)) {
+        return parsed.appearance.accentPreset;
+      }
+    }
+  } catch {
+    // Ignore
+  }
+  return 'cyan';
 }
 
 export function getSavedTheme(): BackgroundTheme {
@@ -370,6 +394,16 @@ if (typeof window !== 'undefined') {
   }
 }
 
+function hslToRgb(h: number, s: number, l: number): [number, number, number] {
+  s /= 100;
+  l /= 100;
+  const k = (n: number) => (n + h / 30) % 12;
+  const a = s * Math.min(l, 1 - l);
+  const f = (n: number) =>
+    l - a * Math.max(-1, Math.min(k(n) - 3, Math.min(9 - k(n), 1)));
+  return [Math.round(255 * f(0)), Math.round(255 * f(8)), Math.round(255 * f(4))];
+}
+
 let currentRgbHue = 0;
 
 function startRgbAnimation() {
@@ -394,11 +428,13 @@ function startRgbAnimation() {
     currentRgbHue = (currentRgbHue + (delta * 0.04)) % 360;
     const activeColor = `hsl(${currentRgbHue.toFixed(1)}, 85%, 56%)`;
     const activeHover = `hsl(${currentRgbHue.toFixed(1)}, 90%, 65%)`;
+    const [rr, gg, bb] = hslToRgb(currentRgbHue, 85, 56);
     const root = document.documentElement;
     root.style.setProperty('--color-olive', activeColor);
     root.style.setProperty('--color-olive-hover', activeHover);
     root.style.setProperty('--app-accent', activeColor);
     root.style.setProperty('--app-accent-hover', activeHover);
+    root.style.setProperty('--app-accent-rgb', `${rr}, ${gg}, ${bb}`);
     (window as any).__soundix_rgb_anim_id = requestAnimationFrame(step);
   };
   (window as any).__soundix_rgb_anim_id = requestAnimationFrame(step);
@@ -546,6 +582,7 @@ export function applyTheme(
       const customHex = customAccentHex || getCustomAccentColor();
       activeColor = customHex;
       activeHover = adjustHexBrightness(customHex, 20);
+      setCustomAccentColor(customHex);
     } else {
       const accentOpt = ACCENT_OPTIONS.find((a) => a.id === accent) || ACCENT_OPTIONS[0];
       activeColor = accentOpt.color;
@@ -553,8 +590,14 @@ export function applyTheme(
     }
   }
 
+  const [ar, ag, ab] = activeColor.startsWith('#')
+    ? hexToRgb(activeColor)
+    : [6, 182, 212];
   root.style.setProperty('--color-olive', activeColor);
   root.style.setProperty('--color-olive-hover', activeHover);
+  root.style.setProperty('--app-accent', activeColor);
+  root.style.setProperty('--app-accent-hover', activeHover);
+  root.style.setProperty('--app-accent-rgb', `${ar}, ${ag}, ${ab}`);
   root.setAttribute('data-accent', accent);
   localStorage.setItem(ACCENT_STORAGE_KEY, accent);
 
@@ -633,6 +676,7 @@ export function applyTheme(
   // Also synchronize --app-* CSS variables for MusicX components
   root.style.setProperty('--app-accent', activeColor);
   root.style.setProperty('--app-accent-hover', activeHover);
+  root.style.setProperty('--app-accent-rgb', `${ar}, ${ag}, ${ab}`);
   root.style.setProperty('--app-bg', finalCharcoal);
   root.style.setProperty('--app-surface', finalSurface);
   root.style.setProperty('--app-surface2', finalSurfacePanel);
@@ -729,8 +773,8 @@ export function initTheme() {
   applyTheme(
     getSavedAccent(),
     getSavedTheme(),
-    undefined,
-    undefined,
+    getCustomAccentColor(),
+    getCustomThemeColor(),
     getSavedBgOpacity(),
     getSavedNeonGlow(),
     getSavedNeonGlowIntensity(),

@@ -62,28 +62,86 @@ body {
   color: var(--app-muted) !important;
 }
 
+/* Dynamic Accent Overrides (Tailwind utility fallbacks for full accent theming) */
+.text-cyan-100,
+.text-cyan-200,
 .text-cyan-300,
 .text-cyan-400,
-[class*="hover:text-cyan-"]:hover {
+.text-cyan-500,
+.text-cyan-600,
+[class*="text-cyan-"],
+[class*="hover:text-cyan-"]:hover,
+[class*="focus:text-cyan-"]:focus,
+.group:hover [class*="group-hover:text-cyan-"] {
   color: var(--app-accent) !important;
 }
 
-[class*="bg-cyan-950"] {
-  background-color: color-mix(in srgb, var(--app-accent) 20%, transparent) !important;
-}
-
-.bg-cyan-500 {
+.bg-cyan-400,
+.bg-cyan-500,
+.bg-cyan-600,
+[class*="bg-cyan-400"],
+[class*="bg-cyan-500"],
+[class*="bg-cyan-600"],
+[class*="hover:bg-cyan-500"]:hover,
+[class*="hover:bg-cyan-600"]:hover {
   background-color: var(--app-accent) !important;
 }
 
+.bg-cyan-900,
+.bg-cyan-950,
+[class*="bg-cyan-900"],
+[class*="bg-cyan-950"] {
+  background-color: color-mix(in srgb, var(--app-accent) 22%, transparent) !important;
+}
+
+.border-cyan-200,
+.border-cyan-300,
 .border-cyan-400,
 .border-cyan-500,
-[class*="border-cyan-"] {
+.border-cyan-600,
+.border-cyan-700,
+.border-cyan-800,
+.border-cyan-900,
+[class*="border-cyan-"],
+[class*="hover:border-cyan-"]:hover {
   border-color: color-mix(in srgb, var(--app-accent) 72%, transparent) !important;
 }
 
-.accent-cyan-400 {
+.ring-cyan-400,
+.ring-cyan-500,
+[class*="ring-cyan-"],
+[class*="focus:ring-cyan-"]:focus,
+[class*="focus-visible:ring-cyan-"]:focus-visible {
+  --tw-ring-color: var(--app-accent) !important;
+}
+
+.accent-cyan-400,
+.accent-cyan-500,
+[class*="accent-cyan-"] {
   accent-color: var(--app-accent) !important;
+}
+
+.fill-cyan-400,
+.fill-cyan-500,
+[class*="fill-cyan-"] {
+  fill: var(--app-accent) !important;
+}
+
+.stroke-cyan-400,
+.stroke-cyan-500,
+[class*="stroke-cyan-"] {
+  stroke: var(--app-accent) !important;
+}
+
+/* Also support audiophile-cyan opacity classes cleanly */
+[class*="bg-audiophile-cyan/"] {
+  background-color: rgb(var(--app-accent-rgb, 6, 182, 212) / var(--tw-bg-opacity, 1));
+}
+[class*="border-audiophile-cyan/"] {
+  border-color: rgb(var(--app-accent-rgb, 6, 182, 212) / var(--tw-border-opacity, 1));
+}
+[class*="text-audiophile-cyan/"] {
+  color: rgb(var(--app-accent-rgb, 6, 182, 212) / var(--tw-text-opacity, 1));
 }
 
 .eq-bar-slider {

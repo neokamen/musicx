@@ -15,7 +15,7 @@ export default {
           border: "var(--app-border, #242831)",     // Bordes dinámicos
           muted: "#6b7280",                         // Textos secundarios
           text: "#e4e7eb",                          // Texto principal
-          cyan: "var(--app-accent, #00f0ff)",       // Indicador de acento dinámico
+          cyan: "rgb(var(--app-accent-rgb, 6, 182, 212) / <alpha-value>)",       // Indicador de acento dinámico
           amber: "#e5a93c",                         // Vúmetro cálido
           green: "#10b981",                         // Estado Bit-perfect
         },

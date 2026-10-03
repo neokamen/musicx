@@ -274,6 +274,27 @@
   const bpm = $derived(useMusicStore.getState().telemetry.tempo_bpm || 120);
   const isRadioActive = $derived(Boolean(activeRadioStation && isRadioPlaying));
 
+  $effect(() => {
+    if (typeof document === "undefined") return;
+    const color = appearance.accentColor;
+    if (color && color.startsWith("#")) {
+      const clean = color.replace("#", "");
+      let r = 6, g = 182, b = 212;
+      if (clean.length === 3) {
+        r = parseInt(clean[0] + clean[0], 16) || 6;
+        g = parseInt(clean[1] + clean[1], 16) || 182;
+        b = parseInt(clean[2] + clean[2], 16) || 212;
+      } else if (clean.length >= 6) {
+        r = parseInt(clean.slice(0, 2), 16) || 6;
+        g = parseInt(clean.slice(2, 4), 16) || 182;
+        b = parseInt(clean.slice(4, 6), 16) || 212;
+      }
+      document.documentElement.style.setProperty("--app-accent", color);
+      document.documentElement.style.setProperty("--app-accent-rgb", `${r}, ${g}, ${b}`);
+      document.documentElement.style.setProperty("--color-olive", color);
+    }
+  });
+
   onMount(() => {
     initTheme();
     let cleanupListeners: (() => void) | undefined;
