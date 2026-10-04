@@ -74,7 +74,7 @@
         <span class="h-1.5 w-1.5 shrink-0 animate-pulse rounded-full bg-emerald-400" title="En directo"></span>
       {/if}
     </div>
-    <p class="mt-0.5 truncate text-[10px] text-audiophile-muted" title={station.tags || details}>
+    <p class="mt-0.5 truncate text-[10px] text-audiophile-muted">
       {station.tags || details || "Emisora online"}
     </p>
   </div>
@@ -91,12 +91,12 @@
     <button
       type="button"
       onclick={() => onPlay(station)}
-      class="flex h-8 w-8 items-center justify-center rounded-full bg-cyan-500 text-slate-950 transition hover:brightness-110"
-      style="background-color: var(--app-accent); color: #020617;"
+      class="rounded p-1.5 transition-colors hover:brightness-125 focus:outline-none"
+      style="color: var(--app-accent);"
       title="Reproducir {station.name}"
       aria-label="Reproducir {station.name}"
     >
-      <Play size={14} fill="currentColor" />
+      <Play size={16} fill="currentColor" />
     </button>
     {#if station.isCustom && onRemoveCustom}
       <button

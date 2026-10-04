@@ -50,6 +50,7 @@
   let activeRadioStation = $derived($musicStore.activeRadioStation);
   let isRadioPlaying = $derived($musicStore.isRadioPlaying);
   let appearance = $derived($musicStore.appearance);
+  let accentColor = $derived(appearance.accentColor || "#06b6d4");
   let language = $derived($musicStore.language);
 
   type RadioView = "discover" | "genres" | "countries" | "favorites" | "recent" | "custom";
@@ -446,7 +447,8 @@
             type="button"
             onclick={() => (qualityFilter = filter.id as QualityFilter)}
             aria-pressed={qualityFilter === filter.id}
-            class="rounded-md px-2.5 py-1 text-[10px] font-medium transition-colors {qualityFilter === filter.id ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/40' : 'border border-transparent text-audiophile-muted hover:bg-audiophile-surface2 hover:text-audiophile-text'}"
+            class="rounded-md px-2.5 py-1 text-[10px] font-medium transition-colors border {qualityFilter === filter.id ? 'font-semibold' : 'border-transparent text-audiophile-muted hover:bg-audiophile-surface2 hover:text-audiophile-text'}"
+            style={qualityFilter === filter.id ? `background-color: color-mix(in srgb, ${accentColor} 18%, transparent); color: ${accentColor}; border-color: color-mix(in srgb, ${accentColor} 45%, transparent);` : ""}
           >
             {filter.label}
           </button>
