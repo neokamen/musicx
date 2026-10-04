@@ -91,7 +91,8 @@
     <button
       type="button"
       onclick={() => onPlay(station)}
-      class="flex h-8 w-8 items-center justify-center rounded-full bg-audiophile-cyan text-audiophile-base transition hover:brightness-110"
+      class="flex h-8 w-8 items-center justify-center rounded-full bg-cyan-500 text-slate-950 transition hover:brightness-110"
+      style="background-color: var(--app-accent); color: #020617;"
       title="Reproducir {station.name}"
       aria-label="Reproducir {station.name}"
     >
