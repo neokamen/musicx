@@ -1,6 +1,5 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { Zap, Clock } from "@lucide/svelte";
   import { useMusicStore } from "../../store/index.ts";
 
   const musicStore = useMusicStore;
@@ -13,7 +12,6 @@
 
   let isHovering = $state(false);
   let hoverX = $state(0);
-  let hoverRatio = $state(0);
   let isDragging = $state(false);
 
   let duration = $derived(
@@ -21,14 +19,6 @@
       ? telemetry.duration
       : $musicStore.currentTrack?.duration_seconds || 0
   );
-  let currentTime = $derived(telemetry.current_time || 0);
-
-  function formatTime(sec: number): string {
-    if (!Number.isFinite(sec) || sec < 0) return "0:00";
-    const m = Math.floor(sec / 60);
-    const s = Math.floor(sec % 60);
-    return `${m}:${s < 10 ? "0" : ""}${s}`;
-  }
 
   function handlePointerDown(e: PointerEvent) {
     if (!containerRef) return;
@@ -41,7 +31,6 @@
     if (!containerRef) return;
     const rect = containerRef.getBoundingClientRect();
     hoverX = Math.max(0, Math.min(rect.width, e.clientX - rect.left));
-    hoverRatio = rect.width > 0 ? hoverX / rect.width : 0;
     isHovering = true;
     if (isDragging) {
       updateSeekFromEvent(e);
@@ -75,7 +64,7 @@
   onMount(() => {
     const canvas = canvasRef;
     if (!canvas) return;
-    const ctx = canvas.getContext("2d", { alpha: false });
+    const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
     let animId: number;
@@ -122,9 +111,8 @@
       const height = canvas.height;
       if (width <= 0 || height <= 0) return;
 
-      // Dark background fill (opaque, faster than clearRect)
-      ctx.fillStyle = "#020617";
-      ctx.fillRect(0, 0, width, height);
+      // Transparent clear to let theme background show through naturally
+      ctx.clearRect(0, 0, width, height);
 
       const rawPeaks = tele.seekbar_spectrum || [];
       const hasRealPeaks = rawPeaks.length > 0;
@@ -136,7 +124,7 @@
       const gap = (width - binCount * barW) / Math.max(1, binCount - 1);
       const cursorX = prog * width;
 
-      const unplayedColor = "rgba(148, 163, 184, 0.25)";
+      const unplayedColor = "rgba(148, 163, 184, 0.28)";
       const playedColor = accentColor;
 
       // Render crisp bars without shadowBlur for minimal CPU/GPU overhead
@@ -190,37 +178,16 @@
   onpointerleave={handlePointerLeave}
   class="relative w-full h-full min-h-[40px] rounded-xl border border-slate-800/80 bg-slate-950/90 shadow-inner select-none cursor-pointer overflow-hidden group p-2"
 >
-  <!-- Header overlay with timestamps and eco badge -->
-  <div class="pointer-events-none absolute inset-x-2.5 top-2 z-20 flex items-center justify-between text-[9px] font-mono text-slate-400">
-    <div class="flex items-center gap-1.5 px-1.5 py-0.5 rounded bg-slate-900/80 border border-slate-800/80 backdrop-blur-xs">
-      <Clock size={10} style="color: {accentColor};" />
-      <span class="font-bold text-slate-200">{formatTime(currentTime)}</span>
-      <span class="text-slate-600">/</span>
-      <span>{formatTime(duration)}</span>
-    </div>
-
-    <div class="flex items-center gap-1 px-1.5 py-0.5 rounded bg-slate-900/70 border border-slate-800/70 text-[8.5px] font-bold text-emerald-400">
-      <Zap size={9} />
-      <span>ECO</span>
-    </div>
-  </div>
-
   <!-- Waveform Canvas -->
   <div class="relative w-full h-full overflow-hidden">
     <canvas bind:this={canvasRef} class="w-full h-full block rounded"></canvas>
 
-    <!-- Interactive Hover Needle & Time Tag -->
+    <!-- Interactive Hover Needle -->
     {#if isHovering}
       <div
-        class="pointer-events-none absolute top-0 bottom-0 w-px bg-white/80"
+        class="pointer-events-none absolute top-0 bottom-0 w-px bg-white/70 shadow-[0_0_8px_#fff]"
         style="left: {hoverX}px;"
       ></div>
-      <div
-        class="pointer-events-none absolute top-8 -translate-x-1/2 rounded bg-slate-900/90 border border-slate-700 px-1.5 py-0.5 font-mono text-[9px] font-bold text-white shadow-md z-30"
-        style="left: {hoverX}px;"
-      >
-        {formatTime(hoverRatio * duration)}
-      </div>
     {/if}
   </div>
 </div>

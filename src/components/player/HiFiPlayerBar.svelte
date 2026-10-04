@@ -968,7 +968,8 @@
               ></div>
               <div
                 class="absolute bottom-[calc(100%+12px)] right-0 w-96 p-3.5 rounded-xl bg-slate-950 border border-slate-700 shadow-2xl z-[110] animate-fadeIn font-mono text-xs"
-                style:box-shadow={appearance.neonGlow ? `0 0 30px ${accentColor}40` : "0 20px 40px rgba(0,0,0,0.9)"}
+                style="background-color: #020617 !important; opacity: 1 !important;"
+                style:box-shadow={appearance.neonGlow ? "0 0 30px rgba(0,0,0,0.95), 0 0 30px " + accentColor + "40" : "0 20px 40px rgba(0,0,0,0.95)"}
               >
                 <div class="flex items-center justify-between pb-2 mb-2.5 border-b border-slate-800">
                   <div class="flex items-center gap-2">
@@ -1083,7 +1084,8 @@
           <!-- Normalization Button -->
           <button
             onclick={() => useMusicStore.getState().setAudioSettings({ isNormalizerEnabled: !isNormActive })}
-            class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border transition cursor-pointer {isNormActive ? 'border-emerald-500 bg-emerald-950/60 text-emerald-300 shadow-[0_0_10px_rgba(16,185,129,0.3)]' : 'border-slate-800 bg-slate-900 text-slate-400 hover:text-white'}"
+            class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border transition cursor-pointer {isNormActive ? '' : 'border-slate-800 bg-slate-900 text-slate-400 hover:text-white'}"
+            style={isNormActive ? `border-color: ${accentColor}80; background-color: ${accentColor}25; color: ${accentColor}; box-shadow: 0 0 10px ${accentColor}40;` : undefined}
             title="Normalizador & Limitador de Loudness"
             aria-label={`Normalización ${isNormActive ? "activa" : "inactiva"}`}
           >
@@ -1136,7 +1138,8 @@
               ></div>
               <div
                 class="absolute bottom-[calc(100%+12px)] right-0 w-64 p-2 rounded-xl bg-slate-950 border border-slate-700 shadow-2xl z-[110] font-mono text-xs animate-fadeIn"
-                style:box-shadow={appearance.neonGlow ? `0 0 25px ${accentColor}40` : "0 20px 40px rgba(0,0,0,0.9)"}
+                style="background-color: #020617 !important; opacity: 1 !important;"
+                style:box-shadow={appearance.neonGlow ? "0 0 25px rgba(0,0,0,0.95), 0 0 25px " + accentColor + "40" : "0 20px 40px rgba(0,0,0,0.95)"}
               >
                 <div class="p-2 text-[10px] uppercase text-slate-400 border-b border-slate-800 font-bold">
                   Dispositivos de Salida

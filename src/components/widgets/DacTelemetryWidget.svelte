@@ -6,14 +6,30 @@
     selectedDeviceStore,
     appearanceStore,
     isPlayingStore,
+    AUDIO_ENGINES,
   } from "../../store/index.ts";
 
+  const musicStore = useMusicStore;
   let audioFormat = $derived($audioFormatStore);
   let selectedDevice = $derived($selectedDeviceStore);
   let appearance = $derived($appearanceStore);
   let isPlaying = $derived($isPlayingStore);
+  let audioSettings = $derived($musicStore.audioSettings);
+  let bitPerfectMode = $derived($musicStore.bitPerfectMode);
 
-  let isBitPerfect = $derived(audioFormat.is_bit_perfect);
+  let currentAudioEngine = $derived(
+    AUDIO_ENGINES.find((e) => e.id === audioSettings?.resamplingQuality) ||
+    (bitPerfectMode ? AUDIO_ENGINES[0] : AUDIO_ENGINES[AUDIO_ENGINES.length - 1])
+  );
+
+  function handleCycleEngine() {
+    const currentId = audioSettings?.resamplingQuality || (bitPerfectMode ? "bit_perfect" : "float32");
+    const currentIndex = AUDIO_ENGINES.findIndex((e) => e.id === currentId);
+    const nextIndex = (currentIndex + 1) % AUDIO_ENGINES.length;
+    const nextEngine = AUDIO_ENGINES[nextIndex];
+    useMusicStore.getState().setAudioSettings({ resamplingQuality: nextEngine.id });
+  }
+
   let sampleRateKhz = $derived(
     audioFormat.sample_rate > 0
       ? (audioFormat.sample_rate / 1000).toFixed(1)
@@ -75,21 +91,28 @@
 
     <button
       type="button"
-      onclick={() => useMusicStore.getState().setBitPerfectMode(!isBitPerfect)}
-      class="w-full py-2 px-3 rounded-lg font-mono text-xs font-bold transition flex items-center justify-center gap-2 border cursor-pointer {isBitPerfect
-        ? 'bg-slate-900 text-white'
-        : 'bg-slate-950 text-slate-400 border-slate-800 hover:border-slate-700'}"
-      style:border-color={isBitPerfect ? appearance.accentColor : undefined}
-      style:box-shadow={isBitPerfect
-        ? `0 0 15px ${appearance.accentColor}55, inset 0 0 10px ${appearance.accentColor}22`
-        : "none"}
-      style:color={isBitPerfect ? appearance.accentColor : undefined}
+      onclick={handleCycleEngine}
+      class="w-full py-2 px-3 rounded-lg font-mono text-xs font-bold transition flex items-center justify-between gap-2 border cursor-pointer hover:brightness-110"
+      style:border-color="{currentAudioEngine.color}80"
+      style:background-color="{currentAudioEngine.color}18"
+      style:box-shadow="0 0 14px {currentAudioEngine.color}35"
+      style:color={currentAudioEngine.color}
+      title={`Motor actual: ${currentAudioEngine.name} · ${currentAudioEngine.description} (clic para conmutar motor de audio)`}
     >
-      <ShieldCheck
-        size={14}
-        style={isBitPerfect ? `color: ${appearance.accentColor}` : undefined}
-      />
-      <span>{isBitPerfect ? "Bit-Perfect (ALSA): Activado" : "Modo compartido (PipeWire)"}</span>
+      <div class="flex items-center gap-2 min-w-0">
+        <ShieldCheck
+          size={14}
+          style="color: {currentAudioEngine.color}"
+        />
+        <span class="truncate">{currentAudioEngine.name}</span>
+      </div>
+      <span
+        class="shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded border"
+        style:border-color="{currentAudioEngine.color}60"
+        style:background-color="{currentAudioEngine.color}25"
+      >
+        {currentAudioEngine.badge}
+      </span>
     </button>
 
     <div class="space-y-2 p-2.5 rounded-lg bg-slate-950 border border-slate-800 text-[10px] text-slate-300">

@@ -7,6 +7,8 @@
     selectedDeviceStore,
     appearanceStore,
     isPlayingStore,
+    useMusicStore,
+    AUDIO_ENGINES,
   } from "../../store/index.ts";
   import type { BufferTelemetry } from "../../types/index.ts";
 
@@ -59,7 +61,22 @@
   let bitrate = $derived(audioFormat.bitrate || 1411);
   let channels = $derived(audioFormat.channels === 1 ? "1.0 Mono" : `${audioFormat.channels || 2}.0 Stereo`);
   let device = $derived(selectedDevice || "Dispositivo predeterminado");
-  let clock = $derived(audioFormat.is_bit_perfect);
+
+  const musicStore = useMusicStore;
+  let audioSettings = $derived($musicStore.audioSettings);
+  let bitPerfectMode = $derived($musicStore.bitPerfectMode);
+  let currentAudioEngine = $derived(
+    AUDIO_ENGINES.find((e) => e.id === audioSettings?.resamplingQuality) ||
+    (bitPerfectMode ? AUDIO_ENGINES[0] : AUDIO_ENGINES[AUDIO_ENGINES.length - 1])
+  );
+
+  function handleCycleEngine() {
+    const currentId = audioSettings?.resamplingQuality || (bitPerfectMode ? "bit_perfect" : "float32");
+    const currentIndex = AUDIO_ENGINES.findIndex((e) => e.id === currentId);
+    const nextIndex = (currentIndex + 1) % AUDIO_ENGINES.length;
+    const nextEngine = AUDIO_ENGINES[nextIndex];
+    useMusicStore.getState().setAudioSettings({ resamplingQuality: nextEngine.id });
+  }
 </script>
 
 <div class="flex h-full min-h-0 w-full items-center justify-center overflow-hidden bg-audiophile-surface p-2 font-mono text-xs">
@@ -69,9 +86,17 @@
   >
     <div class="flex items-center justify-between gap-2 border-b border-slate-800 pb-1.5">
       <span class="text-[9px] uppercase tracking-[0.16em] text-slate-500">Sample rate</span>
-      <span class="text-[9px] uppercase {clock ? 'text-emerald-400' : 'text-slate-500'}">
-        {clock ? "Bit-perfect" : isPlaying ? "Playing" : "Stopped"}
-      </span>
+      <button
+        type="button"
+        onclick={handleCycleEngine}
+        title={`Motor actual: ${currentAudioEngine.name} · ${currentAudioEngine.description} (clic para conmutar)`}
+        class="text-[9px] uppercase font-bold px-1.5 py-0.2 rounded border transition cursor-pointer hover:brightness-125"
+        style:border-color="{currentAudioEngine.color}60"
+        style:background-color="{currentAudioEngine.color}20"
+        style:color={currentAudioEngine.color}
+      >
+        {currentAudioEngine.badge} · {currentAudioEngine.id === "bit_perfect" ? "Bit-Perfect" : currentAudioEngine.name.split(" ")[0]}
+      </button>
     </div>
     <div class="flex items-baseline gap-1 pt-1">
       <span class="text-2xl font-black" style:color={appearance.accentColor}>

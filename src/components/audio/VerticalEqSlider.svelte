@@ -125,8 +125,6 @@
   }
 
   let heightStyle = $derived(typeof height === "number" ? `${height}px` : height);
-  let isBoost = $derived(clampedValue > 0.05);
-  let isCut = $derived(clampedValue < -0.05);
 </script>
 
 <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
@@ -163,25 +161,13 @@
       class="absolute top-1/2 left-0 right-0 h-[1.5px] bg-slate-600/90 -translate-y-1/2 z-0 pointer-events-none"
     ></div>
 
-    <!-- Reactive LED boost fill (from center 50% upwards) -->
-    {#if isBoost}
-      <div
-        class="absolute bottom-1/2 left-0 right-0 pointer-events-none transition-[height] duration-75"
-        style:height="calc({Math.max(0, pct - 0.5)} * (100% - {PADDING_PX * 2}px))"
-        style:background="linear-gradient(to top, {accentColor}40 0%, {accentColor} 100%)"
-        style:box-shadow="0 0 8px {accentColor}90"
-      ></div>
-    {/if}
-
-    <!-- Reactive LED cut fill (from center 50% downwards) -->
-    {#if isCut}
-      <div
-        class="absolute top-1/2 left-0 right-0 pointer-events-none transition-[height] duration-75"
-        style:height="calc({Math.max(0, 0.5 - pct)} * (100% - {PADDING_PX * 2}px))"
-        style:background="linear-gradient(to bottom, rgba(244,63,94,0.35) 0%, rgba(244,63,94,0.95) 100%)"
-        style:box-shadow="0 0 8px rgba(244,63,94,0.7)"
-      ></div>
-    {/if}
+    <!-- Accent LED fill coming from the bottom up to the fader knob -->
+    <div
+      class="absolute bottom-0 left-0 right-0 pointer-events-none transition-[height] duration-75"
+      style:height="calc({PADDING_PX}px + {pct} * (100% - {PADDING_PX * 2}px))"
+      style:background="linear-gradient(to top, {accentColor}30 0%, {accentColor}85 65%, {accentColor} 100%)"
+      style:box-shadow="0 0 8px {accentColor}80"
+    ></div>
   </div>
 
   <!-- Audiophile Studio Fader Knob Handle -->
