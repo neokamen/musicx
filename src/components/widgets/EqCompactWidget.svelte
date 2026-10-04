@@ -41,6 +41,21 @@
       });
     }
   }
+  let subVal = $derived(audioSettings.eqSubBoost || 0);
+  let subPct = $derived(Math.max(0, Math.min(100, ((subVal - (-6)) / (12 - (-6))) * 100)));
+  let isSubActive = $derived(subVal !== 0);
+
+  let hpVal = $derived(audioSettings.eqHighpass || 0);
+  let hpPct = $derived(Math.max(0, Math.min(100, ((hpVal - 0) / (400 - 0)) * 100)));
+  let isHpActive = $derived(hpVal > 0);
+
+  let bassVal = $derived(audioSettings.eqBassBoost || 0);
+  let bassPct = $derived(Math.max(0, Math.min(100, ((bassVal - (-6)) / (12 - (-6))) * 100)));
+  let isBassActive = $derived(bassVal !== 0);
+
+  let lpVal = $derived(audioSettings.eqLowpass ?? 0);
+  let lpPct = $derived(Math.max(0, Math.min(100, ((lpVal - 0) / (22000 - 0)) * 100)));
+  let isLpActive = $derived(lpVal !== 0 && lpVal !== 22000);
 </script>
 
 <div class="flex h-full min-h-0 w-full flex-col overflow-auto bg-audiophile-surface font-mono text-xs select-none">
@@ -124,14 +139,14 @@
   </header>
 
   <!-- 10 Vertical Pro Faders -->
-  <div class="grid shrink-0 grid-cols-10 gap-1 px-2 py-2 bg-gradient-to-b from-slate-950/30 to-transparent">
+  <div class="grid shrink-0 grid-cols-10 gap-1 px-2 pt-1 pb-1.5 bg-gradient-to-b from-slate-950/30 to-transparent">
     {#each FREQUENCIES as frequency, index (frequency)}
       {@const gain = gains[index] || 0}
       {@const isBoost = gain > 0}
       {@const isCut = gain < 0}
-      <div class="flex min-w-0 flex-col items-center justify-between gap-1 group">
+      <div class="flex min-w-0 flex-col items-center justify-between gap-0.5 group">
         <span
-          class="h-3 text-[8.5px] font-mono leading-none tracking-tighter transition-all {isBoost
+          class="text-[8px] font-mono leading-none tracking-tighter transition-all {isBoost
             ? 'font-bold text-white drop-shadow-[0_0_5px_rgba(255,255,255,0.6)]'
             : isCut
               ? 'text-rose-400/90 font-medium'
@@ -142,7 +157,7 @@
           {isBoost ? `+${gain.toFixed(1)}` : gain.toFixed(1)}
         </span>
 
-        <div class="relative h-18 w-5 flex items-center justify-center py-1">
+        <div class="relative h-18 w-5 flex items-center justify-center py-0.5">
           <VerticalEqSlider
             value={gain}
             min={-12}
@@ -157,7 +172,7 @@
         </div>
 
         <span
-          class="text-[8.5px] font-mono leading-none tracking-tight text-slate-400 group-hover:text-white transition-colors"
+          class="text-[8px] font-mono leading-none tracking-tight text-slate-400 group-hover:text-white transition-colors"
           style:color={isBoost ? accent : undefined}
           style:opacity={isBoost ? 0.95 : 0.65}
         >
@@ -167,57 +182,108 @@
     {/each}
   </div>
 
-  <!-- 4 Horizontal Sliders (Sub, Bass, Highpass, Lowpass) -->
-  <div class="grid shrink-0 grid-cols-2 gap-1.5 border-t border-slate-800/80 bg-slate-950/60 p-2">
-    {#each [
-      { key: "eqSubBoost" as const, label: "Sub Boost", min: -6, max: 12, step: 0.5, unit: "dB" },
-      { key: "eqBassBoost" as const, label: "Bass Boost", min: -6, max: 12, step: 0.5, unit: "dB" },
-      { key: "eqHighpass" as const, label: "Highpass", min: 0, max: 400, step: 5, unit: "Hz" },
-      { key: "eqLowpass" as const, label: "Lowpass", min: 0, max: 22000, step: 500, unit: "Hz" },
-    ] as { key, label, min, max, step, unit } (key)}
-      {@const value = audioSettings[key] || 0}
-      {@const pct = Math.max(0, Math.min(100, ((value - min) / (max - min)) * 100))}
-      {@const shownValue =
-        key === "eqLowpass" && value >= 1000
-          ? `${(value / 1000).toFixed(1)}k Hz`
-          : value === 0 && (key === "eqHighpass" || key === "eqLowpass")
-            ? "Off"
-            : `${value > 0 && unit === "dB" ? "+" : ""}${value} ${unit}`}
-      {@const isActive = value !== 0 && !(key === "eqLowpass" && value === 22000)}
-
-      <div
-        class="min-w-0 rounded-lg border border-slate-800/70 bg-slate-900/60 p-1.5 flex flex-col justify-between shadow-sm transition hover:border-slate-700"
-      >
-        <div class="flex items-center justify-between gap-1 text-[9px]">
-          <span class="truncate text-slate-400 uppercase tracking-wider font-semibold">
-            {label}
-          </span>
-          <span
-            class="shrink-0 font-mono font-bold px-1.5 py-0.2 rounded text-[9px]"
-            style:color={isActive ? accent : "#94a3b8"}
-            style:background-color={isActive ? `${accent}15` : "rgba(15,23,42,0.6)"}
-            style:border="1px solid {isActive ? `${accent}40` : 'rgba(51,65,85,0.4)'}"
-            style:box-shadow={isActive ? `0 0 6px ${accent}25` : undefined}
-          >
-            {shownValue}
+  <!-- 2 Unified Boxes: [Sub Boost + Highpass] and [Bass Boost + Lowpass] -->
+  <div class="grid shrink-0 grid-cols-2 gap-1.5 border-t border-slate-800/80 bg-slate-950/60 p-1.5">
+    <!-- Box 1: Sub Boost & Highpass -->
+    <div class="min-w-0 rounded-lg border border-slate-800/70 bg-slate-900/60 p-1.5 flex flex-col gap-1.5 shadow-sm transition hover:border-slate-700">
+      <!-- Sub Boost Row -->
+      <div>
+        <div class="flex items-center justify-between text-[8.5px] leading-tight">
+          <span class="truncate text-slate-400 uppercase tracking-wider font-semibold">Sub Boost</span>
+          <span class="shrink-0 font-mono font-bold text-[8.5px]" style:color={isSubActive ? accent : "#94a3b8"}>
+            {subVal > 0 ? `+${subVal.toFixed(1)}` : subVal.toFixed(1)} dB
           </span>
         </div>
-
-        <div class="relative mt-1.5 flex items-center">
+        <div class="relative mt-0.5 flex items-center">
           <input
-            aria-label={label}
+            aria-label="Sub Boost"
             type="range"
-            {min}
-            {max}
-            {step}
-            {value}
-            oninput={(event) => updateSetting(key, Number(event.currentTarget.value))}
+            min={-6}
+            max={12}
+            step={0.5}
+            value={subVal}
+            oninput={(e) => updateSetting("eqSubBoost", Number(e.currentTarget.value))}
             class="eq-pocket-horizontal w-full cursor-pointer z-10"
-            style:background="linear-gradient(to right, {accent}80 0%, {accent} {pct}%, rgba(15, 23, 42, 0.9) {pct}%, rgba(15, 23, 42, 0.9) 100%)"
-            style:box-shadow={isActive ? `inset 0 1px 3px rgba(0,0,0,0.8), 0 0 8px ${accent}25` : undefined}
+            style:background="linear-gradient(to right, {accent}80 0%, {accent} {subPct}%, rgba(15, 23, 42, 0.9) {subPct}%, rgba(15, 23, 42, 0.9) 100%)"
+            style:box-shadow={isSubActive ? `inset 0 1px 3px rgba(0,0,0,0.8), 0 0 6px ${accent}25` : undefined}
           />
         </div>
       </div>
-    {/each}
+
+      <!-- Highpass Row -->
+      <div>
+        <div class="flex items-center justify-between text-[8.5px] leading-tight">
+          <span class="truncate text-slate-400 uppercase tracking-wider font-semibold">Highpass</span>
+          <span class="shrink-0 font-mono font-bold text-[8.5px]" style:color={isHpActive ? accent : "#94a3b8"}>
+            {hpVal === 0 ? "Off" : `${hpVal} Hz`}
+          </span>
+        </div>
+        <div class="relative mt-0.5 flex items-center">
+          <input
+            aria-label="Highpass"
+            type="range"
+            min={0}
+            max={400}
+            step={5}
+            value={hpVal}
+            oninput={(e) => updateSetting("eqHighpass", Number(e.currentTarget.value))}
+            class="eq-pocket-horizontal w-full cursor-pointer z-10"
+            style:background="linear-gradient(to right, {accent}80 0%, {accent} {hpPct}%, rgba(15, 23, 42, 0.9) {hpPct}%, rgba(15, 23, 42, 0.9) 100%)"
+            style:box-shadow={isHpActive ? `inset 0 1px 3px rgba(0,0,0,0.8), 0 0 6px ${accent}25` : undefined}
+          />
+        </div>
+      </div>
+    </div>
+
+    <!-- Box 2: Bass Boost & Lowpass -->
+    <div class="min-w-0 rounded-lg border border-slate-800/70 bg-slate-900/60 p-1.5 flex flex-col gap-1.5 shadow-sm transition hover:border-slate-700">
+      <!-- Bass Boost Row -->
+      <div>
+        <div class="flex items-center justify-between text-[8.5px] leading-tight">
+          <span class="truncate text-slate-400 uppercase tracking-wider font-semibold">Bass Boost</span>
+          <span class="shrink-0 font-mono font-bold text-[8.5px]" style:color={isBassActive ? accent : "#94a3b8"}>
+            {bassVal > 0 ? `+${bassVal.toFixed(1)}` : bassVal.toFixed(1)} dB
+          </span>
+        </div>
+        <div class="relative mt-0.5 flex items-center">
+          <input
+            aria-label="Bass Boost"
+            type="range"
+            min={-6}
+            max={12}
+            step={0.5}
+            value={bassVal}
+            oninput={(e) => updateSetting("eqBassBoost", Number(e.currentTarget.value))}
+            class="eq-pocket-horizontal w-full cursor-pointer z-10"
+            style:background="linear-gradient(to right, {accent}80 0%, {accent} {bassPct}%, rgba(15, 23, 42, 0.9) {bassPct}%, rgba(15, 23, 42, 0.9) 100%)"
+            style:box-shadow={isBassActive ? `inset 0 1px 3px rgba(0,0,0,0.8), 0 0 6px ${accent}25` : undefined}
+          />
+        </div>
+      </div>
+
+      <!-- Lowpass Row -->
+      <div>
+        <div class="flex items-center justify-between text-[8.5px] leading-tight">
+          <span class="truncate text-slate-400 uppercase tracking-wider font-semibold">Lowpass</span>
+          <span class="shrink-0 font-mono font-bold text-[8.5px]" style:color={isLpActive ? accent : "#94a3b8"}>
+            {lpVal === 22000 || lpVal === 0 ? "Off" : lpVal >= 1000 ? `${(lpVal / 1000).toFixed(1)}k Hz` : `${lpVal} Hz`}
+          </span>
+        </div>
+        <div class="relative mt-0.5 flex items-center">
+          <input
+            aria-label="Lowpass"
+            type="range"
+            min={0}
+            max={22000}
+            step={500}
+            value={lpVal}
+            oninput={(e) => updateSetting("eqLowpass", Number(e.currentTarget.value))}
+            class="eq-pocket-horizontal w-full cursor-pointer z-10"
+            style:background="linear-gradient(to right, {accent}80 0%, {accent} {lpPct}%, rgba(15, 23, 42, 0.9) {lpPct}%, rgba(15, 23, 42, 0.9) 100%)"
+            style:box-shadow={isLpActive ? `inset 0 1px 3px rgba(0,0,0,0.8), 0 0 6px ${accent}25` : undefined}
+          />
+        </div>
+      </div>
+    </div>
   </div>
 </div>

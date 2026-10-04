@@ -28,7 +28,8 @@ export type WidgetType =
   | "audio_telemetry_full"
   | "waveform_bars"
   | "waveform_envelope"
-  | "waveform_matrix";
+  | "waveform_matrix"
+  | "waveform_eco";
 
 export interface WidgetMeta {
   type: WidgetType;
@@ -186,6 +187,11 @@ export const AVAILABLE_WIDGETS: WidgetMeta[] = ([
     type: "waveform_matrix",
     label: "Onda de Canción (Matriz Digital)",
     description: "Onda segmentada estilo matriz de bloques de estudio, interactiva con el ratón",
+  },
+  {
+    type: "waveform_eco",
+    label: "Onda de Canción (Bajo Consumo)",
+    description: "Onda de pista optimizada para mínimo consumo de CPU/GPU, interactiva para mover la canción",
   },
 ] satisfies WidgetMeta[]).sort((a, b) => a.label.localeCompare(b.label, "es", { sensitivity: "base" }));
 

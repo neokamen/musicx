@@ -28,6 +28,7 @@
   import WaveformBarsWidget from "./WaveformBarsWidget.svelte";
   import WaveformEnvelopeWidget from "./WaveformEnvelopeWidget.svelte";
   import WaveformMatrixWidget from "./WaveformMatrixWidget.svelte";
+  import WaveformEcoWidget from "./WaveformEcoWidget.svelte";
 
   interface Props {
     widget: WidgetType;
@@ -98,6 +99,8 @@
   <WaveformEnvelopeWidget />
 {:else if widget === "waveform_matrix"}
   <WaveformMatrixWidget />
+{:else if widget === "waveform_eco"}
+  <WaveformEcoWidget />
 {:else}
   <div class="p-4 text-center text-audiophile-muted font-mono text-xs">
     Widget desconocido: {widget}
