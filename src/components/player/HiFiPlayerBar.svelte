@@ -20,6 +20,7 @@
   } from "../../store/index.ts";
   import { TRANSPORT_STYLES } from "../../lib/transportStyles.ts";
   import { SOUNDIX_PRESETS } from "../../types/eq.ts";
+  import VerticalEqSlider from "../audio/VerticalEqSlider.svelte";
   import {
     Play,
     Pause,
@@ -402,7 +403,7 @@
 
 <footer
   style="height: {height}px; --player-side-width: {playerInfoWidth}px;"
-  class="grid grid-cols-[var(--player-side-width)_minmax(0,1fr)_var(--player-side-width)] items-center gap-0 border-t border-slate-800/80 bg-slate-950/95 px-4 z-40 select-none shrink-0 relative overflow-hidden isolate"
+  class="grid grid-cols-[var(--player-side-width)_minmax(0,1fr)_minmax(236px,var(--player-side-width))] items-center gap-0 border-t border-slate-800/80 bg-slate-950/95 px-4 z-40 select-none shrink-0 relative overflow-hidden isolate"
 >
   {#if playbackSettings?.diffusePlayerBar && currentCoverArt}
     <div
@@ -930,8 +931,8 @@
 
     <!-- Right block: Upper Row (EQ +, NORM, STEREO/MONO, Speaker Device) | Lower Row (Volume Slider) -->
     <div class="relative z-10 flex h-full w-full min-w-0 flex-col items-stretch justify-center gap-1.5">
-      <div class="ml-auto flex w-[204px] max-w-full items-center justify-end gap-2">
-        <div class="flex items-center gap-2">
+      <div class="ml-auto flex w-full max-w-[236px] items-center justify-end gap-1.5">
+        <div class="flex items-center gap-1.5">
           <!-- EQ + Button -->
           <div class="relative">
             <div class="flex h-8 w-14 items-center rounded-lg bg-slate-900 border overflow-hidden transition {isEqActive ? 'border-cyan-400 shadow-[0_0_9px_var(--app-accent)]' : 'border-slate-800'}">
@@ -1000,28 +1001,25 @@
                 <div class="flex justify-between items-center gap-1 h-28 py-1">
                   {#each freqs as freq, idx}
                     {@const gain = eqGains[idx] || 0}
-                    {@const pct = Math.max(0, Math.min(100, ((gain + 12) / 24) * 100))}
-                    {@const alphaIntensity = Math.max(0.25, pct / 100)}
-
                     <div class="flex-1 flex flex-col items-center justify-between h-full">
                       <span class="text-[8px] text-slate-400 font-mono">
                         {gain > 0 ? `+${gain.toFixed(0)}` : gain.toFixed(0)}
                       </span>
                       <div class="relative h-16 w-4 flex items-center justify-center py-0.5">
-                        <input
-                          type="range"
-                          min="-12"
-                          max="12"
-                          step="0.5"
+                        <VerticalEqSlider
                           value={gain}
-                          oninput={(e) => {
+                          min={-12}
+                          max={12}
+                          step={0.5}
+                          height={64}
+                          {accentColor}
+                          title={`${freq}: ${gain > 0 ? '+' : ''}{gain} dB`}
+                          ariaLabel={freq}
+                          onchange={(val) => {
                             const next = [...eqGains];
-                            next[idx] = parseFloat((e.target as HTMLInputElement).value);
+                            next[idx] = val;
                             useMusicStore.getState().setAudioSettings({ eqGains: next, isEqEnabled: true });
                           }}
-                          class="eq-pocket-vertical-fill z-10 h-16 cursor-pointer"
-                          style="background: {pct > 0 ? `linear-gradient(to top, ${accentColor}25 0%, ${accentColor}85 ${pct * 0.7}%, ${accentColor} ${pct}%, rgba(15, 23, 42, 0.95) ${pct}%, rgba(15, 23, 42, 0.95) 100%)` : `linear-gradient(to top, rgba(15, 23, 42, 0.95) 0%, rgba(15, 23, 42, 0.95) 100%)`}; box-shadow: {pct > 0 ? `inset 0 1px 3px rgba(0,0,0,0.85), 0 0 ${Math.round(4 + alphaIntensity * 8)}px ${accentColor}45` : `inset 0 1px 3px rgba(0,0,0,0.85)`};"
-                          title="{freq}: {gain > 0 ? '+' : ''}{gain} dB"
                         />
                       </div>
                       <span class="text-[8px] text-slate-400 font-bold font-mono">{freq}</span>
@@ -1142,7 +1140,7 @@
       </div>
 
       <!-- Lower Row: Volume Slider with Percentage -->
-      <div class="ml-auto grid w-[204px] max-w-full grid-cols-[1.5rem_minmax(0,1fr)_2rem] items-center gap-1">
+      <div class="ml-auto grid w-full max-w-[236px] grid-cols-[1.5rem_minmax(0,1fr)_2rem] items-center gap-1">
         <button
           onclick={() => void useMusicStore.getState().setVolume(volume > 0 ? 0 : 1)}
           class="flex h-8 w-6 -translate-x-[3px] items-center justify-start text-slate-400 hover:text-white transition-colors cursor-pointer"

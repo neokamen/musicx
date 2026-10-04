@@ -15,6 +15,7 @@
   import type { EqBand, Preset } from "../../types/eq.ts";
   import { DEFAULT_BANDS, BAND_LABELS, BAND_NAMES, SOUNDIX_PRESETS } from "../../types/eq.ts";
   import FreqResponseCanvas from "./FreqResponseCanvas.svelte";
+  import VerticalEqSlider from "./VerticalEqSlider.svelte";
 
   interface Props {
     isOpen: boolean;
@@ -246,8 +247,6 @@
         class="flex gap-1.5 justify-between bg-slate-950/60 p-3.5 rounded-xl border border-slate-800/80 shadow-inner transition-opacity {!audioSettings.isEqEnabled ? 'opacity-35 pointer-events-none' : ''}"
       >
         {#each bands as band, i (i)}
-          {@const pct = Math.max(0, Math.min(100, ((band.gain + 12) / 24) * 100))}
-          {@const alphaIntensity = Math.max(0.25, pct / 100)}
           <div class="flex flex-col items-center gap-1.5 flex-1 group">
             <span
               class="text-[10px] font-mono leading-none tracking-tight transition-all {band.gain > 0 ? 'font-bold text-white drop-shadow-[0_0_6px_rgba(255,255,255,0.7)]' : band.gain < 0 ? 'text-rose-400 font-medium' : 'text-slate-500'}"
@@ -264,22 +263,16 @@
                 ></div>
               {/each}
 
-              <input
-                type="range"
+              <VerticalEqSlider
+                value={band.gain}
                 min={-12}
                 max={12}
                 step={0.5}
-                value={band.gain}
-                oninput={(e) => updateBandGain(i, parseFloat(e.currentTarget.value))}
-                class="eq-pocket-vertical-fill z-10 cursor-pointer"
-                style:height="130px"
-                style:background={pct > 0
-                  ? `linear-gradient(to top, ${accentColor}25 0%, ${accentColor}85 ${pct * 0.7}%, ${accentColor} ${pct}%, rgba(15, 23, 42, 0.95) ${pct}%, rgba(15, 23, 42, 0.95) 100%)`
-                  : `linear-gradient(to top, rgba(15, 23, 42, 0.95) 0%, rgba(15, 23, 42, 0.95) 100%)`}
-                style:box-shadow={pct > 0
-                  ? `inset 0 1px 3px rgba(0,0,0,0.85), 0 0 ${Math.round(4 + alphaIntensity * 8)}px ${accentColor}45`
-                  : `inset 0 1px 3px rgba(0,0,0,0.85)`}
-                title="{BAND_NAMES[i]}: {band.gain > 0 ? '+' : ''}{band.gain.toFixed(1)} dB"
+                height={130}
+                {accentColor}
+                title={`${BAND_NAMES[i]}: ${band.gain > 0 ? '+' : ''}${band.gain.toFixed(1)} dB`}
+                ariaLabel={BAND_NAMES[i]}
+                onchange={(val) => updateBandGain(i, val)}
               />
             </div>
 

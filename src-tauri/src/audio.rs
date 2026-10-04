@@ -70,10 +70,23 @@ enum ActiveResampler {
 }
 
 impl ActiveResampler {
+    pub fn input_frames_next(&self) -> usize {
+        match self {
+            ActiveResampler::Sinc(r) => r.input_frames_next(),
+            ActiveResampler::Fft(r) => r.input_frames_next(),
+        }
+    }
+
     pub fn process_chunk(&mut self, chunk: &[Vec<f32>]) -> Result<Vec<Vec<f32>>, String> {
         match self {
-            ActiveResampler::Sinc(r) => r.process(chunk, None).map_err(|e| e.to_string()),
-            ActiveResampler::Fft(r) => r.process(chunk, None).map_err(|e| e.to_string()),
+            ActiveResampler::Sinc(r) => r.process(chunk, None).map_err(|e| {
+                eprintln!("[ActiveResampler Sinc error]: {}", e);
+                e.to_string()
+            }),
+            ActiveResampler::Fft(r) => r.process(chunk, None).map_err(|e| {
+                eprintln!("[ActiveResampler Fft error]: {}", e);
+                e.to_string()
+            }),
         }
     }
 
@@ -88,7 +101,6 @@ impl ActiveResampler {
 pub struct ResamplingPipeline {
     resampler: ActiveResampler,
     input_buffers: Vec<Vec<f32>>,
-    chunk_size: usize,
     channels: usize,
 }
 
@@ -105,46 +117,46 @@ impl ResamplingPipeline {
         let resampler = match engine {
             ResamplingEngine::Soxr => {
                 let params = SincInterpolationParameters {
-                    sinc_len: 256,
+                    sinc_len: 128,
                     f_cutoff: 0.98,
-                    interpolation: SincInterpolationType::Cubic,
-                    oversampling_factor: 512,
+                    interpolation: SincInterpolationType::Linear,
+                    oversampling_factor: 256,
                     window: WindowFunction::BlackmanHarris2,
                 };
-                ActiveResampler::Sinc(SincFixedIn::<f32>::new(ratio, 2.0, params, chunk_size, channels).map_err(|e| e.to_string())?)
+                ActiveResampler::Sinc(SincFixedIn::<f32>::new(ratio, 1.1, params, chunk_size, channels).map_err(|e| e.to_string())?)
             }
             ResamplingEngine::R8brain => {
                 ActiveResampler::Fft(FftFixedInOut::<f32>::new(source_sr, target_sr, chunk_size, channels).map_err(|e| e.to_string())?)
             }
             ResamplingEngine::Symphonia192k => {
                 let params = SincInterpolationParameters {
-                    sinc_len: 160,
+                    sinc_len: 128,
                     f_cutoff: 0.96,
-                    interpolation: SincInterpolationType::Cubic,
+                    interpolation: SincInterpolationType::Linear,
                     oversampling_factor: 256,
                     window: WindowFunction::BlackmanHarris,
                 };
-                ActiveResampler::Sinc(SincFixedIn::<f32>::new(ratio, 2.0, params, chunk_size, channels).map_err(|e| e.to_string())?)
+                ActiveResampler::Sinc(SincFixedIn::<f32>::new(ratio, 1.1, params, chunk_size, channels).map_err(|e| e.to_string())?)
             }
             ResamplingEngine::Rubato => {
                 let params = SincInterpolationParameters {
                     sinc_len: 128,
                     f_cutoff: 0.95,
-                    interpolation: SincInterpolationType::Cubic,
+                    interpolation: SincInterpolationType::Linear,
                     oversampling_factor: 256,
                     window: WindowFunction::BlackmanHarris,
                 };
-                ActiveResampler::Sinc(SincFixedIn::<f32>::new(ratio, 2.0, params, chunk_size, channels).map_err(|e| e.to_string())?)
+                ActiveResampler::Sinc(SincFixedIn::<f32>::new(ratio, 1.1, params, chunk_size, channels).map_err(|e| e.to_string())?)
             }
             ResamplingEngine::Symphonia96k => {
                 let params = SincInterpolationParameters {
-                    sinc_len: 128,
+                    sinc_len: 96,
                     f_cutoff: 0.95,
                     interpolation: SincInterpolationType::Linear,
                     oversampling_factor: 128,
                     window: WindowFunction::BlackmanHarris,
                 };
-                ActiveResampler::Sinc(SincFixedIn::<f32>::new(ratio, 2.0, params, chunk_size, channels).map_err(|e| e.to_string())?)
+                ActiveResampler::Sinc(SincFixedIn::<f32>::new(ratio, 1.1, params, chunk_size, channels).map_err(|e| e.to_string())?)
             }
             ResamplingEngine::Zita => {
                 let params = SincInterpolationParameters {
@@ -154,7 +166,7 @@ impl ResamplingPipeline {
                     oversampling_factor: 128,
                     window: WindowFunction::Hann2,
                 };
-                ActiveResampler::Sinc(SincFixedIn::<f32>::new(ratio, 2.0, params, chunk_size, channels).map_err(|e| e.to_string())?)
+                ActiveResampler::Sinc(SincFixedIn::<f32>::new(ratio, 1.1, params, chunk_size, channels).map_err(|e| e.to_string())?)
             }
             ResamplingEngine::Speexdsp => {
                 let params = SincInterpolationParameters {
@@ -164,7 +176,7 @@ impl ResamplingPipeline {
                     oversampling_factor: 64,
                     window: WindowFunction::Hann,
                 };
-                ActiveResampler::Sinc(SincFixedIn::<f32>::new(ratio, 2.0, params, chunk_size, channels).map_err(|e| e.to_string())?)
+                ActiveResampler::Sinc(SincFixedIn::<f32>::new(ratio, 1.1, params, chunk_size, channels).map_err(|e| e.to_string())?)
             }
             _ => return Err("No resampler needed for BitPerfect or Float32".to_string()),
         };
@@ -172,7 +184,6 @@ impl ResamplingPipeline {
         Ok(Self {
             resampler,
             input_buffers: vec![Vec::with_capacity(chunk_size * 2); channels],
-            chunk_size,
             channels,
         })
     }
@@ -198,10 +209,11 @@ impl ResamplingPipeline {
             self.input_buffers[1].extend_from_slice(&planes[0][..frames]);
         }
 
-        while self.input_buffers[0].len() >= self.chunk_size {
-            let mut chunk = vec![Vec::with_capacity(self.chunk_size); self.channels];
+        while self.input_buffers[0].len() >= self.resampler.input_frames_next() {
+            let needed = self.resampler.input_frames_next();
+            let mut chunk = vec![Vec::with_capacity(needed); self.channels];
             for c in 0..self.channels {
-                chunk[c].extend(self.input_buffers[c].drain(..self.chunk_size));
+                chunk[c].extend(self.input_buffers[c].drain(..needed));
             }
 
             if let Ok(resampled) = self.resampler.process_chunk(&chunk) {
@@ -223,12 +235,13 @@ impl ResamplingPipeline {
             return;
         }
         let remaining = self.input_buffers[0].len();
+        let needed = self.resampler.input_frames_next();
         for c in 0..self.channels {
-            self.input_buffers[c].resize(self.chunk_size, 0.0);
+            self.input_buffers[c].resize(needed, 0.0);
         }
         if let Ok(resampled) = self.resampler.process_chunk(&self.input_buffers) {
             if !resampled.is_empty() {
-                let ratio = resampled[0].len() as f64 / self.chunk_size as f64;
+                let ratio = resampled[0].len() as f64 / needed as f64;
                 let actual_out_frames = ((remaining as f64 * ratio).round() as usize).min(resampled[0].len());
                 for i in 0..actual_out_frames {
                     output_interleaved.push(resampled[0][i]);
@@ -238,8 +251,8 @@ impl ResamplingPipeline {
                 }
             }
         }
-        for c in 0..self.channels {
-            self.input_buffers[c].clear();
+        for buf in self.input_buffers.iter_mut() {
+            buf.clear();
         }
     }
 }
@@ -566,7 +579,7 @@ impl AudioEngineInternal {
                 let mut decode_iterations = 0;
                 while self.pcm_buffer.lock().unwrap().len() < target_capacity
                     && self.current_source.is_some()
-                    && decode_iterations < 16
+                    && decode_iterations < 32
                 {
                     self.decode_next_packet();
                     decode_iterations += 1;
@@ -581,7 +594,7 @@ impl AudioEngineInternal {
             }
 
             self.update_telemetry();
-            thread::sleep(Duration::from_millis(25));
+            thread::sleep(Duration::from_millis(15));
         }
     }
 
@@ -681,8 +694,18 @@ impl AudioEngineInternal {
 
             if self.active_sample_rate != target_sr {
                 self.active_sample_rate = target_sr;
+                self.pcm_buffer.lock().unwrap().clear();
                 if self.cpal_stream.is_some() {
                     self.setup_cpal_stream();
+                }
+                let target_capacity = (self.active_sample_rate as usize * self.active_channels as usize) * 2;
+                let mut prefill = 0;
+                while self.pcm_buffer.lock().unwrap().len() < target_capacity
+                    && self.current_source.is_some()
+                    && prefill < 32
+                {
+                    self.decode_next_packet();
+                    prefill += 1;
                 }
             }
         } else {
@@ -862,9 +885,8 @@ impl AudioEngineInternal {
     pub(crate) fn convert_and_push(
         decoded: &AudioBufferRef,
         buffer: &Arc<Mutex<VecDeque<f32>>>,
-        overruns_counter: &Arc<AtomicU64>,
+        _overruns_counter: &Arc<AtomicU64>,
     ) {
-        let max_capacity = 96_000 * 4; // Max ~2-4s of samples
         let mut samples_to_push = Vec::new();
         match decoded {
             AudioBufferRef::F32(buf) => {
@@ -939,13 +961,6 @@ impl AudioEngineInternal {
 
         if !samples_to_push.is_empty() {
             let mut target = buffer.lock().unwrap();
-            if target.len() + samples_to_push.len() > max_capacity {
-                overruns_counter.fetch_add(1, Ordering::Relaxed);
-                let drop_count = (target.len() + samples_to_push.len()) - max_capacity;
-                for _ in 0..drop_count.min(target.len()) {
-                    target.pop_front();
-                }
-            }
             for s in samples_to_push {
                 target.push_back(s);
             }
@@ -955,11 +970,10 @@ impl AudioEngineInternal {
     fn process_decoded_audio(
         pipeline: &mut Option<ResamplingPipeline>,
         pcm_buffer: &Arc<Mutex<VecDeque<f32>>>,
-        overruns: &Arc<AtomicU64>,
+        _overruns: &Arc<AtomicU64>,
         decoded: &AudioBufferRef,
     ) {
         if let Some(ref mut pipe) = pipeline {
-            let max_capacity = 96_000 * 4;
             let mut samples_to_push = Vec::new();
             match decoded {
                 AudioBufferRef::F32(buf) => {
@@ -1015,19 +1029,12 @@ impl AudioEngineInternal {
 
             if !samples_to_push.is_empty() {
                 let mut target = pcm_buffer.lock().unwrap();
-                if target.len() + samples_to_push.len() > max_capacity {
-                    overruns.fetch_add(1, Ordering::Relaxed);
-                    let drop_count = (target.len() + samples_to_push.len()) - max_capacity;
-                    for _ in 0..drop_count.min(target.len()) {
-                        target.pop_front();
-                    }
-                }
                 for s in samples_to_push {
                     target.push_back(s);
                 }
             }
         } else {
-            Self::convert_and_push(decoded, pcm_buffer, overruns);
+            Self::convert_and_push(decoded, pcm_buffer, _overruns);
         }
     }
 
@@ -1510,7 +1517,7 @@ pub fn get_available_audio_devices() -> Vec<String> {
 mod spectrum_tests {
     use super::{
         analyze_track_waveform, calculate_spectrum, estimate_tempo, normalize_waveform_bins,
-        SEEKBAR_SPECTRUM_BINS,
+        ResamplingEngine, ResamplingPipeline, SEEKBAR_SPECTRUM_BINS,
     };
     use rustfft::FftPlanner;
     use std::fs;
@@ -1601,4 +1608,42 @@ mod spectrum_tests {
         let loud_level = waveform[220..340].iter().sum::<f32>() / 120.0;
         assert!(loud_level > quiet_level * 5.0);
     }
+
+    #[test]
+    fn test_all_resampling_engines() {
+        let engines = [
+            ResamplingEngine::Soxr,
+            ResamplingEngine::R8brain,
+            ResamplingEngine::Symphonia192k,
+            ResamplingEngine::Rubato,
+            ResamplingEngine::Symphonia96k,
+            ResamplingEngine::Zita,
+            ResamplingEngine::Speexdsp,
+        ];
+
+        for &engine in &engines {
+            let target_sr = match engine {
+                ResamplingEngine::Symphonia192k => 192_000,
+                ResamplingEngine::Speexdsp => 48_000,
+                _ => 96_000,
+            };
+
+            let mut pipe = ResamplingPipeline::new(engine, 44_100, target_sr, 2)
+                .expect(&format!("Failed to create pipeline for {:?}", engine));
+
+            println!("Engine {:?}: input_frames_next = {}", engine, pipe.resampler.input_frames_next());
+
+            let input_samples: Vec<f32> = (0..1024).map(|i| (i as f32 * 0.01).sin()).collect();
+            let mut output = Vec::new();
+
+            for _ in 0..10 {
+                pipe.push_planar_samples(&[&input_samples, &input_samples], &mut output);
+            }
+            pipe.flush(&mut output);
+
+            println!("Engine {:?}: produced {} samples", engine, output.len());
+            assert!(!output.is_empty(), "Engine {:?} produced no samples!", engine);
+        }
+    }
 }
+

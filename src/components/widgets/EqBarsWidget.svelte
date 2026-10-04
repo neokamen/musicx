@@ -1,6 +1,7 @@
 <script lang="ts">
   import { Sliders, RotateCcw } from "@lucide/svelte";
   import { useMusicStore } from "../../store/index.ts";
+  import VerticalEqSlider from "../audio/VerticalEqSlider.svelte";
 
   const musicStore = useMusicStore;
   let audioSettings = $derived($musicStore.audioSettings);
@@ -70,9 +71,6 @@
       {@const isBoost = gain > 0}
       {@const isCut = gain < 0}
       {@const accent = appearance.accentColor}
-      {@const pct = Math.max(0, Math.min(100, ((gain + 12) / 24) * 100))}
-      {@const alphaIntensity = Math.max(0.25, pct / 100)}
-
       <div class="flex-1 min-w-[28px] flex flex-col items-center gap-1.5 h-full justify-center group">
         <span
           class="font-mono text-[9px] transition-colors leading-none {isBoost
@@ -87,21 +85,16 @@
         </span>
 
         <div class="relative flex-1 flex items-center justify-center w-full py-1">
-          <input
-            type="range"
-            min="-12"
-            max="12"
-            step="0.5"
+          <VerticalEqSlider
             value={gain}
-            oninput={(e) => handleGainChange(idx, parseFloat(e.currentTarget.value))}
-            class="eq-pocket-vertical-fill z-10 h-full cursor-pointer"
-            style:background={pct > 0
-              ? `linear-gradient(to top, ${accent}25 0%, ${accent}85 ${pct * 0.7}%, ${accent} ${pct}%, rgba(15, 23, 42, 0.95) ${pct}%, rgba(15, 23, 42, 0.95) 100%)`
-              : `linear-gradient(to top, rgba(15, 23, 42, 0.95) 0%, rgba(15, 23, 42, 0.95) 100%)`}
-            style:box-shadow={pct > 0
-              ? `inset 0 1px 3px rgba(0,0,0,0.85), 0 0 ${Math.round(4 + alphaIntensity * 8)}px ${accent}45`
-              : `inset 0 1px 3px rgba(0,0,0,0.85)`}
-            title="{freq}: {gain > 0 ? '+' : ''}{gain} dB"
+            min={-12}
+            max={12}
+            step={0.5}
+            height="100%"
+            accentColor={accent}
+            title={`${freq}: ${gain > 0 ? '+' : ''}${gain} dB`}
+            ariaLabel={freq}
+            onchange={(val) => handleGainChange(idx, val)}
           />
         </div>
 

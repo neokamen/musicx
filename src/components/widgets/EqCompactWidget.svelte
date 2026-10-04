@@ -2,6 +2,7 @@
   import { Layers, Power, RotateCcw, Zap } from "@lucide/svelte";
   import { SOUNDIX_PRESETS } from "../../types/eq.ts";
   import { useMusicStore } from "../../store/index.ts";
+  import VerticalEqSlider from "../audio/VerticalEqSlider.svelte";
 
   const FREQUENCIES = ["32", "64", "125", "250", "500", "1k", "2k", "4k", "8k", "16k"];
 
@@ -128,9 +129,6 @@
       {@const gain = gains[index] || 0}
       {@const isBoost = gain > 0}
       {@const isCut = gain < 0}
-      {@const pct = Math.max(0, Math.min(100, ((gain + 12) / 24) * 100))}
-      {@const alphaIntensity = Math.max(0.25, pct / 100)}
-
       <div class="flex min-w-0 flex-col items-center justify-between gap-1 group">
         <span
           class="h-3 text-[8.5px] font-mono leading-none tracking-tighter transition-all {isBoost
@@ -145,22 +143,16 @@
         </span>
 
         <div class="relative h-18 w-5 flex items-center justify-center py-1">
-          <input
-            aria-label="{frequency} Hz, {gain} dB"
-            type="range"
-            min="-12"
-            max="12"
-            step="0.5"
+          <VerticalEqSlider
             value={gain}
-            oninput={(event) => updateGain(index, Number(event.currentTarget.value))}
-            class="eq-pocket-vertical-fill z-10 h-16 cursor-pointer"
-            style:background={pct > 0
-              ? `linear-gradient(to top, ${accent}25 0%, ${accent}85 ${pct * 0.7}%, ${accent} ${pct}%, rgba(15, 23, 42, 0.95) ${pct}%, rgba(15, 23, 42, 0.95) 100%)`
-              : `linear-gradient(to top, rgba(15, 23, 42, 0.95) 0%, rgba(15, 23, 42, 0.95) 100%)`}
-            style:box-shadow={pct > 0
-              ? `inset 0 1px 3px rgba(0,0,0,0.85), 0 0 ${Math.round(4 + alphaIntensity * 8)}px ${accent}45`
-              : `inset 0 1px 3px rgba(0,0,0,0.85)`}
-            title="{frequency} Hz: {gain > 0 ? '+' : ''}{gain} dB"
+            min={-12}
+            max={12}
+            step={0.5}
+            height={64}
+            accentColor={accent}
+            title={`${frequency} Hz: ${gain > 0 ? '+' : ''}${gain} dB`}
+            ariaLabel={`${frequency} Hz`}
+            onchange={(val) => updateGain(index, val)}
           />
         </div>
 
