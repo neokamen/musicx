@@ -1,6 +1,7 @@
 <script lang="ts">
   import { Heart, Play, Radio, Trash2 } from "@lucide/svelte";
   import type { RadioStation } from "../../types/radio.ts";
+  import { isStationLossless } from "../../services/radioApi.ts";
 
   interface Props {
     station: RadioStation;
@@ -23,18 +24,20 @@
   }: Props = $props();
 
   let faviconFailed = $state(false);
-  let codec = $derived((station.codec || "").toLowerCase());
+  let isLossless = $derived(isStationLossless(station));
+  let normalizedBitrate = $derived.by(() => {
+    const b = station.bitrate || 0;
+    return b > 1000 ? Math.round(b / 1000) : b;
+  });
   let qualityLabel = $derived(
-    /flac|alac|wav|pcm/.test(codec)
+    isLossless
       ? "Lossless"
-      : codec === "aac" && (station.bitrate || 0) >= 320
-        ? "AAC 320+"
-        : (station.bitrate || 0) >= 320
-          ? `${station.bitrate} kbps`
-          : ""
+      : normalizedBitrate >= 320
+        ? `${normalizedBitrate} kbps`
+        : ""
   );
   let details = $derived(
-    [station.country, station.codec, station.bitrate ? `${station.bitrate} kbps` : null]
+    [station.country, station.codec, normalizedBitrate > 0 ? `${normalizedBitrate} kbps` : null]
       .filter(Boolean)
       .join(" · ")
   );
@@ -62,7 +65,7 @@
       </h3>
       {#if qualityLabel}
         <span
-          class="shrink-0 rounded px-1.5 py-0.5 text-[9px] font-semibold {/flac|alac|wav|pcm/.test(codec) ? 'bg-emerald-500/15 text-emerald-300' : 'bg-amber-500/15 text-amber-300'}"
+          class="shrink-0 rounded px-1.5 py-0.5 text-[9px] font-semibold {isLossless ? 'bg-emerald-500/15 text-emerald-300' : 'bg-amber-500/15 text-amber-300'}"
         >
           {qualityLabel}
         </span>

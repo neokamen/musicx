@@ -20,6 +20,8 @@
     searchStationsByLanguage,
     searchStationsByTag,
     searchStationsByQuality,
+    isStationLossless,
+    isStationHighBitrate,
   } from "../../services/radioApi.ts";
   import {
     addRecentStation,
@@ -192,16 +194,15 @@
             ? customStations
             : stations;
     if (qualityFilter === "all") return source;
-    return source.filter((station) => {
-      const codec = (station.codec || "").toLowerCase();
-      return qualityFilter === "lossless"
-        ? /flac|alac|wav|pcm/.test(codec)
-        : (station.bitrate || 0) >= 320;
-    });
+    return source.filter((station) =>
+      qualityFilter === "lossless"
+        ? isStationLossless(station)
+        : isStationHighBitrate(station)
+    );
   });
 
   $effect(() => {
-    if (isOpen) {
+    if (isOpen || embedded) {
       favorites = getFavoriteStations();
       recents = getRecentStations();
       customStations = getCustomStations();
@@ -209,30 +210,60 @@
   });
 
   $effect(() => {
-    if (!isOpen) return;
-    if (view === "favorites" || view === "recent" || view === "custom") return;
+    if (!isOpen && !embedded) return;
+
+    // Track all reactive dependencies synchronously so Svelte 5 will re-run when any of them change
+    const activeView = view;
+    const activeGenre = selectedGenre;
+    const activeRegion = selectedRegion;
+    const activeQuality = qualityFilter;
+    const activeQuery = query.trim();
+
+    if (activeView === "favorites" || activeView === "recent" || activeView === "custom") return;
 
     let cancelled = false;
+    const delay = activeQuery ? 250 : 0;
+
     const timeoutId = window.setTimeout(async () => {
       isLoading = true;
       error = "";
       try {
         let res: RadioStation[] = [];
-        if (query.trim()) {
+        if (activeQuery) {
           res =
-            qualityFilter === "all"
-              ? await searchStations(query.trim())
-              : await searchStationsByQuality(qualityFilter, query.trim());
-        } else if (qualityFilter !== "all") {
-          res = await searchStationsByQuality(qualityFilter);
-        } else if (view === "genres") {
-          res = await searchStationsByTag(selectedGenre);
-        } else if (view === "countries") {
-          if (selectedRegion.kind === "language") {
-            res = await searchStationsByLanguage(selectedRegion.queryValue);
+            activeQuality === "all"
+              ? await searchStations(activeQuery)
+              : await searchStationsByQuality(activeQuality, activeQuery);
+        } else if (activeView === "genres") {
+          if (activeQuality === "all") {
+            res = await searchStationsByTag(activeGenre);
           } else {
-            res = await searchStationsByCountryCode(selectedRegion.queryValue);
+            const qualityRes = await searchStationsByQuality(activeQuality, activeGenre);
+            if (qualityRes.length > 0) {
+              res = qualityRes;
+            } else {
+              res = await searchStationsByTag(activeGenre);
+            }
           }
+        } else if (activeView === "countries") {
+          if (activeQuality === "all") {
+            if (activeRegion.kind === "language") {
+              res = await searchStationsByLanguage(activeRegion.queryValue);
+            } else {
+              res = await searchStationsByCountryCode(activeRegion.queryValue);
+            }
+          } else {
+            const qualityRes = await searchStationsByQuality(activeQuality, activeRegion.queryValue);
+            if (qualityRes.length > 0) {
+              res = qualityRes;
+            } else if (activeRegion.kind === "language") {
+              res = await searchStationsByLanguage(activeRegion.queryValue);
+            } else {
+              res = await searchStationsByCountryCode(activeRegion.queryValue);
+            }
+          }
+        } else if (activeQuality !== "all") {
+          res = await searchStationsByQuality(activeQuality);
         } else {
           res = await getPopularStations();
         }
@@ -246,7 +277,7 @@
       } finally {
         if (!cancelled) isLoading = false;
       }
-    }, query.trim() ? 250 : 0);
+    }, delay);
 
     return () => {
       cancelled = true;
@@ -396,6 +427,7 @@
             onclick={() => {
               view = item.id;
               query = "";
+              qualityFilter = "all";
             }}
             class="rounded-lg px-3 py-1.5 text-xs font-medium whitespace-nowrap transition-colors {view === item.id ? 'bg-audiophile-cyan/20 font-semibold text-audiophile-cyan border border-audiophile-cyan/40' : 'text-audiophile-muted hover:bg-audiophile-surface2 hover:text-audiophile-text border border-transparent'}"
           >
