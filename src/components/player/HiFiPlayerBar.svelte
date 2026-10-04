@@ -395,8 +395,13 @@
   const freqs = ["31", "62", "125", "250", "500", "1k", "2k", "4k", "8k", "16k"];
 
   let activePreset = $derived(
-    SOUNDIX_PRESETS.find((p) =>
-      p.gains.every((g, i) => Math.abs(g - (eqGains[i] ?? 0)) < 0.1)
+    SOUNDIX_PRESETS.find(
+      (p) =>
+        p.gains.every((g, i) => Math.abs(g - (eqGains[i] ?? 0)) < 0.1) &&
+        Math.abs(p.sub - (audioSettings.eqSubBoost || 0)) < 0.1 &&
+        Math.abs(p.bass - (audioSettings.eqBassBoost || 0)) < 0.1 &&
+        Math.abs(p.highpass - (audioSettings.eqHighpass || 0)) < 1 &&
+        Math.abs(p.lowpass - (audioSettings.eqLowpass || 0)) < 1
     )?.name || "Personalizado"
   );
 </script>
@@ -967,11 +972,11 @@
                 onclick={() => { isEqPopupOpen = false; }}
               ></div>
               <div
-                class="absolute bottom-[calc(100%+12px)] right-0 w-96 p-3.5 rounded-xl bg-slate-950 border border-slate-700 shadow-2xl z-[110] animate-fadeIn font-mono text-xs"
-                style="background-color: #020617 !important; opacity: 1 !important;"
+                class="absolute bottom-[calc(100%+12px)] right-0 w-96 p-3.5 rounded-xl border shadow-2xl z-[110] animate-fadeIn font-mono text-xs"
+                style="background-color: {appearance.bgColor || 'var(--app-bg, #090d16)'} !important; border-color: var(--app-border, rgba(255,255,255,0.15)); opacity: 1 !important;"
                 style:box-shadow={appearance.neonGlow ? "0 0 30px rgba(0,0,0,0.95), 0 0 30px " + accentColor + "40" : "0 20px 40px rgba(0,0,0,0.95)"}
               >
-                <div class="flex items-center justify-between pb-2 mb-2.5 border-b border-slate-800">
+                <div class="flex items-center justify-between pb-2 mb-2.5 border-b border-white/10">
                   <div class="flex items-center gap-2">
                     <Sliders size={13} style="color: {accentColor};" />
                     <span class="font-bold text-slate-100 uppercase tracking-wide">Audio EQ</span>
@@ -983,16 +988,18 @@
                         const val = (e.target as HTMLSelectElement).value;
                         const preset = SOUNDIX_PRESETS.find((p) => p.name === val);
                         if (preset) {
-                          useMusicStore.getState().setAudioSettings({ eqGains: [...preset.gains], isEqEnabled: true });
-                          if (preset.sub !== undefined || preset.bass !== undefined) {
-                            useMusicStore.getState().setAudioSettings({
-                              eqSubBoost: preset.sub ?? audioSettings.eqSubBoost,
-                              eqBassBoost: preset.bass ?? audioSettings.eqBassBoost,
-                            });
-                          }
+                          useMusicStore.getState().setAudioSettings({
+                            eqGains: [...preset.gains],
+                            eqSubBoost: preset.sub,
+                            eqBassBoost: preset.bass,
+                            eqHighpass: preset.highpass,
+                            eqLowpass: preset.lowpass,
+                            isEqEnabled: true,
+                          });
                         }
                       }}
-                      class="bg-slate-900 border border-slate-700 text-slate-200 rounded px-1.5 py-0.5 text-[10px] focus:outline-none cursor-pointer"
+                      class="border rounded px-1.5 py-0.5 text-[10px] text-slate-200 focus:outline-none cursor-pointer"
+                      style="background-color: {appearance.bgColor || 'var(--app-bg, #090d16)'}; border-color: var(--app-border, rgba(255,255,255,0.2));"
                     >
                       {#if activePreset === "Personalizado"}
                         <option value="Personalizado">Personalizado</option>
@@ -1040,11 +1047,20 @@
                   {/each}
                 </div>
 
-                <div class="pt-2 mt-2 border-t border-slate-800/80 flex items-center justify-between text-[10px]">
+                <div class="pt-2 mt-2 border-t border-white/10 flex items-center justify-between text-[10px]">
                   <div class="flex items-center gap-1.5">
                     <button
+                      onclick={() => useMusicStore.getState().setAudioSettings({ isEqEnabled: !isEqActive })}
+                      class="px-2 py-0.5 rounded font-bold border transition cursor-pointer flex items-center gap-1"
+                      style={isEqActive ? `border-color: ${accentColor}80; color: ${accentColor}; background-color: ${accentColor}25; box-shadow: 0 0 8px ${accentColor}35;` : "border-color: rgba(255,255,255,0.15); color: #94a3b8; background-color: transparent;"}
+                      title="Activar/Desactivar Ecualizador"
+                    >
+                      <Zap size={10} />
+                      {isEqActive ? "EQ ON" : "EQ OFF"}
+                    </button>
+                    <button
                       onclick={() => useMusicStore.getState().setAudioSettings({ isXdssEnabled: !isXdssActive })}
-                      class="px-2 py-0.5 rounded font-bold border transition cursor-pointer flex items-center gap-1 {isXdssActive ? 'border-amber-500 bg-amber-950/60 text-amber-300 shadow-[0_0_8px_rgba(245,158,11,0.3)]' : 'border-slate-800 text-slate-400 hover:text-slate-200'}"
+                      class="px-2 py-0.5 rounded font-bold border transition cursor-pointer flex items-center gap-1 {isXdssActive ? 'border-amber-500 bg-amber-950/60 text-amber-300 shadow-[0_0_8px_rgba(245,158,11,0.3)]' : 'border-white/10 text-slate-400 hover:text-slate-200'}"
                       title="LG XDSS Plus: Realce dinámico extremo de graves y pegada punch"
                     >
                       <Flame size={10} />
@@ -1053,25 +1069,22 @@
                     <button
                       onclick={() => useMusicStore.getState().setAudioSettings({ isXtsProEnabled: !isXtsProActive })}
                       class="px-2 py-0.5 rounded font-bold border transition cursor-pointer flex items-center gap-1"
-                      style="border-color: {isXtsProActive ? accentColor : '#334155'}; color: {isXtsProActive ? accentColor : '#94a3b8'}; background-color: {isXtsProActive ? `${accentColor}15` : 'transparent'};"
+                      style="border-color: {isXtsProActive ? accentColor : 'rgba(255,255,255,0.15)'}; color: {isXtsProActive ? accentColor : '#94a3b8'}; background-color: {isXtsProActive ? `${accentColor}15` : 'transparent'};"
                       title="LG XTS Pro: Excelente balance de frecuencias altas y expansión acústica"
                     >
                       <Layers size={10} />
                       XTS Pro
                     </button>
-                    <button
-                      onclick={() => useMusicStore.getState().setAudioSettings({ isEqEnabled: !isEqActive })}
-                      class="px-2 py-0.5 rounded font-bold border transition cursor-pointer flex items-center gap-1"
-                      style={isEqActive ? `border-color: ${accentColor}80; color: ${accentColor}; background-color: ${accentColor}25; box-shadow: 0 0 8px ${accentColor}35;` : "border-color: #334155; color: #94a3b8; background-color: transparent;"}
-                      title="Activar/Desactivar Ecualizador"
-                    >
-                      <Zap size={10} />
-                      {isEqActive ? "EQ ON" : "EQ OFF"}
-                    </button>
                   </div>
 
                   <button
-                    onclick={() => useMusicStore.getState().setAudioSettings({ eqGains: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0] })}
+                    onclick={() => useMusicStore.getState().setAudioSettings({
+                      eqGains: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+                      eqSubBoost: 0,
+                      eqBassBoost: 0,
+                      eqHighpass: 0,
+                      eqLowpass: 0,
+                    })}
                     class="text-slate-400 hover:text-white underline text-[9px] cursor-pointer"
                   >
                     Reset 0dB
@@ -1137,11 +1150,11 @@
                 onclick={() => { isDeviceMenuOpen = false; }}
               ></div>
               <div
-                class="absolute bottom-[calc(100%+12px)] right-0 w-64 p-2 rounded-xl bg-slate-950 border border-slate-700 shadow-2xl z-[110] font-mono text-xs animate-fadeIn"
-                style="background-color: #020617 !important; opacity: 1 !important;"
+                class="absolute bottom-[calc(100%+12px)] right-0 w-64 p-2 rounded-xl border shadow-2xl z-[110] font-mono text-xs animate-fadeIn"
+                style="background-color: {appearance.bgColor || 'var(--app-bg, #090d16)'} !important; border-color: var(--app-border, rgba(255,255,255,0.15)); opacity: 1 !important;"
                 style:box-shadow={appearance.neonGlow ? "0 0 25px rgba(0,0,0,0.95), 0 0 25px " + accentColor + "40" : "0 20px 40px rgba(0,0,0,0.95)"}
               >
-                <div class="p-2 text-[10px] uppercase text-slate-400 border-b border-slate-800 font-bold">
+                <div class="p-2 text-[10px] uppercase text-slate-400 border-b border-white/10 font-bold">
                   Dispositivos de Salida
                 </div>
                 <div class="max-h-48 overflow-y-auto py-1 space-y-1">

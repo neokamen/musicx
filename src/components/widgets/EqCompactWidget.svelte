@@ -12,8 +12,14 @@
   let accent = $derived(appearance.accentColor || "#06b6d4");
   let gains = $derived(audioSettings.eqGains || Array(10).fill(0));
   let activePreset = $derived(
-    SOUNDIX_PRESETS.find((preset) => preset.gains.every((gain, index) => gain === gains[index]))
-      ?.name || "Personalizado"
+    SOUNDIX_PRESETS.find(
+      (preset) =>
+        preset.gains.every((gain, index) => Math.abs(gain - (gains[index] ?? 0)) < 0.05) &&
+        Math.abs(preset.sub - (audioSettings.eqSubBoost || 0)) < 0.05 &&
+        Math.abs(preset.bass - (audioSettings.eqBassBoost || 0)) < 0.05 &&
+        Math.abs(preset.highpass - (audioSettings.eqHighpass || 0)) < 1 &&
+        Math.abs(preset.lowpass - (audioSettings.eqLowpass || 0)) < 1
+    )?.name || "Personalizado"
   );
 
   function updateGain(index: number, value: number) {
@@ -32,14 +38,14 @@
   function applyPreset(name: string) {
     const preset = SOUNDIX_PRESETS.find((item) => item.name === name);
     if (!preset) return;
-    const store = musicStore.getState();
-    store.setAudioSettings({ eqGains: [...preset.gains], isEqEnabled: true });
-    if (preset.sub !== undefined || preset.bass !== undefined) {
-      store.setAudioSettings({
-        eqSubBoost: preset.sub ?? audioSettings.eqSubBoost,
-        eqBassBoost: preset.bass ?? audioSettings.eqBassBoost,
-      });
-    }
+    musicStore.getState().setAudioSettings({
+      eqGains: [...preset.gains],
+      eqSubBoost: preset.sub,
+      eqBassBoost: preset.bass,
+      eqHighpass: preset.highpass,
+      eqLowpass: preset.lowpass,
+      isEqEnabled: true,
+    });
   }
   let subVal = $derived(audioSettings.eqSubBoost || 0);
   let subPct = $derived(Math.max(0, Math.min(100, ((subVal - (-6)) / (12 - (-6))) * 100)));

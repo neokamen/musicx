@@ -29,7 +29,18 @@
   let appearance = $derived($musicStore.appearance);
   let accentColor = $derived(appearance.accentColor || "#06b6d4");
 
-  let activePreset = $state("Plano");
+  let currentGains = $derived(audioSettings.eqGains || [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
+
+  let activePreset = $derived(
+    SOUNDIX_PRESETS.find(
+      (preset) =>
+        preset.gains.every((gain, index) => Math.abs(gain - (currentGains[index] ?? 0)) < 0.05) &&
+        Math.abs(preset.sub - (audioSettings.eqSubBoost || 0)) < 0.05 &&
+        Math.abs(preset.bass - (audioSettings.eqBassBoost || 0)) < 0.05 &&
+        Math.abs(preset.highpass - (audioSettings.eqHighpass || 0)) < 1 &&
+        Math.abs(preset.lowpass - (audioSettings.eqLowpass || 0)) < 1
+    )?.name || "Personalizado"
+  );
   let showPresetsPanel = $state(false);
 
   let subBoost = $state(0);
@@ -55,8 +66,6 @@
 
   let vinylSim = $state(false);
 
-  let currentGains = $derived(audioSettings.eqGains || [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
-
   let bands = $derived<EqBand[]>(
     DEFAULT_BANDS.map((b, idx) => ({
       ...b,
@@ -68,25 +77,25 @@
     const nextGains = [...currentGains];
     nextGains[index] = Math.round(gain * 10) / 10;
     musicStore.getState().setAudioSettings({ eqGains: nextGains });
-    activePreset = "Personalizado";
   }
 
   function applyPreset(p: Preset) {
-    activePreset = p.name;
     const store = musicStore.getState();
-    store.setAudioSettings({ eqGains: [...p.gains] });
-    if (p.sub !== undefined) {
-      subBoost = p.sub;
-      store.setAudioSettings({ eqSubBoost: p.sub });
-    }
-    if (p.bass !== undefined) {
-      bassBoost = p.bass;
-      store.setAudioSettings({ eqBassBoost: p.bass });
-    }
+    store.setAudioSettings({
+      eqGains: [...p.gains],
+      eqSubBoost: p.sub,
+      eqBassBoost: p.bass,
+      eqHighpass: p.highpass,
+      eqLowpass: p.lowpass,
+      isEqEnabled: true,
+    });
+    subBoost = p.sub;
+    bassBoost = p.bass;
+    highpass = p.highpass;
+    lowpass = p.lowpass;
   }
 
   function resetEq() {
-    activePreset = "Plano";
     subBoost = 0;
     bassBoost = 0;
     highpass = 0;
@@ -124,16 +133,8 @@
             <SlidersHorizontal size={20} />
           </div>
           <div>
-            <h2 class="text-base font-bold tracking-wide flex items-center gap-2">
-              Audio EQ PRO &bull; Soundix Hi-Fi Engine
-              <span
-                class="text-[10px] px-2 py-0.5 rounded-full font-mono uppercase border"
-                style:background-color="{accentColor}15"
-                style:border-color="{accentColor}40"
-                style:color={accentColor}
-              >
-                Estudio 10-Bandas
-              </span>
+            <h2 class="text-base font-bold tracking-wide">
+              Audio EQ PRO
             </h2>
             <p class="text-xs text-slate-400">
               Curva paramétrica biquad en tiempo real, normalizador EBU R128 y filtros DSP
@@ -249,8 +250,8 @@
         {#each bands as band, i (i)}
           <div class="flex flex-col items-center gap-1.5 flex-1 group">
             <span
-              class="text-[10px] font-mono leading-none tracking-tight transition-all {band.gain > 0 ? 'font-bold text-white drop-shadow-[0_0_6px_rgba(255,255,255,0.7)]' : band.gain < 0 ? 'text-rose-400 font-medium' : 'text-slate-500'}"
-              style={band.gain > 0 ? `color: ${accentColor}; text-shadow: 0 0 8px ${accentColor}` : undefined}
+              class="text-[10px] font-mono leading-none tracking-tight font-bold {band.gain > 0 ? '' : band.gain < 0 ? 'text-rose-400' : 'text-slate-400'}"
+              style:color={band.gain > 0 ? accentColor : undefined}
             >
               {band.gain > 0 ? `+${band.gain.toFixed(1)}` : band.gain.toFixed(1)}
             </span>
