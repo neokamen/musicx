@@ -403,14 +403,16 @@
 
 <footer
   style="height: {height}px; --player-side-width: {playerInfoWidth}px;"
-  class="grid grid-cols-[var(--player-side-width)_minmax(0,1fr)_minmax(236px,var(--player-side-width))] items-center gap-0 border-t border-slate-800/80 bg-slate-950/95 px-4 z-40 select-none shrink-0 relative overflow-hidden isolate"
+  class="grid grid-cols-[var(--player-side-width)_minmax(0,1fr)_minmax(236px,var(--player-side-width))] items-center gap-0 border-t border-slate-800/80 bg-slate-950/95 px-4 z-50 select-none shrink-0 relative overflow-visible"
 >
   {#if playbackSettings?.diffusePlayerBar && currentCoverArt}
-    <div
-      class="pointer-events-none absolute inset-0 z-0 bg-cover bg-center scale-125"
-      style="background-image: url({currentCoverArt}); filter: blur(36px) saturate(1.35); opacity: {(playbackSettings.diffusePlayerBarOpacity ?? 25) / 100};"
-    ></div>
-    <div class="pointer-events-none absolute inset-0 z-0 bg-slate-950/55"></div>
+    <div class="pointer-events-none absolute inset-0 z-0 overflow-hidden">
+      <div
+        class="absolute inset-0 bg-cover bg-center scale-125"
+        style="background-image: url({currentCoverArt}); filter: blur(36px) saturate(1.35); opacity: {(playbackSettings.diffusePlayerBarOpacity ?? 25) / 100};"
+      ></div>
+      <div class="absolute inset-0 bg-slate-950/55"></div>
+    </div>
   {/if}
 
   {#if isEditing}
@@ -930,7 +932,7 @@
     </div>
 
     <!-- Right block: Upper Row (EQ +, NORM, STEREO/MONO, Speaker Device) | Lower Row (Volume Slider) -->
-    <div class="relative z-10 flex h-full w-full min-w-0 flex-col items-stretch justify-center gap-1.5">
+    <div class="relative z-20 flex h-full w-full min-w-0 flex-col items-stretch justify-center gap-1.5">
       <div class="ml-auto flex w-full max-w-[236px] items-center justify-end gap-1.5">
         <div class="flex items-center gap-1.5">
           <!-- EQ + Button -->
@@ -957,7 +959,17 @@
             </div>
 
             {#if isEqPopupOpen}
-              <div class="absolute bottom-12 right-0 w-96 p-3.5 rounded-xl bg-slate-950 border border-slate-700 shadow-2xl z-50 animate-fadeIn font-mono text-xs">
+              <!-- Click-outside backdrop -->
+              <!-- svelte-ignore a11y_click_events_have_key_events -->
+              <!-- svelte-ignore a11y_no_static_element_interactions -->
+              <div
+                class="fixed inset-0 z-[100]"
+                onclick={() => { isEqPopupOpen = false; }}
+              ></div>
+              <div
+                class="absolute bottom-[calc(100%+12px)] right-0 w-96 p-3.5 rounded-xl bg-slate-950 border border-slate-700 shadow-2xl z-[110] animate-fadeIn font-mono text-xs"
+                style:box-shadow={appearance.neonGlow ? `0 0 30px ${accentColor}40` : "0 20px 40px rgba(0,0,0,0.9)"}
+              >
                 <div class="flex items-center justify-between pb-2 mb-2.5 border-b border-slate-800">
                   <div class="flex items-center gap-2">
                     <Sliders size={13} style="color: {accentColor};" />
@@ -1115,7 +1127,17 @@
             </button>
 
             {#if isDeviceMenuOpen}
-              <div class="absolute bottom-10 right-0 w-64 p-2 rounded-xl bg-slate-950 border border-slate-700 shadow-2xl z-50 font-mono text-xs animate-fadeIn">
+              <!-- Click-outside backdrop -->
+              <!-- svelte-ignore a11y_click_events_have_key_events -->
+              <!-- svelte-ignore a11y_no_static_element_interactions -->
+              <div
+                class="fixed inset-0 z-[100]"
+                onclick={() => { isDeviceMenuOpen = false; }}
+              ></div>
+              <div
+                class="absolute bottom-[calc(100%+12px)] right-0 w-64 p-2 rounded-xl bg-slate-950 border border-slate-700 shadow-2xl z-[110] font-mono text-xs animate-fadeIn"
+                style:box-shadow={appearance.neonGlow ? `0 0 25px ${accentColor}40` : "0 20px 40px rgba(0,0,0,0.9)"}
+              >
                 <div class="p-2 text-[10px] uppercase text-slate-400 border-b border-slate-800 font-bold">
                   Dispositivos de Salida
                 </div>

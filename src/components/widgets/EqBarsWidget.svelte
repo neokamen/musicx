@@ -84,7 +84,7 @@
           {gain > 0 ? `+${gain.toFixed(0)}` : gain.toFixed(0)}
         </span>
 
-        <div class="relative flex-1 flex items-center justify-center w-full py-1">
+        <div class="relative flex-1 h-full min-h-[90px] flex items-center justify-center w-full py-1">
           <VerticalEqSlider
             value={gain}
             min={-12}

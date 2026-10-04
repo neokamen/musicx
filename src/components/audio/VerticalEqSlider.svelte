@@ -27,24 +27,38 @@
 
   let trackRef: HTMLDivElement | null = $state(null);
   let isDragging = $state(false);
+  let localValue = $state(0);
 
-  let clampedValue = $derived(Math.max(min, Math.min(max, value)));
+  // Keep local value in sync when not actively dragging
+  $effect(() => {
+    if (!isDragging) {
+      localValue = value;
+    }
+  });
+
+  let activeValue = $derived(isDragging ? localValue : value);
+  let clampedValue = $derived(Math.max(min, Math.min(max, activeValue)));
   let pct = $derived(max > min ? Math.max(0, Math.min(1, (clampedValue - min) / (max - min))) : 0.5);
 
-  // Position from top: 0% is at max (+12 dB), 100% is at min (-12 dB)
-  let topPercent = $derived((1 - pct) * 100);
+  // Half-height of the fader thumb in pixels (travel limit so knob never clips or overflows)
+  const PADDING_PX = 7;
 
   function updateFromPointer(clientY: number) {
     if (!trackRef || disabled) return;
     const rect = trackRef.getBoundingClientRect();
     if (rect.height <= 0) return;
-    const relY = Math.max(0, Math.min(rect.height, clientY - rect.top));
-    const normalized = 1 - relY / rect.height; // 0 at bottom, 1 at top
+
+    const usableHeight = Math.max(1, rect.height - PADDING_PX * 2);
+    const clampedY = Math.max(PADDING_PX, Math.min(rect.height - PADDING_PX, clientY - rect.top));
+    const normalized = 1 - (clampedY - PADDING_PX) / usableHeight; // 0 at bottom, 1 at top
+
     let raw = min + normalized * (max - min);
     if (step > 0) {
       raw = Math.round(raw / step) * step;
     }
     raw = Math.max(min, Math.min(max, Math.round(raw * 10) / 10));
+
+    localValue = raw;
     onchange?.(raw);
   }
 
@@ -71,6 +85,7 @@
   function handleDoubleClick(e: MouseEvent) {
     if (disabled) return;
     e.stopPropagation();
+    localValue = 0;
     onchange?.(0);
   }
 
@@ -79,6 +94,7 @@
     e.preventDefault();
     const delta = e.deltaY < 0 ? step : -step;
     let next = Math.max(min, Math.min(max, Math.round((clampedValue + delta) * 10) / 10));
+    localValue = next;
     onchange?.(next);
   }
 
@@ -91,16 +107,19 @@
     else if (e.key === "PageDown") delta = -step * 4;
     else if (e.key === "Home") {
       e.preventDefault();
+      localValue = max;
       onchange?.(max);
       return;
     } else if (e.key === "End") {
       e.preventDefault();
+      localValue = min;
       onchange?.(min);
       return;
     }
     if (delta !== 0) {
       e.preventDefault();
       let next = Math.max(min, Math.min(max, Math.round((clampedValue + delta) * 10) / 10));
+      localValue = next;
       onchange?.(next);
     }
   }
@@ -127,53 +146,67 @@
   onwheel={handleWheel}
   onkeydown={handleKeyDown}
   {title}
-  class="relative flex items-center justify-center cursor-pointer select-none touch-none group w-6 {disabled ? 'opacity-40 pointer-events-none' : ''}"
+  class="relative flex items-center justify-center cursor-pointer select-none touch-none group w-7 min-h-[50px] {disabled ? 'opacity-40 pointer-events-none' : ''}"
   style:height={heightStyle}
 >
+  <!-- Center 0 dB reference guide line extending slightly beyond the slot -->
+  <div
+    class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-4 h-[1.5px] bg-slate-500/80 pointer-events-none z-0"
+  ></div>
+
   <!-- Hardware recessed slot -->
   <div
-    class="relative w-2 h-full rounded-full bg-slate-950 border border-slate-800 shadow-[inset_0_2px_4px_rgba(0,0,0,0.95)] overflow-hidden transition-colors {isDragging ? 'border-slate-700' : 'group-hover:border-slate-700'}"
+    class="relative w-2.5 h-full rounded-full bg-slate-950 border border-slate-700/80 shadow-[inset_0_2px_4px_rgba(0,0,0,0.95)] overflow-hidden transition-colors {isDragging ? 'border-cyan-400/80' : 'group-hover:border-slate-500'}"
   >
-    <!-- Center 0 dB guide line -->
+    <!-- Center 0 dB slot mark -->
     <div
-      class="absolute top-1/2 left-0 right-0 h-[1.5px] bg-slate-600/80 -translate-y-1/2 z-0 pointer-events-none"
+      class="absolute top-1/2 left-0 right-0 h-[1.5px] bg-slate-600/90 -translate-y-1/2 z-0 pointer-events-none"
     ></div>
 
     <!-- Reactive LED boost fill (from center 50% upwards) -->
     {#if isBoost}
-      {@const boostHeight = (clampedValue / (max || 12)) * 50}
       <div
         class="absolute bottom-1/2 left-0 right-0 pointer-events-none transition-[height] duration-75"
-        style:height="{boostHeight}%"
-        style:background="linear-gradient(to top, {accentColor}35 0%, {accentColor} 100%)"
-        style:box-shadow="0 0 6px {accentColor}80"
+        style:height="calc({Math.max(0, pct - 0.5)} * (100% - {PADDING_PX * 2}px))"
+        style:background="linear-gradient(to top, {accentColor}40 0%, {accentColor} 100%)"
+        style:box-shadow="0 0 8px {accentColor}90"
       ></div>
     {/if}
 
     <!-- Reactive LED cut fill (from center 50% downwards) -->
     {#if isCut}
-      {@const cutHeight = (Math.abs(clampedValue) / (Math.abs(min) || 12)) * 50}
       <div
         class="absolute top-1/2 left-0 right-0 pointer-events-none transition-[height] duration-75"
-        style:height="{cutHeight}%"
-        style:background="linear-gradient(to bottom, rgba(244,63,94,0.3) 0%, rgba(244,63,94,0.85) 100%)"
-        style:box-shadow="0 0 6px rgba(244,63,94,0.6)"
+        style:height="calc({Math.max(0, 0.5 - pct)} * (100% - {PADDING_PX * 2}px))"
+        style:background="linear-gradient(to bottom, rgba(244,63,94,0.35) 0%, rgba(244,63,94,0.95) 100%)"
+        style:box-shadow="0 0 8px rgba(244,63,94,0.7)"
       ></div>
     {/if}
   </div>
 
-  <!-- Perfectly centered white fader thumb handle -->
+  <!-- Audiophile Studio Fader Knob Handle -->
   <div
-    class="absolute pointer-events-none transition-[top,transform,box-shadow] duration-75 ease-out"
-    style:top="{topPercent}%"
+    class="absolute pointer-events-none transition-[top,transform,box-shadow] duration-75 ease-out z-10"
+    style:top="calc({PADDING_PX}px + {(1 - pct)} * (100% - {PADDING_PX * 2}px))"
     style:left="50%"
-    style:transform="translate(-50%, -50%) {isDragging ? 'scale(1.18)' : 'scale(1)'}"
+    style:transform="translate(-50%, -50%) {isDragging ? 'scale(1.12)' : 'scale(1)'}"
   >
     <div
-      class="w-4 h-1.5 rounded-[2px] bg-white border border-white/90 shadow-[0_1px_4px_rgba(0,0,0,0.9)] transition-shadow"
+      class="w-6 h-3 rounded-[3px] bg-gradient-to-b from-slate-100 via-white to-slate-200 border border-slate-300 shadow-[0_2px_5px_rgba(0,0,0,0.85)] flex items-center justify-center relative overflow-hidden transition-all"
       style:box-shadow={isDragging
-        ? `0 0 10px ${accentColor}, 0 0 18px ${accentColor}, 0 1px 4px rgba(0,0,0,0.9)`
-        : `0 0 6px ${accentColor}aa, 0 1px 3px rgba(0,0,0,0.9)`}
-    ></div>
+        ? `0 0 12px ${accentColor}, 0 0 20px ${accentColor}99, 0 3px 8px rgba(0,0,0,0.9)`
+        : `0 0 6px ${accentColor}66, 0 2px 5px rgba(0,0,0,0.85)`}
+    >
+      <!-- Side tactile grip lines -->
+      <div class="absolute left-1 top-0 bottom-0 w-[1px] bg-slate-300/80"></div>
+      <div class="absolute right-1 top-0 bottom-0 w-[1px] bg-slate-300/80"></div>
+
+      <!-- High-contrast Center Indicator Pip -->
+      <div
+        class="w-full h-[2px] transition-colors"
+        style:background-color={clampedValue !== 0 ? accentColor : "#0f172a"}
+        style:box-shadow={clampedValue !== 0 ? `0 0 5px ${accentColor}` : undefined}
+      ></div>
+    </div>
   </div>
 </div>
