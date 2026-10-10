@@ -547,8 +547,8 @@
         ctx.stroke();
       }
 
-      // =========================================================================
-      // 9. FFTW3: CURVA VECTORIAL (fftw3_vector) - Estudio analítico puro, trazo continuo sin relleno
+        // =========================================================================
+      // 9. FFTW3: CURVA VECTORIAL (fftw3_vector) - Estudio analítico puro, trazo continuo sin relleno ni rejilla
       // =========================================================================
       else if (mode === "fftw3_vector") {
         const specLeft = tele.spectrum_left?.length ? tele.spectrum_left : tele.spectrum || [];
@@ -565,18 +565,6 @@
             raw = Math.max(valL, valR);
           }
           fftwLevels[i] += (raw - fftwLevels[i]) * 0.42;
-        }
-
-        // Reference dB lines
-        ctx.strokeStyle = "rgba(148, 163, 184, 0.12)";
-        ctx.lineWidth = 1;
-        const dbFractions = [0.20, 0.46, 0.72];
-        for (const frac of dbFractions) {
-          const y = height * frac;
-          ctx.beginPath();
-          ctx.moveTo(0, y);
-          ctx.lineTo(width, y);
-          ctx.stroke();
         }
 
         const usableH = height - 4;
@@ -615,7 +603,7 @@
       }
 
       // =========================================================================
-      // 10. FFTW3: MONITOR DE FRECUENCIA (fftw3_monitor) - Matriz espectral de precisión y dB
+      // 10. FFTW3: MONITOR DE FRECUENCIA (fftw3_monitor) - Matriz espectral de precisión a altura completa
       // =========================================================================
       else if (mode === "fftw3_monitor") {
         const spec = tele.spectrum || [];
@@ -623,8 +611,7 @@
         const slotW = width / numBands;
         const barW = Math.max(1.4, slotW - 1.2);
         const gap = slotW - barW;
-        const labelAreaH = 9;
-        const usableH = height - labelAreaH - 3;
+        const usableH = height - 4;
         const segH = 2.5;
         const segGap = 1.2;
         const maxSegments = Math.max(1, Math.floor(usableH / (segH + segGap)));
@@ -661,22 +648,6 @@
             ctx.fillStyle = fftwPeaks[i] > 0.85 ? "#f43f5e" : "#ffffff";
             ctx.fillRect(x, peakY - 0.5, barW, 1.5);
           }
-        }
-
-        // Ticks and micro frequency indicators
-        ctx.font = "7px monospace";
-        ctx.fillStyle = "rgba(148, 163, 184, 0.65)";
-        const freqIndicators = [
-          { t: "32", norm: 0.04 },
-          { t: "125", norm: 0.22 },
-          { t: "500", norm: 0.45 },
-          { t: "2k", norm: 0.68 },
-          { t: "8k", norm: 0.86 },
-          { t: "16k", norm: 0.97 },
-        ];
-        for (const ind of freqIndicators) {
-          const tx = ind.norm * width;
-          ctx.fillText(ind.t, Math.max(1, tx - 6), height - 1);
         }
       }
     };

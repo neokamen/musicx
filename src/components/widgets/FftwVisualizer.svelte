@@ -38,6 +38,46 @@
   let peakHoldEnabled = $state<boolean>(true);
   let canvasRef = $state<HTMLCanvasElement | null>(null);
 
+  type FpsTarget = 60 | 30 | 15;
+
+  function getInitialFps(): FpsTarget {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem(nodeKey ? `musicx_fftw_fps_${nodeKey}` : "musicx_fftw_fps");
+      if (saved === "30" || saved === "15" || saved === "60") {
+        return Number(saved) as FpsTarget;
+      }
+    }
+    return 60;
+  }
+
+  function getInitialShowGrid(): boolean {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem(nodeKey ? `musicx_fftw_grid_${nodeKey}` : "musicx_fftw_grid");
+      if (saved !== null) {
+        return saved === "true";
+      }
+    }
+    return true;
+  }
+
+  let showGrid = $state<boolean>(getInitialShowGrid());
+  let targetFps = $state<FpsTarget>(getInitialFps());
+
+  function toggleGrid() {
+    showGrid = !showGrid;
+    if (typeof window !== "undefined") {
+      localStorage.setItem(nodeKey ? `musicx_fftw_grid_${nodeKey}` : "musicx_fftw_grid", String(showGrid));
+    }
+  }
+
+  function cycleFps() {
+    const nextFps: FpsTarget = targetFps === 60 ? 30 : targetFps === 30 ? 15 : 60;
+    targetFps = nextFps;
+    if (typeof window !== "undefined") {
+      localStorage.setItem(nodeKey ? `musicx_fftw_fps_${nodeKey}` : "musicx_fftw_fps", String(nextFps));
+    }
+  }
+
   function cycleMode() {
     const idx = MODES.findIndex((m) => m.id === currentMode);
     const next = MODES[(idx + 1) % MODES.length].id;
@@ -102,10 +142,10 @@
       const tele = store.telemetry;
       const playing = (store.isPlaying || tele.state === "Playing") && tele.state !== "Stopped" && tele.state !== "Paused";
 
-      // Throttle when idle to 15 FPS to conserve CPU, 60 FPS when active
-      const dt = Math.min((time - lastTime) / 1000, 0.1);
-      const minInterval = playing ? 16 : 66;
+      // Throttle when idle to 15 FPS to conserve CPU, or targetFps when playing
+      const minInterval = playing ? Math.floor(1000 / targetFps) : 66;
       if (time - lastTime < minInterval) return;
+      const dt = Math.min((time - lastTime) / 1000, 0.1);
       lastTime = time;
 
       resize();
@@ -179,15 +219,17 @@
         case "precision_bars": {
           // Analytical FFTW Studio Bars with peak hold
           // Background reference grid lines (-6, -12, -24, -36 dB)
-          ctx.strokeStyle = "rgba(148, 163, 184, 0.12)";
-          ctx.lineWidth = 1;
-          for (const db of DB_GRID) {
-            const frac = 1 - Math.abs(db) / 48;
-            const y = usableH * (1 - frac);
-            ctx.beginPath();
-            ctx.moveTo(0, y);
-            ctx.lineTo(w, y);
-            ctx.stroke();
+          if (showGrid) {
+            ctx.strokeStyle = "rgba(148, 163, 184, 0.12)";
+            ctx.lineWidth = 1;
+            for (const db of DB_GRID) {
+              const frac = 1 - Math.abs(db) / 48;
+              const y = usableH * (1 - frac);
+              ctx.beginPath();
+              ctx.moveTo(0, y);
+              ctx.lineTo(w, y);
+              ctx.stroke();
+            }
           }
 
           const slotW = w / BANDS;
@@ -218,12 +260,14 @@
         case "dual_stereo": {
           // Split L (top half) / R (bottom half)
           const midH = usableH * 0.5;
-          ctx.strokeStyle = "rgba(148, 163, 184, 0.2)";
-          ctx.lineWidth = 1;
-          ctx.beginPath();
-          ctx.moveTo(0, midH);
-          ctx.lineTo(w, midH);
-          ctx.stroke();
+          if (showGrid) {
+            ctx.strokeStyle = "rgba(148, 163, 184, 0.2)";
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(0, midH);
+            ctx.lineTo(w, midH);
+            ctx.stroke();
+          }
 
           const slotW = w / BANDS;
           const barW = Math.max(1, slotW * 0.75);
@@ -273,15 +317,17 @@
 
         case "vector_curve": {
           // Pure spline curve across FFT points, zero fill underneath
-          ctx.strokeStyle = "rgba(148, 163, 184, 0.12)";
-          ctx.lineWidth = 1;
-          for (const db of DB_GRID) {
-            const frac = 1 - Math.abs(db) / 48;
-            const y = usableH * (1 - frac);
-            ctx.beginPath();
-            ctx.moveTo(0, y);
-            ctx.lineTo(w, y);
-            ctx.stroke();
+          if (showGrid) {
+            ctx.strokeStyle = "rgba(148, 163, 184, 0.12)";
+            ctx.lineWidth = 1;
+            for (const db of DB_GRID) {
+              const frac = 1 - Math.abs(db) / 48;
+              const y = usableH * (1 - frac);
+              ctx.beginPath();
+              ctx.moveTo(0, y);
+              ctx.lineTo(w, y);
+              ctx.stroke();
+            }
           }
 
           const points: { x: number; y: number }[] = [];
@@ -375,8 +421,26 @@
 
       <button
         type="button"
+        onclick={toggleGrid}
+        class="flex h-5 px-1.5 items-center justify-center rounded border border-audiophile-border bg-audiophile-surface2 font-mono text-[9px] font-semibold {showGrid ? 'text-audiophile-cyan border-audiophile-cyan/40' : 'text-audiophile-muted opacity-50'} hover:text-white transition cursor-pointer"
+        title="Mostrar u ocultar líneas horizontales (dB Grid)"
+      >
+        dB
+      </button>
+
+      <button
+        type="button"
+        onclick={cycleFps}
+        class="flex h-5 px-1.5 items-center justify-center rounded border border-audiophile-border bg-audiophile-surface2 font-mono text-[9px] font-bold {targetFps === 30 ? 'text-amber-400 border-amber-400/50' : targetFps === 15 ? 'text-emerald-400 border-emerald-400/50' : 'text-audiophile-cyan border-audiophile-cyan/40'} hover:text-white transition cursor-pointer"
+        title={`Frecuencia de refresco: ${targetFps} FPS (clic para alternar 60F / 30F / 15F)`}
+      >
+        {targetFps}F
+      </button>
+
+      <button
+        type="button"
         onclick={() => (peakHoldEnabled = !peakHoldEnabled)}
-        class="flex h-5 w-5 items-center justify-center rounded border border-audiophile-border bg-audiophile-surface2 font-mono text-[9px] {peakHoldEnabled ? 'text-audiophile-cyan border-audiophile-cyan/40' : 'text-audiophile-muted'} hover:text-white transition"
+        class="flex h-5 w-5 items-center justify-center rounded border border-audiophile-border bg-audiophile-surface2 font-mono text-[9px] {peakHoldEnabled ? 'text-audiophile-cyan border-audiophile-cyan/40' : 'text-audiophile-muted'} hover:text-white transition cursor-pointer"
         title="Alternar retención de picos (Peak Hold)"
       >
         P
@@ -385,7 +449,7 @@
       <button
         type="button"
         onclick={() => (showLabels = !showLabels)}
-        class="flex h-5 w-5 items-center justify-center rounded border border-audiophile-border bg-audiophile-surface2 font-mono text-[9px] {showLabels ? 'text-audiophile-cyan border-audiophile-cyan/40' : 'text-audiophile-muted'} hover:text-white transition"
+        class="flex h-5 w-5 items-center justify-center rounded border border-audiophile-border bg-audiophile-surface2 font-mono text-[9px] {showLabels ? 'text-audiophile-cyan border-audiophile-cyan/40' : 'text-audiophile-muted'} hover:text-white transition cursor-pointer"
         title="Alternar etiquetas de frecuencia (Hz)"
       >
         Hz
