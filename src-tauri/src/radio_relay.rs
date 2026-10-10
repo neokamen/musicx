@@ -168,13 +168,19 @@ fn run_relay(
         let mut upstream = response.into_reader();
         let mut disconnected = false;
 
+        let mut clean_eof = false;
         while !stop_flag.load(Ordering::SeqCst) && !disconnected {
             let to_read = if metaint > 0 { metaint } else { buf.len() };
             let mut remaining = to_read;
             while remaining > 0 {
                 let chunk = remaining.min(buf.len());
                 let read = match upstream.read(&mut buf[..chunk]) {
-                    Ok(0) | Err(_) => {
+                    Ok(0) => {
+                        clean_eof = true;
+                        disconnected = true;
+                        break;
+                    }
+                    Err(_) => {
                         disconnected = true;
                         break;
                     }
@@ -187,21 +193,19 @@ fn run_relay(
                 remaining -= read;
             }
             if disconnected {
-                continue;
+                break;
             }
 
             if metaint > 0 {
                 let mut len_byte = [0u8; 1];
                 if upstream.read_exact(&mut len_byte).is_err() {
-                    disconnected = true;
-                    continue;
+                    break;
                 }
                 let meta_len = (len_byte[0] as usize) * 16;
                 if meta_len > 0 {
                     let mut meta_buf = vec![0u8; meta_len];
                     if upstream.read_exact(&mut meta_buf).is_err() {
-                        disconnected = true;
-                        continue;
+                        break;
                     }
                     if let Some(title) = parse_stream_title(&meta_buf) {
                         if !title.is_empty() && title != last_title {
@@ -219,9 +223,12 @@ fn run_relay(
             }
         }
 
-        if stop_flag.load(Ordering::SeqCst) {
+        // If upstream reached EOF cleanly or if this is a finite non-ICY media stream,
+        // do not loop/reconnect. Close client connection and finish so the player sees EOF.
+        if clean_eof || metaint == 0 || stop_flag.load(Ordering::SeqCst) {
             break;
         }
+
         if wait_before_retry(&stop_flag, retry_delay_seconds) {
             break;
         }

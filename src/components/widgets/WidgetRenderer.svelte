@@ -29,6 +29,7 @@
   import WaveformEnvelopeWidget from "./WaveformEnvelopeWidget.svelte";
   import WaveformMatrixWidget from "./WaveformMatrixWidget.svelte";
   import WaveformEcoWidget from "./WaveformEcoWidget.svelte";
+  import FftwVisualizer from "./FftwVisualizer.svelte";
 
   interface Props {
     widget: WidgetType;
@@ -101,6 +102,8 @@
   <WaveformMatrixWidget />
 {:else if widget === "waveform_eco"}
   <WaveformEcoWidget />
+{:else if widget === "fftw_visualizer"}
+  <FftwVisualizer {nodeKey} {isEditing} />
 {:else}
   <div class="p-4 text-center text-audiophile-muted font-mono text-xs">
     Widget desconocido: {widget}

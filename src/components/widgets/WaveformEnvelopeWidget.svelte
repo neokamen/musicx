@@ -144,62 +144,7 @@
         lowerPoints.push({ x, y: yBottom });
       }
 
-      // 1. Draw Underfill Silhouette (Full)
-      ctx.beginPath();
-      ctx.moveTo(upperPoints[0].x, centerY);
-      ctx.lineTo(upperPoints[0].x, upperPoints[0].y);
-      for (let i = 0; i < upperPoints.length - 1; i++) {
-        const xc = (upperPoints[i].x + upperPoints[i + 1].x) / 2;
-        const yc = (upperPoints[i].y + upperPoints[i + 1].y) / 2;
-        ctx.quadraticCurveTo(upperPoints[i].x, upperPoints[i].y, xc, yc);
-      }
-      ctx.lineTo(upperPoints[upperPoints.length - 1].x, upperPoints[upperPoints.length - 1].y);
-      ctx.lineTo(upperPoints[upperPoints.length - 1].x, centerY);
-
-      // Backwards on lower
-      for (let i = lowerPoints.length - 1; i > 0; i--) {
-        const xc = (lowerPoints[i].x + lowerPoints[i - 1].x) / 2;
-        const yc = (lowerPoints[i].y + lowerPoints[i - 1].y) / 2;
-        ctx.quadraticCurveTo(lowerPoints[i].x, lowerPoints[i].y, xc, yc);
-      }
-      ctx.closePath();
-
-      // Unplayed background silhouette
-      ctx.fillStyle = `${accentColor}16`;
-      ctx.fill();
-
-      // 2. Clip and draw Played Highlighted Gradient
-      ctx.save();
-      ctx.beginPath();
-      ctx.rect(0, 0, cursorX, height);
-      ctx.clip();
-
-      const playedGrad = ctx.createLinearGradient(0, centerY - maxAmp, 0, centerY + maxAmp * 0.65);
-      playedGrad.addColorStop(0, `${accentColor}95`);
-      playedGrad.addColorStop(0.5, `${accentColor}55`);
-      playedGrad.addColorStop(1, `${accentColor}18`);
-
-      ctx.beginPath();
-      ctx.moveTo(upperPoints[0].x, centerY);
-      ctx.lineTo(upperPoints[0].x, upperPoints[0].y);
-      for (let i = 0; i < upperPoints.length - 1; i++) {
-        const xc = (upperPoints[i].x + upperPoints[i + 1].x) / 2;
-        const yc = (upperPoints[i].y + upperPoints[i + 1].y) / 2;
-        ctx.quadraticCurveTo(upperPoints[i].x, upperPoints[i].y, xc, yc);
-      }
-      ctx.lineTo(upperPoints[upperPoints.length - 1].x, upperPoints[upperPoints.length - 1].y);
-      ctx.lineTo(upperPoints[upperPoints.length - 1].x, centerY);
-      for (let i = lowerPoints.length - 1; i > 0; i--) {
-        const xc = (lowerPoints[i].x + lowerPoints[i - 1].x) / 2;
-        const yc = (lowerPoints[i].y + lowerPoints[i - 1].y) / 2;
-        ctx.quadraticCurveTo(lowerPoints[i].x, lowerPoints[i].y, xc, yc);
-      }
-      ctx.closePath();
-      ctx.fillStyle = playedGrad;
-      ctx.fill();
-      ctx.restore();
-
-      // 3. Neon Upper Crest
+      // 1. Unplayed Upper & Lower continuous wave (pure line, zero underfill color)
       ctx.beginPath();
       ctx.moveTo(upperPoints[0].x, upperPoints[0].y);
       for (let i = 0; i < upperPoints.length - 1; i++) {
@@ -207,19 +152,12 @@
         const yc = (upperPoints[i].y + upperPoints[i + 1].y) / 2;
         ctx.quadraticCurveTo(upperPoints[i].x, upperPoints[i].y, xc, yc);
       }
-      ctx.strokeStyle = accentColor;
-      ctx.lineWidth = 2.2;
-      ctx.shadowColor = accentColor;
-      ctx.shadowBlur = 10;
-      ctx.stroke();
-      ctx.shadowBlur = 0;
-
-      // Subtle white filament on crest
-      ctx.strokeStyle = "#ffffff66";
-      ctx.lineWidth = 0.8;
+      ctx.lineTo(upperPoints[upperPoints.length - 1].x, upperPoints[upperPoints.length - 1].y);
+      ctx.strokeStyle = "rgba(148, 163, 184, 0.35)";
+      ctx.lineWidth = 1.8;
       ctx.stroke();
 
-      // 4. Mirrored Lower Crest
+      // Unplayed lower mirrored curve
       ctx.beginPath();
       ctx.moveTo(lowerPoints[0].x, lowerPoints[0].y);
       for (let i = 0; i < lowerPoints.length - 1; i++) {
@@ -227,9 +165,51 @@
         const yc = (lowerPoints[i].y + lowerPoints[i + 1].y) / 2;
         ctx.quadraticCurveTo(lowerPoints[i].x, lowerPoints[i].y, xc, yc);
       }
-      ctx.strokeStyle = `${accentColor}55`;
+      ctx.lineTo(lowerPoints[lowerPoints.length - 1].x, lowerPoints[lowerPoints.length - 1].y);
+      ctx.strokeStyle = "rgba(148, 163, 184, 0.22)";
       ctx.lineWidth = 1.2;
       ctx.stroke();
+
+      // 2. Played portion highlight (clip horizontally up to cursorX, pure stroke without underfill)
+      if (cursorX > 0) {
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(0, 0, cursorX, height);
+        ctx.clip();
+
+        // Upper played crest
+        ctx.beginPath();
+        ctx.moveTo(upperPoints[0].x, upperPoints[0].y);
+        for (let i = 0; i < upperPoints.length - 1; i++) {
+          const xc = (upperPoints[i].x + upperPoints[i + 1].x) / 2;
+          const yc = (upperPoints[i].y + upperPoints[i + 1].y) / 2;
+          ctx.quadraticCurveTo(upperPoints[i].x, upperPoints[i].y, xc, yc);
+        }
+        ctx.lineTo(upperPoints[upperPoints.length - 1].x, upperPoints[upperPoints.length - 1].y);
+        ctx.strokeStyle = accentColor;
+        ctx.lineWidth = 2.2;
+        ctx.stroke();
+
+        // Fine white core line on played crest
+        ctx.strokeStyle = "rgba(255, 255, 255, 0.8)";
+        ctx.lineWidth = 0.8;
+        ctx.stroke();
+
+        // Lower played wave
+        ctx.beginPath();
+        ctx.moveTo(lowerPoints[0].x, lowerPoints[0].y);
+        for (let i = 0; i < lowerPoints.length - 1; i++) {
+          const xc = (lowerPoints[i].x + lowerPoints[i + 1].x) / 2;
+          const yc = (lowerPoints[i].y + lowerPoints[i + 1].y) / 2;
+          ctx.quadraticCurveTo(lowerPoints[i].x, lowerPoints[i].y, xc, yc);
+        }
+        ctx.lineTo(lowerPoints[lowerPoints.length - 1].x, lowerPoints[lowerPoints.length - 1].y);
+        ctx.strokeStyle = `${accentColor}88`;
+        ctx.lineWidth = 1.4;
+        ctx.stroke();
+
+        ctx.restore();
+      }
 
       // Centerline
       ctx.fillStyle = `${accentColor}25`;

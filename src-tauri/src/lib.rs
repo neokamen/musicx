@@ -93,7 +93,86 @@ pub fn run() {
                     })
                     .expect("Failed to spawn buffer telemetry broadcaster thread");
 
+                if let Some(window) = app.get_webview_window("main") {
+                    let ws_path = app_data_dir.join("window_state.json");
+                    if let Ok(data) = std::fs::read_to_string(&ws_path) {
+                        if let Ok(saved) = serde_json::from_str::<commands::SavedWindowState>(&data) {
+                            if saved.is_maximized {
+                                let _ = window.maximize();
+                            } else if saved.width >= 300.0 && saved.height >= 200.0 {
+                                let _ = window.set_size(tauri::LogicalSize::new(saved.width, saved.height));
+                                if let (Some(x), Some(y)) = (saved.x, saved.y) {
+                                    let _ = window.set_position(tauri::LogicalPosition::new(x, y));
+                                }
+                            }
+                        }
+                    }
+                }
+
                 Ok(())
+            }
+        })
+        .on_window_event(|window, event| {
+            if window.label() == "main" {
+                match event {
+                    tauri::WindowEvent::Resized(size) => {
+                        let is_max = window.is_maximized().unwrap_or(false);
+                        if let Ok(scale_factor) = window.scale_factor() {
+                            let logical_w = size.width as f64 / scale_factor;
+                            let logical_h = size.height as f64 / scale_factor;
+                            if logical_w >= 300.0 && logical_h >= 200.0 {
+                                let app_handle = window.app_handle();
+                                if let Ok(app_data_dir) = app_handle.path().app_data_dir() {
+                                    let _ = std::fs::create_dir_all(&app_data_dir);
+                                    let ws_path = app_data_dir.join("window_state.json");
+                                    let mut current = std::fs::read_to_string(&ws_path)
+                                        .ok()
+                                        .and_then(|c| serde_json::from_str::<commands::SavedWindowState>(&c).ok())
+                                        .unwrap_or(commands::SavedWindowState {
+                                            width: logical_w,
+                                            height: logical_h,
+                                            x: None,
+                                            y: None,
+                                            is_maximized: is_max,
+                                            is_mini_player: false,
+                                        });
+                                    current.is_maximized = is_max;
+                                    if !is_max {
+                                        current.width = logical_w;
+                                        current.height = logical_h;
+                                    }
+                                    if let Ok(json) = serde_json::to_string_pretty(&current) {
+                                        let _ = std::fs::write(ws_path, json);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    tauri::WindowEvent::Moved(pos) => {
+                        let is_max = window.is_maximized().unwrap_or(false);
+                        if !is_max {
+                            if let Ok(scale_factor) = window.scale_factor() {
+                                let logical_x = pos.x as f64 / scale_factor;
+                                let logical_y = pos.y as f64 / scale_factor;
+                                let app_handle = window.app_handle();
+                                if let Ok(app_data_dir) = app_handle.path().app_data_dir() {
+                                    let ws_path = app_data_dir.join("window_state.json");
+                                    if let Some(mut current) = std::fs::read_to_string(&ws_path)
+                                        .ok()
+                                        .and_then(|c| serde_json::from_str::<commands::SavedWindowState>(&c).ok())
+                                    {
+                                        current.x = Some(logical_x);
+                                        current.y = Some(logical_y);
+                                        if let Ok(json) = serde_json::to_string_pretty(&current) {
+                                            let _ = std::fs::write(ws_path, json);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    _ => {}
+                }
             }
         })
         .invoke_handler(tauri::generate_handler![
@@ -123,6 +202,8 @@ pub fn run() {
             commands::scan_folder_tracks_recursive,
             commands::get_track_cover_art,
             commands::get_track_metadata,
+            commands::get_saved_window_state,
+            commands::save_window_state,
             // ── Stream Music / Downloader (ported from Soundix) ──
             downloader::analyze_source_link,
             downloader::download_track_batch,

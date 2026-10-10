@@ -173,31 +173,39 @@
 
       switch (visualStyle) {
         case "fluid_wave": {
-          fluidWavePhase += currentIsPlaying ? dt * 4.5 : dt * 1.6;
+          fluidWavePhase += currentIsPlaying ? dt * 4.2 : dt * 1.2;
 
           let bassEnergy = 0;
           let midEnergy = 0;
+          let trebleEnergy = 0;
           const spectrum = currentTelemetry.spectrum || [];
           if (currentIsPlaying && spectrum.length > 0) {
-            const sampleCount = Math.min(12, spectrum.length);
-            for (let s = 0; s < sampleCount; s++) {
+            const bassCount = Math.min(8, spectrum.length);
+            for (let s = 0; s < bassCount; s++) {
               bassEnergy += spectrum[s] || 0;
             }
-            bassEnergy = (bassEnergy / sampleCount);
+            bassEnergy /= bassCount;
 
-            const midCount = Math.min(32, spectrum.length);
-            for (let s = sampleCount; s < midCount; s++) {
+            const midCount = Math.min(24, spectrum.length);
+            for (let s = bassCount; s < midCount; s++) {
               midEnergy += spectrum[s] || 0;
             }
-            midEnergy = (midEnergy / (midCount - sampleCount));
+            midEnergy /= Math.max(1, midCount - bassCount);
+
+            const trebleCount = Math.min(48, spectrum.length);
+            for (let s = midCount; s < trebleCount; s++) {
+              trebleEnergy += spectrum[s] || 0;
+            }
+            trebleEnergy /= Math.max(1, trebleCount - midCount);
           } else {
-            bassEnergy = 0.08;
-            midEnergy = 0.04;
+            bassEnergy = 0.05;
+            midEnergy = 0.03;
+            trebleEnergy = 0.01;
           }
 
           const midY = h * 0.5;
-          const amplitude = Math.min(h * 0.44, Math.max(3, h * (bassEnergy * 0.65 + midEnergy * 0.35 + 0.1)));
-          const pointsCount = 48;
+          const amplitude = Math.min(h * 0.45, Math.max(4, h * (bassEnergy * 0.6 + midEnergy * 0.3 + trebleEnergy * 0.1 + 0.08)));
+          const pointsCount = Math.max(36, Math.min(64, Math.floor(w / 16)));
           const step = w / (pointsCount - 1);
           const points: { x: number; y: number }[] = [];
 
@@ -206,40 +214,19 @@
             const normX = i / (pointsCount - 1);
             const envelope = Math.sin(normX * Math.PI);
 
-            const freqVal = currentIsPlaying && spectrum.length > 0
-              ? (spectrum[Math.min(i, spectrum.length - 1)] || 0) * 0.8
-              : 0;
+            const freqIdx = Math.min(spectrum.length - 1, Math.floor(normX * spectrum.length));
+            const freqVal = currentIsPlaying && spectrum.length > 0 ? (spectrum[freqIdx] || 0) : 0;
 
             const wave =
-              Math.sin(normX * 10 + fluidWavePhase) * 0.6 +
-              Math.sin(normX * 22 - fluidWavePhase * 1.4) * 0.28 +
-              Math.cos(normX * 36 + fluidWavePhase * 2) * (0.12 + freqVal * 0.3);
+              Math.sin(normX * 8 + fluidWavePhase) * 0.55 +
+              Math.sin(normX * 18 - fluidWavePhase * 1.3) * 0.28 +
+              Math.cos(normX * 32 + fluidWavePhase * 1.8) * (0.12 + freqVal * 0.35);
 
             const y = midY + wave * amplitude * envelope;
             points.push({ x, y });
           }
 
-          // Draw translucent underfill
-          ctx.beginPath();
-          ctx.moveTo(0, h);
-          ctx.lineTo(points[0].x, points[0].y);
-          for (let i = 0; i < points.length - 1; i++) {
-            const xc = (points[i].x + points[i + 1].x) / 2;
-            const yc = (points[i].y + points[i + 1].y) / 2;
-            ctx.quadraticCurveTo(points[i].x, points[i].y, xc, yc);
-          }
-          ctx.lineTo(points[points.length - 1].x, points[points.length - 1].y);
-          ctx.lineTo(w, h);
-          ctx.closePath();
-
-          const areaGrad = ctx.createLinearGradient(0, midY - amplitude, 0, h);
-          areaGrad.addColorStop(0, `${accent}35`);
-          areaGrad.addColorStop(0.7, `${accent}10`);
-          areaGrad.addColorStop(1, "transparent");
-          ctx.fillStyle = areaGrad;
-          ctx.fill();
-
-          // Draw luminous wave crest
+          // Pure fluid wave stroke (zero underfill, zero shadowBlur for ultra lightweight performance)
           ctx.beginPath();
           ctx.moveTo(points[0].x, points[0].y);
           for (let i = 0; i < points.length - 1; i++) {
@@ -250,16 +237,82 @@
           ctx.lineTo(points[points.length - 1].x, points[points.length - 1].y);
 
           ctx.strokeStyle = accent;
-          ctx.lineWidth = 1.8;
-          ctx.shadowColor = accent;
-          ctx.shadowBlur = 8;
+          ctx.lineWidth = 2.2;
           ctx.stroke();
-          ctx.shadowBlur = 0;
 
-          // White core filament
-          ctx.strokeStyle = "#ffffff";
-          ctx.lineWidth = 0.6;
+          // High-precision core filament (crisp optical line)
+          ctx.beginPath();
+          ctx.moveTo(points[0].x, points[0].y);
+          for (let i = 0; i < points.length - 1; i++) {
+            const xc = (points[i].x + points[i + 1].x) / 2;
+            const yc = (points[i].y + points[i + 1].y) / 2;
+            ctx.quadraticCurveTo(points[i].x, points[i].y, xc, yc);
+          }
+          ctx.lineTo(points[points.length - 1].x, points[points.length - 1].y);
+
+          ctx.strokeStyle = "rgba(255, 255, 255, 0.75)";
+          ctx.lineWidth = 0.8;
           ctx.stroke();
+
+          // Mirrored wave if cavaMirrored is enabled (pure line)
+          if (currentApp.cavaMirrored) {
+            ctx.beginPath();
+            ctx.moveTo(points[0].x, midY - (points[0].y - midY));
+            for (let i = 0; i < points.length - 1; i++) {
+              const prevY = midY - (points[i].y - midY);
+              const nextY = midY - (points[i + 1].y - midY);
+              const xc = (points[i].x + points[i + 1].x) / 2;
+              const yc = (prevY + nextY) / 2;
+              ctx.quadraticCurveTo(points[i].x, prevY, xc, yc);
+            }
+            const lastY = midY - (points[points.length - 1].y - midY);
+            ctx.lineTo(points[points.length - 1].x, lastY);
+
+            ctx.strokeStyle = `${accent}88`;
+            ctx.lineWidth = 1.6;
+            ctx.stroke();
+          }
+          break;
+        }
+
+        case "fftw3_precision": {
+          // Analytical FFTW3 Studio Spectrum with floating ballistic peaks
+          const baseline = h - 2;
+          const usableH = baseline - 2;
+          const bandCount = Math.min(64, numBands);
+          const slotW = w / bandCount;
+          const barW = Math.max(1, slotW * 0.76);
+          const gap = slotW - barW;
+
+          // Reference dB horizontal grids
+          ctx.strokeStyle = "rgba(148, 163, 184, 0.12)";
+          ctx.lineWidth = 1;
+          for (const db of [-6, -12, -24, -36]) {
+            const frac = 1 - Math.abs(db) / 48;
+            const y = baseline * (1 - frac);
+            ctx.beginPath();
+            ctx.moveTo(0, y);
+            ctx.lineTo(w, y);
+            ctx.stroke();
+          }
+
+          for (let i = 0; i < bandCount; i++) {
+            const val = currentBands[i];
+            const barH = val * usableH;
+            const x = i * slotW + gap / 2;
+            const y = baseline - barH;
+
+            if (barH > 0.5) {
+              ctx.fillStyle = accent;
+              ctx.fillRect(x, y, barW, barH);
+            }
+
+            if (peaks[i] > 0.02) {
+              const peakY = Math.max(2, baseline - peaks[i] * usableH);
+              ctx.fillStyle = "#ffffff";
+              ctx.fillRect(x, peakY - 1, barW, 2);
+            }
+          }
           break;
         }
 

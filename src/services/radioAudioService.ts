@@ -123,9 +123,16 @@ class RadioAudioService {
 				this.audio.currentTime >= duration - 0.35
 			) {
 				this.endedConsumed = true;
+				this.playbackKind = "idle";
 				this.audio.pause();
+				this.audio.removeAttribute("src");
+				this.audio.load();
 				this.stopTimer();
 				this.stopSpectrumLoop();
+				if (this.relayActive) {
+					this.relayActive = false;
+					void stopRadioRelay().catch(() => {});
+				}
 				this.publish({
 					status: "stopped",
 					elapsedSeconds: duration,
@@ -147,12 +154,21 @@ class RadioAudioService {
 			if (this.playbackKind !== "media") return;
 			if (this.endedConsumed) return;
 			this.endedConsumed = true;
+			const duration = this.mediaDuration();
+			this.playbackKind = "idle";
+			this.audio.pause();
+			this.audio.removeAttribute("src");
+			this.audio.load();
 			this.stopTimer();
 			this.stopSpectrumLoop();
+			if (this.relayActive) {
+				this.relayActive = false;
+				void stopRadioRelay().catch(() => {});
+			}
 			this.publish({
 				status: "stopped",
-				elapsedSeconds: this.mediaDuration() ?? 0,
-				duration: this.mediaDuration(),
+				elapsedSeconds: duration ?? 0,
+				duration,
 				seekable: true,
 			});
 			this.endedHandler?.();

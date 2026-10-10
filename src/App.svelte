@@ -25,6 +25,7 @@
     bitPerfectModeStore,
     triggerFullBackupSync,
   } from "./store/index";
+  import * as api from "./services/api";
   import { initTheme } from "./lib/theme";
   import { FIRST_RUN_PROFILE } from "./components/layout/defaultLayout";
   import whiteLogo from "../simple-white-logo.png";
@@ -80,15 +81,23 @@
     }
   }
 
-  function storeWindowState(width: number, height: number, isMini: boolean) {
+  function storeWindowState(width: number, height: number, isMini: boolean, isMaximized = false) {
     try {
-      localStorage.setItem(LAST_WINDOW_STATE_KEY, JSON.stringify({ width, height, isMiniPlayer: isMini }));
+      localStorage.setItem(LAST_WINDOW_STATE_KEY, JSON.stringify({ width, height, isMiniPlayer: isMini, isMaximized }));
       localStorage.setItem(LAST_WINDOW_MODE_KEY, isMini ? "mini" : "full");
-      localStorage.setItem(
-        isMini ? MINI_WINDOW_SIZE_KEY : NORMAL_WINDOW_SIZE_KEY,
-        JSON.stringify({ width, height }),
-      );
+      if (!isMaximized) {
+        localStorage.setItem(
+          isMini ? MINI_WINDOW_SIZE_KEY : NORMAL_WINDOW_SIZE_KEY,
+          JSON.stringify({ width, height }),
+        );
+      }
       triggerFullBackupSync();
+      void api.saveWindowState({
+        width,
+        height,
+        is_maximized: isMaximized,
+        is_mini_player: isMini,
+      });
     } catch {
       // Ignore unavailable local storage outside the desktop runtime.
     }
@@ -109,7 +118,7 @@
   let miniPlayerTemplate = $state<MiniPlayerTemplate>(initialTemplate);
 
   let normalWindowSize = readStoredWindowSize(NORMAL_WINDOW_SIZE_KEY);
-  let isMiniPlayerCurrent = false;
+  let isMiniPlayerCurrent = savedWindowState?.isMiniPlayer ?? false;
 
   let isRestoringWindowSize = true;
   let resizeSaveTimer: number | undefined = undefined;
@@ -311,10 +320,41 @@
         const { getCurrentWindow, LogicalSize } = await import("@tauri-apps/api/window");
         if (cancelled) return;
         const currentWindow = getCurrentWindow();
+
+        // Check native saved window state from Rust backend
+        const nativeState = await api.getSavedWindowState();
+        let targetSize = savedWindowState;
+        if (nativeState && nativeState.width >= 300 && nativeState.height >= 200) {
+          targetSize = {
+            width: nativeState.width,
+            height: nativeState.height,
+            isMiniPlayer: nativeState.is_mini_player,
+          };
+          if (!nativeState.is_mini_player) {
+            normalWindowSize = { width: nativeState.width, height: nativeState.height };
+          }
+        }
+
+        if (targetSize) {
+          if (nativeState?.is_maximized) {
+            await currentWindow.maximize().catch(() => {});
+          } else {
+            await currentWindow.setMinSize(null).catch(() => {});
+            await currentWindow.setSize(new LogicalSize(targetSize.width, targetSize.height)).catch(() => {});
+            if (!targetSize.isMiniPlayer) {
+              await currentWindow.setMinSize(new LogicalSize(800, 500)).catch(() => {});
+              normalWindowSize = { width: targetSize.width, height: targetSize.height };
+            }
+          }
+        }
+
         unlistenResize = await currentWindow.onResized(async ({ payload: size }) => {
           if (isRestoringWindowSize) return;
           const isMax = await currentWindow.isMaximized().catch(() => false);
-          if (isMax) return;
+          if (isMax) {
+            storeWindowState(normalWindowSize?.width || 1100, normalWindowSize?.height || 720, isMiniPlayerCurrent, true);
+            return;
+          }
           window.clearTimeout(resizeSaveTimer);
           resizeSaveTimer = window.setTimeout(async () => {
             try {
@@ -325,13 +365,14 @@
                 if (!isMiniPlayerCurrent) {
                   normalWindowSize = { width: w, height: h };
                 }
-                storeWindowState(w, h, isMiniPlayerCurrent);
+                storeWindowState(w, h, isMiniPlayerCurrent, false);
               }
             } catch (error) {
               console.error("No se pudo guardar el tamaño de la ventana:", error);
             }
           }, 180);
         });
+
         unlistenClose = await currentWindow.onCloseRequested(async () => {
           try {
             const isMax = await currentWindow.isMaximized().catch(() => false);
@@ -340,28 +381,21 @@
               const w = Math.round(innerSize.width / scaleFactor);
               const h = Math.round(innerSize.height / scaleFactor);
               if (w >= 300 && h >= 200) {
-                storeWindowState(w, h, isMiniPlayerCurrent);
+                storeWindowState(w, h, isMiniPlayerCurrent, false);
               }
+            } else {
+              storeWindowState(normalWindowSize?.width || 1100, normalWindowSize?.height || 720, isMiniPlayerCurrent, true);
             }
           } catch (error) {
             console.error("No se pudo guardar el tamaño al cerrar la ventana:", error);
           }
         });
-
-        if (savedWindowState) {
-          await currentWindow.setMinSize(null);
-          await currentWindow.setSize(new LogicalSize(savedWindowState.width, savedWindowState.height));
-          if (!savedWindowState.isMiniPlayer) await currentWindow.setMinSize(new LogicalSize(800, 500));
-          if (!savedWindowState.isMiniPlayer) {
-            normalWindowSize = { width: savedWindowState.width, height: savedWindowState.height };
-          }
-        }
       } catch (error) {
         console.error("No se pudo restaurar el último tamaño de la ventana:", error);
       } finally {
         window.setTimeout(() => {
           if (!cancelled) isRestoringWindowSize = false;
-        }, 400);
+        }, 500);
       }
     };
 
@@ -369,37 +403,8 @@
 
     const handleWindowResize = () => {
       viewportHeight = window.innerHeight;
-      if (isRestoringWindowSize) return;
-      window.clearTimeout(resizeSaveTimer);
-      resizeSaveTimer = window.setTimeout(async () => {
-        try {
-          const { getCurrentWindow } = await import("@tauri-apps/api/window");
-          const currentWindow = getCurrentWindow();
-          const isMax = await currentWindow.isMaximized().catch(() => false);
-          if (isMax) return;
-          const w = window.innerWidth;
-          const h = window.innerHeight;
-          if (w >= 300 && h >= 200) {
-            if (!isMiniPlayerCurrent) {
-              normalWindowSize = { width: w, height: h };
-            }
-            storeWindowState(w, h, isMiniPlayerCurrent);
-          }
-        } catch {
-          // Ignore
-        }
-      }, 250);
     };
     window.addEventListener("resize", handleWindowResize);
-
-    const handleBeforeUnload = () => {
-      const w = window.innerWidth;
-      const h = window.innerHeight;
-      if (w >= 300 && h >= 200 && !isMiniPlayerCurrent) {
-        storeWindowState(w, h, false);
-      }
-    };
-    window.addEventListener("beforeunload", handleBeforeUnload);
 
     const handleLayoutRestored = () => {
       const stored = readSavedWindowState();
@@ -420,7 +425,6 @@
       unlistenClose?.();
       cleanupListeners?.();
       window.removeEventListener("resize", handleWindowResize);
-      window.removeEventListener("beforeunload", handleBeforeUnload);
       window.removeEventListener("musicx-layout-restored", handleLayoutRestored);
     };
   });

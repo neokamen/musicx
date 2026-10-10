@@ -887,6 +887,7 @@ export const useMusicStore = create<MusicPlayerStore>((set, get) => ({
 
     if (isStreamTrack(targetTrack)) {
       await api.stopAudio().catch(() => {});
+      radioAudioService.stop();
       const source = targetTrack.stream_source || targetTrack.filepath.replace(/^stream:/, "");
       const streamUrl = await api.getStreamAudioUrl(source);
       await radioAudioService.playMedia(streamUrl, volume, {
@@ -917,6 +918,9 @@ export const useMusicStore = create<MusicPlayerStore>((set, get) => ({
       } as Partial<MusicPlayerStore>);
       return;
     }
+
+    // When starting a local track, ensure streaming/radio audio is completely stopped!
+    radioAudioService.stop();
 
     await api.playTrack(
       targetTrack.filepath,
@@ -976,11 +980,25 @@ export const useMusicStore = create<MusicPlayerStore>((set, get) => ({
 
   togglePlayPause: async () => {
     const { isPlaying, activeRadioStation, currentTrack, queue, telemetry, play, pause, resume } = get();
-    if (activeRadioStation || isStreamTrack(currentTrack)) {
+    if (activeRadioStation) {
       if (isPlaying) {
         await pause();
       } else {
         await resume();
+      }
+      return;
+    }
+
+    if (currentTrack && isStreamTrack(currentTrack)) {
+      if (isPlaying) {
+        await pause();
+      } else {
+        const duration = telemetry.duration || currentTrack.duration_seconds;
+        const endTolerance = Math.min(0.5, duration * 0.1);
+        const hasFinished = telemetry.state === "Stopped" ||
+          (duration > 0 && telemetry.current_time >= duration - endTolerance);
+        if (hasFinished) await play(currentTrack);
+        else await resume();
       }
       return;
     }
@@ -1099,6 +1117,7 @@ export const useMusicStore = create<MusicPlayerStore>((set, get) => ({
       if (repeat === "all") {
         nextIndex = 0;
       } else {
+        await get().stop();
         return;
       }
     }

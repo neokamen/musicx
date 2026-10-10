@@ -5,7 +5,7 @@ use crate::models::{AudioTelemetry, BufferTelemetry, FileEntry, TrackMetadata};
 use crate::radio_relay::{self, RadioRelayState};
 use std::path::PathBuf;
 use std::sync::Arc;
-use tauri::{AppHandle, State};
+use tauri::{AppHandle, Manager, State};
 
 pub struct AppState {
     pub audio: Arc<crate::audio::AudioEngineHandle>,
@@ -383,5 +383,35 @@ pub fn frontend_log(level: String, message: String) {
     eprintln!("[FRONTEND {}] {}", level.to_uppercase(), message);
 }
 
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct SavedWindowState {
+    pub width: f64,
+    pub height: f64,
+    pub x: Option<f64>,
+    pub y: Option<f64>,
+    pub is_maximized: bool,
+    pub is_mini_player: bool,
+}
 
+#[tauri::command]
+pub fn get_saved_window_state(app_handle: AppHandle) -> Result<Option<SavedWindowState>, String> {
+    let app_data_dir = app_handle.path().app_data_dir().map_err(|e| e.to_string())?;
+    let path = app_data_dir.join("window_state.json");
+    if path.exists() {
+        let content = std::fs::read_to_string(path).map_err(|e| e.to_string())?;
+        let state = serde_json::from_str(&content).map_err(|e| e.to_string())?;
+        Ok(Some(state))
+    } else {
+        Ok(None)
+    }
+}
 
+#[tauri::command]
+pub fn save_window_state(state: SavedWindowState, app_handle: AppHandle) -> Result<(), String> {
+    let app_data_dir = app_handle.path().app_data_dir().map_err(|e| e.to_string())?;
+    let _ = std::fs::create_dir_all(&app_data_dir);
+    let path = app_data_dir.join("window_state.json");
+    let json = serde_json::to_string_pretty(&state).map_err(|e| e.to_string())?;
+    std::fs::write(path, json).map_err(|e| e.to_string())?;
+    Ok(())
+}

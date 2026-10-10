@@ -278,3 +278,20 @@ export const getAudioDevices = listAudioDevices;
 export const readDirectory = readDirectoryLazy;
 export const scanDirectory = triggerScan;
 export const searchTracks = getTracksFromDb;
+
+export interface SavedWindowState {
+  width: number;
+  height: number;
+  x?: number;
+  y?: number;
+  is_maximized: boolean;
+  is_mini_player: boolean;
+}
+
+export async function getSavedWindowState(): Promise<SavedWindowState | null> {
+  return invoke<SavedWindowState | null>("get_saved_window_state").catch(() => null);
+}
+
+export async function saveWindowState(state: SavedWindowState): Promise<void> {
+  return invoke<void>("save_window_state", { state }).catch(() => {});
+}

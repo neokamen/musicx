@@ -29,7 +29,8 @@ export type WidgetType =
   | "waveform_bars"
   | "waveform_envelope"
   | "waveform_matrix"
-  | "waveform_eco";
+  | "waveform_eco"
+  | "fftw_visualizer";
 
 export interface WidgetMeta {
   type: WidgetType;
@@ -72,6 +73,11 @@ export const AVAILABLE_WIDGETS: WidgetMeta[] = ([
     type: "cava_visualizer",
     label: "Visualizador CAVA FFT",
     description: "Visualizador FFT configurable con barras, sensibilidad y gravedad",
+  },
+  {
+    type: "fftw_visualizer",
+    label: "Visualizador FFTW3 (Ultra-Ligero)",
+    description: "Motor espectral analítico FFTW3, ultra bajo consumo de CPU/GPU y monitor estéreo L/R en vivo",
   },
   {
     type: "dac_telemetry",

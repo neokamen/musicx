@@ -1,14 +1,14 @@
 {
   "name": "musicx-theaudioplayer",
   "private": true,
-  "version": "0.4.9",
+  "version": "0.5.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
     "fetch-sidecars": "node scripts/fetch-runtime-sidecars.mjs",
-    "tauri": "tauri"
+    "tauri": "NO_STRIP=true tauri"
   },
   "dependencies": {
     "@lucide/svelte": "^1.50.0",
@@ -25,7 +25,7 @@
     "autoprefixer": "^10.4.21",
     "postcss": "^8.5.3",
     "svelte-check": "^4.7.6",
-    "tailwindcss": "^3.4.17",
+    "tailwindcss": "^3.4.19",
     "typescript": "~6.0.3",
     "vite": "^8.0.16"
   }
