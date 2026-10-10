@@ -732,15 +732,15 @@
                 <!-- Network Mount Path -->
                 <div class="space-y-1">
                   <label for="mpd-mount-input" class="text-xs font-medium text-slate-300 flex items-center justify-between">
-                    <span>Ruta Montada del Disco en Red (Local Mount)</span>
-                    <span class="text-[10px] text-audiophile-cyan">Recomendado para transferencias 1:1</span>
+                    <span>Ruta Montada o URL SMB (smb:// o Mount Local)</span>
+                    <span class="text-[10px] text-audiophile-cyan">Soporta smb:// y montajes directos</span>
                   </label>
                   <div class="flex gap-2">
                     <input
                       id="mpd-mount-input"
                       type="text"
                       bind:value={config.remote_mount_path}
-                      placeholder="/mnt/nas/music o Z:\musica"
+                      placeholder="/mnt/nas/music o smb://servidor/recurso/ruta/"
                       class="flex-1 px-3 py-1.5 rounded-lg border border-audiophile-border bg-slate-950 font-mono text-xs text-white focus:outline-none focus:border-audiophile-cyan"
                     />
                     <button
@@ -752,7 +752,7 @@
                     </button>
                   </div>
                   <p class="text-[11px] text-slate-500">
-                    Punto de montaje del disco duro en red (NFS, SMB, SSHFS). Permite copiar archivos y reproducir bit-perfect directamente.
+                    Punto de montaje del disco en red (NFS, SMB local) o dirección SMB directa (ej: <code class="text-audiophile-cyan font-mono text-[10px]">smb://servidor/recurso/</code>). Permite reproducción nativa, caché ultra-rápida y sincronización.
                   </p>
                 </div>
 

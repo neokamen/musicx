@@ -14,7 +14,7 @@ export function getSavedMpdConfig(): MpdConfig {
     const raw = localStorage.getItem(MPD_CONFIG_KEY);
     if (raw) {
       const parsed = JSON.parse(raw);
-      return {
+      const cfg: MpdConfig = {
         host: parsed.host || "127.0.0.1",
         port: Number(parsed.port) || 6600,
         password: parsed.password || null,
@@ -25,6 +25,8 @@ export function getSavedMpdConfig(): MpdConfig {
         smb_domain: parsed.smb_domain || null,
         http_stream_url: parsed.http_stream_url || null,
       };
+      void invoke("mpd_save_config", { config: cfg }).catch(() => {});
+      return cfg;
     }
   } catch {
     // Fallback on error
@@ -45,6 +47,7 @@ export function getSavedMpdConfig(): MpdConfig {
 export function saveMpdConfig(config: MpdConfig): void {
   try {
     localStorage.setItem(MPD_CONFIG_KEY, JSON.stringify(config));
+    void invoke("mpd_save_config", { config }).catch(() => {});
   } catch (e) {
     console.error("Error saving MPD config to localStorage:", e);
   }
@@ -56,6 +59,33 @@ export function saveMpdConfig(config: MpdConfig): void {
 export function resolveMpdTrackPath(mpdPath: string, config: MpdConfig): string {
   let cleanMpdPath = mpdPath.replace(/\\/g, "/");
 
+  // Detect SMB candidate URL in either remote_mount_path or path_strip_prefix
+  const smbCandidate =
+    (config.remote_mount_path && config.remote_mount_path.startsWith("smb://")
+      ? config.remote_mount_path
+      : null) ||
+    (config.path_strip_prefix && config.path_strip_prefix.startsWith("smb://")
+      ? config.path_strip_prefix
+      : null);
+
+  if (smbCandidate) {
+    const withoutScheme = smbCandidate.replace(/^smb:\/\//, "").replace(/\/+$/, "");
+    const parts = withoutScheme.split("/").filter(Boolean);
+    const server = parts[0] || config.host;
+    const share = parts[1] || "rootfs";
+    const baseSub = parts.slice(2).join("/");
+
+    let relInShare = cleanMpdPath.replace(/^\/+/, "");
+    const sharePattern = `${share}/`;
+    if (relInShare.includes(sharePattern)) {
+      const idx = relInShare.indexOf(sharePattern);
+      relInShare = relInShare.slice(idx + sharePattern.length);
+    } else if (baseSub && !relInShare.startsWith(baseSub)) {
+      relInShare = `${baseSub.replace(/\/+$/, "")}/${relInShare}`;
+    }
+    return `smb://${server}/${share}/${relInShare}`;
+  }
+
   // Strip user-configured prefix if present (e.g. "USB/rootfs/mnt/SDCARD/" or "USB/")
   if (config.path_strip_prefix && config.path_strip_prefix.trim()) {
     const prefix = config.path_strip_prefix.trim().replace(/\\/g, "/").replace(/^\/+|\/+$/g, "");
@@ -66,23 +96,9 @@ export function resolveMpdTrackPath(mpdPath: string, config: MpdConfig): string 
     }
   }
 
-  // If remote mount path is specified
+  // If remote local mount path is specified (e.g. NFS / local SMB mount)
   if (config.remote_mount_path && config.remote_mount_path.trim()) {
-    let mount = config.remote_mount_path.trim().replace(/\/+$/, "");
-
-    // Convert smb:// URLs to local gvfs mount path on Linux if applicable
-    if (mount.startsWith("smb://")) {
-      const urlWithoutScheme = mount.slice(6);
-      const parts = urlWithoutScheme.split("/");
-      const server = parts[0];
-      const share = parts[1] || "";
-      const subpath = parts.slice(2).join("/");
-
-      // Standard Linux GVFS mount location: /run/user/<uid>/gvfs/smb-share:server=<server>,share=<share>/...
-      const gvfsPrefix = `/run/user/1000/gvfs/smb-share:server=${server},share=${share}`;
-      mount = subpath ? `${gvfsPrefix}/${subpath}` : gvfsPrefix;
-    }
-
+    const mount = config.remote_mount_path.trim().replace(/\/+$/, "");
     const cleanRel = cleanMpdPath.replace(/^\/+/, "");
 
     // Smart overlap: if mount path already ends with first directory of cleanRel, avoid duplication

@@ -13,7 +13,7 @@
     languageStore,
     audioSettingsStore,
   } from "../../store/index.ts";
-  import { ListMusic, Play, Trash2, X, Radio as RadioIcon, Globe, Volume2, Download, SlidersHorizontal, Server } from "@lucide/svelte";
+  import { ListMusic, Play, Trash2, X, Radio as RadioIcon, Globe, Volume2, Download, SlidersHorizontal, Server, ArrowLeft } from "@lucide/svelte";
   import RadioHubModal from "../radio/RadioHubModal.svelte";
   import StreamMusicModal from "./StreamMusicModal.svelte";
   import SoundixDownloadDialog from "./SoundixDownloadDialog.svelte";
@@ -314,9 +314,11 @@
       <button
         type="button"
         onclick={() => { showMpd = false; }}
-        class="px-2.5 py-1 rounded-lg text-xs font-semibold bg-slate-800 text-slate-200 hover:text-white hover:bg-slate-700 transition cursor-pointer border border-slate-700"
+        class="rounded-lg p-1.5 text-audiophile-muted hover:bg-audiophile-surface2 hover:text-white transition-colors cursor-pointer"
+        aria-label={lang === 'ca' ? 'Tornar a la Cua' : lang === 'en' ? 'Back to Queue' : 'Volver a la Cola'}
+        title={lang === 'ca' ? 'Tornar a la Cua' : lang === 'en' ? 'Back to Queue' : 'Volver a la Cola'}
       >
-        {lang === 'ca' ? 'Tornar a la Cua' : lang === 'en' ? 'Back to Queue' : 'Volver a la Cola'}
+        <ArrowLeft size={16} />
       </button>
     </div>
 
@@ -326,7 +328,7 @@
     </div>
 
     <!-- MPD Control HUD in bottom area -->
-    <div class="h-44 border-t border-audiophile-border shrink-0 bg-audiophile-surface2">
+    <div class="h-32 border-t border-audiophile-border shrink-0 bg-audiophile-surface2">
       <MpdControlWidget />
     </div>
   </div>

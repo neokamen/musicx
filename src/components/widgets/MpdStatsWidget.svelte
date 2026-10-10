@@ -158,3 +158,4 @@
     <span>Actualizado: {formatUpdateDate(status?.stats.db_update || 0)}</span>
   </div>
 </div>
+

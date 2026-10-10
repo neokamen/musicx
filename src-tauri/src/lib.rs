@@ -56,6 +56,16 @@ pub fn run() {
                     .expect("Failed to initialize SQLite database for musicx");
                 let db = Arc::new(db);
 
+                // Load cached mpd_config.json if available
+                let mpd_cfg_path = app_data_dir.join("mpd_config.json");
+                if mpd_cfg_path.exists() {
+                    if let Ok(content) = std::fs::read_to_string(&mpd_cfg_path) {
+                        if let Ok(cfg) = serde_json::from_str::<mpd::MpdConfig>(&content) {
+                            audio_engine.set_mpd_config(Some(cfg));
+                        }
+                    }
+                }
+
                 app.manage(AppState {
                     audio: Arc::clone(&audio_engine),
                     db,
@@ -232,6 +242,7 @@ pub fn run() {
             mpd::mpd_send_command,
             mpd::mpd_compare_libraries,
             mpd::mpd_transfer_files,
+            mpd::mpd_save_config,
         ])
         .run(tauri::generate_context!())
         .expect("error while running musicx audio player application");

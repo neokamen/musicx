@@ -10,11 +10,6 @@
     VolumeX,
     Repeat,
     Shuffle,
-    Server,
-    RefreshCw,
-    ExternalLink,
-    Music,
-    Radio,
   } from "@lucide/svelte";
   import { useMusicStore, appearanceStore } from "../../store/index.ts";
   import type { MpdServerStatus, MpdConfig } from "../../types/mpd";
@@ -98,46 +93,9 @@
   });
 </script>
 
-<div class="flex flex-col h-full w-full bg-audiophile-surface border border-audiophile-border rounded-lg overflow-hidden text-slate-100 font-sans p-3 justify-between">
-  <!-- Header -->
-  <div class="flex items-center justify-between pb-2 border-b border-audiophile-border select-none">
-    <div class="flex items-center gap-2">
-      <Server size={14} style="color: {appearance.accentColor || '#06b6d4'};" />
-      <span class="text-xs font-bold text-white font-mono">MPD Control Remoto</span>
-      {#if status?.connected}
-        <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" title={`Conectado (${status.ping_ms}ms)`}></span>
-      {:else}
-        <span class="w-2 h-2 rounded-full bg-slate-500" title="Desconectado"></span>
-      {/if}
-    </div>
-
-    <div class="flex items-center gap-1">
-      <button
-        type="button"
-        onclick={() => void fetchStatus(false)}
-        class="p-1 rounded text-slate-400 hover:text-white transition cursor-pointer"
-        title="Refrescar estado"
-      >
-        <RefreshCw size={12} class={isUpdating ? "animate-spin text-audiophile-cyan" : ""} />
-      </button>
-
-      <button
-        type="button"
-        onclick={() => useMusicStore.getState().setMpdHubOpen(true)}
-        class="p-1 rounded text-slate-400 hover:text-audiophile-cyan transition cursor-pointer"
-        title="Abrir Hub MPD"
-      >
-        <ExternalLink size={12} />
-      </button>
-    </div>
-  </div>
-
+<div class="flex flex-col h-full w-full bg-audiophile-surface border border-audiophile-border rounded-lg overflow-hidden text-slate-100 font-sans p-2 justify-between">
   <!-- Now Playing Details -->
-  <div class="flex flex-col items-center justify-center py-2 text-center space-y-1">
-    <div class="w-10 h-10 rounded-xl bg-slate-850 border border-slate-700/60 flex items-center justify-center text-audiophile-cyan shadow-inner">
-      <Music size={20} />
-    </div>
-
+  <div class="flex flex-col items-center justify-center text-center space-y-0.5 w-full">
     <div class="w-full px-2">
       <h4 class="text-xs font-bold text-white truncate">
         {status?.current_song?.title || status?.current_song?.file?.split("/").pop() || "Sin reproducción"}
@@ -151,9 +109,9 @@
     </div>
 
     <!-- Seek Indicator -->
-    <div class="w-full px-2 pt-1 font-mono text-[10px] text-slate-500 flex justify-between">
+    <div class="w-full px-2 pt-0.5 font-mono text-[10px] text-slate-500 flex justify-between">
       <span>{formatSecs(status?.elapsed || 0)}</span>
-      <span class="text-audiophile-cyan uppercase font-bold">{status?.state || "stop"}</span>
+      <span class="text-audiophile-cyan uppercase font-bold text-[9px]">{status?.state || "stop"}</span>
       <span>{formatSecs(status?.duration || 0)}</span>
     </div>
   </div>
@@ -257,3 +215,4 @@
     </div>
   </div>
 </div>
+

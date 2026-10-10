@@ -4,7 +4,7 @@ use std::collections::HashMap;
 use std::fs::File;
 use std::path::Path;
 use std::time::{Duration, Instant, UNIX_EPOCH};
-use tauri::{AppHandle, Emitter};
+use tauri::{AppHandle, Emitter, Manager};
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::net::TcpStream;
 use tokio::time::timeout;
@@ -1251,5 +1251,270 @@ pub async fn mpd_transfer_files(
         mpd_config,
     )
     .await
+}
+
+#[tauri::command]
+pub fn mpd_save_config(
+    app: AppHandle,
+    config: MpdConfig,
+    state: tauri::State<'_, crate::AppState>,
+) -> Result<(), String> {
+    state.audio.set_mpd_config(Some(config.clone()));
+    if let Ok(app_data_dir) = app.path().app_data_dir() {
+        let _ = std::fs::create_dir_all(&app_data_dir);
+        let path = app_data_dir.join("mpd_config.json");
+        if let Ok(json) = serde_json::to_string_pretty(&config) {
+            let _ = std::fs::write(path, json);
+        }
+    }
+    Ok(())
+}
+
+/// Resolves a remote MPD or SMB track into a local cached audio file
+pub fn resolve_and_fetch_smb_file(
+    path_str: &str,
+    config: Option<&MpdConfig>,
+) -> Result<std::path::PathBuf, String> {
+    let p = std::path::Path::new(path_str);
+    if p.exists() {
+        return Ok(p.to_path_buf());
+    }
+
+    // Attempt to load fallback config from disk if none was provided
+    let fallback_cfg: Option<MpdConfig> = if config.is_none() {
+        let app_dir = std::env::var("HOME").ok().map(|h| {
+            std::path::PathBuf::from(h)
+                .join(".local/share/com.musicx.audioplayer/mpd_config.json")
+        });
+        if let Some(p) = app_dir {
+            if p.exists() {
+                std::fs::read_to_string(&p)
+                    .ok()
+                    .and_then(|c| serde_json::from_str(&c).ok())
+            } else {
+                None
+            }
+        } else {
+            None
+        }
+    } else {
+        None
+    };
+
+    let effective_cfg = config.or(fallback_cfg.as_ref());
+
+    // Determine host, credentials, and domain
+    let host = effective_cfg.map(|c| c.host.as_str()).unwrap_or("127.0.0.1");
+    let smb_user = effective_cfg.and_then(|c| c.smb_user.as_deref());
+    let smb_pass = effective_cfg.and_then(|c| c.smb_password.as_deref());
+    let smb_domain = effective_cfg.and_then(|c| c.smb_domain.as_deref());
+
+    // Clean up path
+    let clean_path = path_str.replace('\\', "/");
+
+    let (server, share, rel_in_share) = if clean_path.starts_with("smb://") {
+        let without_scheme = clean_path.trim_start_matches("smb://");
+        let parts: Vec<&str> = without_scheme.split('/').filter(|s| !s.is_empty()).collect();
+        let srv = parts.first().copied().unwrap_or(host).to_string();
+        let sh = parts.get(1).copied().unwrap_or("rootfs").to_string();
+        let sub = if parts.len() > 2 {
+            parts[2..].join("/")
+        } else {
+            String::new()
+        };
+        (srv, sh, sub)
+    } else {
+        // If config has remote_mount_path or path_strip_prefix with smb://, parse server & share
+        let mut srv = host.to_string();
+        let mut sh = "rootfs".to_string();
+        let mut base_subpath = String::new();
+
+        let smb_candidate = effective_cfg.and_then(|c| {
+            if c.remote_mount_path.as_deref().unwrap_or("").starts_with("smb://") {
+                c.remote_mount_path.as_deref()
+            } else if c.path_strip_prefix.as_deref().unwrap_or("").starts_with("smb://") {
+                c.path_strip_prefix.as_deref()
+            } else {
+                None
+            }
+        });
+
+        if let Some(cand) = smb_candidate {
+            let without = cand.trim_start_matches("smb://");
+            let parts: Vec<&str> = without.split('/').filter(|s| !s.is_empty()).collect();
+            if let Some(s) = parts.first() { srv = s.to_string(); }
+            if let Some(s) = parts.get(1) { sh = s.to_string(); }
+            if parts.len() > 2 {
+                base_subpath = parts[2..].join("/");
+            }
+        }
+
+        // Relative path extraction
+        // E.g. clean_path: "USB/rootfs/mnt/SDCARD/RAP/El Niño Snake/..."
+        let pattern = format!("{}/", sh);
+        let sub = if let Some(idx) = clean_path.find(&pattern) {
+            clean_path[idx + pattern.len()..].to_string()
+        } else if let Some(prefix) = effective_cfg.and_then(|c| c.path_strip_prefix.as_deref()) {
+            let p_clean = prefix.replace('\\', "/").trim_matches('/').to_string();
+            if !p_clean.is_empty() && clean_path.starts_with(&p_clean) {
+                clean_path[p_clean.len()..].trim_start_matches('/').to_string()
+            } else if !base_subpath.is_empty() && !clean_path.starts_with(&base_subpath) {
+                format!("{}/{}", base_subpath.trim_matches('/'), clean_path.trim_start_matches('/'))
+            } else {
+                clean_path.trim_start_matches('/').to_string()
+            }
+        } else if !base_subpath.is_empty() && !clean_path.starts_with(&base_subpath) {
+            format!("{}/{}", base_subpath.trim_matches('/'), clean_path.trim_start_matches('/'))
+        } else {
+            clean_path.trim_start_matches('/').to_string()
+        };
+
+        (srv, sh, sub)
+    };
+
+    if rel_in_share.is_empty() {
+        return Err(format!("No se pudo determinar la ruta relativa en el recurso SMB: {}", path_str));
+    }
+
+    // Cache destination
+    let cache_dir = std::env::temp_dir().join("musicx_smb_cache");
+    let _ = std::fs::create_dir_all(&cache_dir);
+
+    use std::hash::{Hash, Hasher};
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    path_str.hash(&mut hasher);
+    let hash_val = hasher.finish();
+
+    let ext = std::path::Path::new(&rel_in_share)
+        .extension()
+        .and_then(|e| e.to_str())
+        .unwrap_or("flac");
+    let file_name = std::path::Path::new(&rel_in_share)
+        .file_stem()
+        .and_then(|f| f.to_str())
+        .unwrap_or("track");
+
+    let safe_stem: String = file_name
+        .chars()
+        .map(|c| if c.is_alphanumeric() || c == '-' || c == '_' { c } else { '_' })
+        .take(64)
+        .collect();
+
+    let cache_file = cache_dir.join(format!("{:016x}_{}.{}", hash_val, safe_stem, ext));
+
+    // If cache file exists and has size > 1024 bytes, return it immediately!
+    if cache_file.exists() {
+        if let Ok(meta) = std::fs::metadata(&cache_file) {
+            if meta.len() > 1024 {
+                return Ok(cache_file);
+            }
+        }
+    }
+
+    // Download via smbclient
+    let smb_target = format!("//{}/{}", server, share);
+    let mut cmd = std::process::Command::new("smbclient");
+    cmd.arg(&smb_target);
+
+    if let Some(user) = smb_user {
+        if let Some(pass) = smb_pass {
+            cmd.arg("-U").arg(format!("{}%{}", user, pass));
+        } else {
+            cmd.arg("-U").arg(user);
+        }
+    } else {
+        cmd.arg("-N");
+    }
+
+    if let Some(domain) = smb_domain {
+        cmd.arg("-W").arg(domain);
+    }
+
+    let clean_rel = rel_in_share.trim_start_matches('/');
+    let smb_get_cmd = format!("get \"{}\" \"{}\"", clean_rel.replace('\"', "\\\""), cache_file.to_string_lossy());
+    cmd.arg("-c").arg(&smb_get_cmd);
+
+    let output = cmd.output().map_err(|e| format!("Error al invocar smbclient: {}", e))?;
+    let mut success = output.status.success();
+    let mut smb_err = String::from_utf8_lossy(&output.stderr).to_string();
+
+    // If failed and server is a hostname, retry with host IP
+    if !success && server != host {
+        let smb_target_host = format!("//{}/{}", host, share);
+        let mut retry_cmd = std::process::Command::new("smbclient");
+        retry_cmd.arg(&smb_target_host);
+
+        if let Some(user) = smb_user {
+            if let Some(pass) = smb_pass {
+                retry_cmd.arg("-U").arg(format!("{}%{}", user, pass));
+            } else {
+                retry_cmd.arg("-U").arg(user);
+            }
+        } else {
+            retry_cmd.arg("-N");
+        }
+
+        if let Some(domain) = smb_domain {
+            retry_cmd.arg("-W").arg(domain);
+        }
+
+        retry_cmd.arg("-c").arg(&smb_get_cmd);
+        if let Ok(retry_out) = retry_cmd.output() {
+            if retry_out.status.success() {
+                success = true;
+            } else {
+                smb_err = String::from_utf8_lossy(&retry_out.stderr).to_string();
+            }
+        }
+    }
+
+    if !success {
+        // Fallback to curl if smbclient failed
+        let user_pass = match (smb_user, smb_pass) {
+            (Some(u), Some(p)) => format!("{}:{}", u, p),
+            (Some(u), None) => u.to_string(),
+            _ => String::new(),
+        };
+
+        let encoded_sub = clean_rel.split('/')
+            .map(|seg| urlencoding_segment(seg))
+            .collect::<Vec<_>>()
+            .join("/");
+        let curl_url = format!("smb://{}/{}/{}", server, share, encoded_sub);
+
+        let mut curl_cmd = std::process::Command::new("curl");
+        curl_cmd.arg("-s");
+        if !user_pass.is_empty() {
+            curl_cmd.arg("-u").arg(&user_pass);
+        }
+        curl_cmd.arg(&curl_url).arg("-o").arg(&cache_file);
+
+        let curl_out = curl_cmd.output();
+        let curl_success = curl_out.as_ref().map(|o| o.status.success()).unwrap_or(false);
+
+        if !curl_success || !cache_file.exists() || std::fs::metadata(&cache_file).map(|m| m.len()).unwrap_or(0) == 0 {
+            let _ = std::fs::remove_file(&cache_file);
+            return Err(format!("smbclient falló: {}", smb_err.trim()));
+        }
+    }
+
+    if cache_file.exists() && std::fs::metadata(&cache_file).map(|m| m.len() > 0).unwrap_or(false) {
+        eprintln!("[musicx smb] Pista remota descargada y cacheada con éxito: {:?}", cache_file);
+        Ok(cache_file)
+    } else {
+        Err(format!("El archivo descargado de SMB está vacío o no se guardó: {:?}", cache_file))
+    }
+}
+
+fn urlencoding_segment(s: &str) -> String {
+    let mut out = String::new();
+    for b in s.bytes() {
+        if b.is_ascii_alphanumeric() || b == b'-' || b == b'_' || b == b'.' || b == b'~' {
+            out.push(b as char);
+        } else {
+            out.push_str(&format!("%{:02X}", b));
+        }
+    }
+    out
 }
 

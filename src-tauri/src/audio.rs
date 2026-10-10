@@ -300,6 +300,7 @@ pub struct AudioEngineHandle {
     requested_buffer_frames: Arc<AtomicU32>,
     #[allow(dead_code)]
     actual_buffer_frames: Arc<AtomicU32>,
+    mpd_config: Arc<Mutex<Option<crate::mpd::MpdConfig>>>,
 }
 
 impl AudioEngineHandle {
@@ -309,11 +310,13 @@ impl AudioEngineHandle {
         let buffer_telemetry = Arc::new(Mutex::new(BufferTelemetry::default()));
         let requested_buffer_frames = Arc::new(AtomicU32::new(512));
         let actual_buffer_frames = Arc::new(AtomicU32::new(512));
+        let mpd_config = Arc::new(Mutex::new(None));
 
         let telemetry_clone = Arc::clone(&telemetry);
         let buffer_telemetry_clone = Arc::clone(&buffer_telemetry);
         let req_bf_clone = Arc::clone(&requested_buffer_frames);
         let act_bf_clone = Arc::clone(&actual_buffer_frames);
+        let mpd_cfg_clone = Arc::clone(&mpd_config);
 
         thread::Builder::new()
             .name("musicx-audio-core".to_string())
@@ -324,6 +327,7 @@ impl AudioEngineHandle {
                     buffer_telemetry_clone,
                     req_bf_clone,
                     act_bf_clone,
+                    mpd_cfg_clone,
                 );
                 engine.run();
             })
@@ -335,7 +339,12 @@ impl AudioEngineHandle {
             buffer_telemetry,
             requested_buffer_frames,
             actual_buffer_frames,
+            mpd_config,
         }
+    }
+
+    pub fn set_mpd_config(&self, config: Option<crate::mpd::MpdConfig>) {
+        *self.mpd_config.lock().unwrap() = config;
     }
 
     pub fn send(&self, cmd: AudioCommand) {
@@ -521,6 +530,7 @@ struct AudioEngineInternal {
     tempo_detector: TempoDetector,
     resampling_engine: ResamplingEngine,
     resampling_pipeline: Option<ResamplingPipeline>,
+    mpd_config: Arc<Mutex<Option<crate::mpd::MpdConfig>>>,
 }
 
 impl AudioEngineInternal {
@@ -530,6 +540,7 @@ impl AudioEngineInternal {
         buffer_telemetry: Arc<Mutex<BufferTelemetry>>,
         requested_buffer_frames: Arc<AtomicU32>,
         actual_buffer_frames: Arc<AtomicU32>,
+        mpd_config: Arc<Mutex<Option<crate::mpd::MpdConfig>>>,
     ) -> Self {
         let mut planner = FftPlanner::<f32>::new();
         let spectrum_fft = planner.plan_fft_forward(1024);
@@ -561,6 +572,7 @@ impl AudioEngineInternal {
             tempo_detector,
             resampling_engine: ResamplingEngine::BitPerfect,
             resampling_pipeline: None,
+            mpd_config,
         }
     }
 
@@ -715,7 +727,20 @@ impl AudioEngineInternal {
 
     fn start_track(&mut self, path: &str) {
         self.is_network_mount = is_network_path(path);
-        match AudioSource::open(path) {
+        let resolved_path = if !Path::new(path).exists() {
+            let cfg = self.mpd_config.lock().unwrap().clone();
+            match crate::mpd::resolve_and_fetch_smb_file(path, cfg.as_ref()) {
+                Ok(cached) => cached.to_string_lossy().to_string(),
+                Err(e) => {
+                    eprintln!("[musicx audio core] SMB resolver warning for {}: {}", path, e);
+                    path.to_string()
+                }
+            }
+        } else {
+            path.to_string()
+        };
+
+        match AudioSource::open(&resolved_path) {
             Ok(source) => {
                 let sr = source.sample_rate;
                 let ch = source.channels;
@@ -751,22 +776,23 @@ impl AudioEngineInternal {
                     self.resampling_pipeline = None;
                 }
 
-                let track_path = path.to_string();
+                let track_analysis_path = resolved_path.clone();
+                let original_path = path.to_string();
                 {
                     let mut telemetry = self.telemetry.lock().unwrap();
-                    telemetry.filepath = Some(track_path.clone());
+                    telemetry.filepath = Some(original_path.clone());
                     telemetry.seekbar_spectrum.clear();
                 }
                 let waveform_telemetry = Arc::clone(&self.telemetry);
                 let _ = thread::Builder::new()
                     .name("musicx-seekbar-analysis".to_string())
                     .spawn(move || {
-                        let waveform = analyze_track_waveform(&track_path);
+                        let waveform = analyze_track_waveform(&track_analysis_path);
                         if waveform.is_empty() {
                             return;
                         }
                         let mut telemetry = waveform_telemetry.lock().unwrap();
-                        if telemetry.filepath.as_deref() == Some(track_path.as_str()) {
+                        if telemetry.filepath.as_deref() == Some(original_path.as_str()) {
                             telemetry.seekbar_spectrum = waveform;
                         }
                     });
