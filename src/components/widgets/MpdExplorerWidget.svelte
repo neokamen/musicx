@@ -19,6 +19,8 @@
     mpdListDirectory,
     resolveMpdTrackPath,
     mpdTransferFiles,
+    mpdResolveBasePath,
+    extractMpdRelativeBase,
   } from "../../services/mpdService";
 
   const appearance = $derived($appearanceStore);
@@ -42,6 +44,22 @@
       errorMessage = e?.message || String(e);
     } finally {
       isLoading = false;
+    }
+  }
+
+  async function initializeBase(force = false) {
+    if (force || !currentDirectory) {
+      isLoading = true;
+      try {
+        config = getSavedMpdConfig();
+        const base = await mpdResolveBasePath(config);
+        const initial = base || extractMpdRelativeBase(config.path_strip_prefix || config.remote_mount_path);
+        await loadDirectory(initial);
+      } catch {
+        await loadDirectory("");
+      } finally {
+        isLoading = false;
+      }
     }
   }
 
@@ -150,7 +168,7 @@
   );
 
   onMount(() => {
-    void loadDirectory("");
+    void initializeBase(false);
   });
 </script>
 
@@ -195,13 +213,21 @@
 
   <!-- Breadcrumbs & Search -->
   <div class="flex items-center justify-between gap-2 px-3 py-1.5 border-b border-slate-800/80 bg-slate-900/60 shrink-0 text-xs">
-    <div class="flex items-center gap-1 font-mono text-[11px] overflow-x-auto truncate max-w-[65%]">
+    <div class="flex items-center gap-1.5 font-mono text-[11px] overflow-x-auto truncate max-w-[65%]">
       <button
         type="button"
         onclick={() => navigateBreadcrumb(-1, [])}
         class="text-slate-400 hover:text-white font-semibold transition cursor-pointer shrink-0"
       >
         Raíz
+      </button>
+      <button
+        type="button"
+        onclick={() => void initializeBase(true)}
+        class="text-audiophile-cyan hover:text-white font-semibold transition cursor-pointer shrink-0"
+        title="Ir directamente a la carpeta de música de MPD"
+      >
+        Base
       </button>
       {#each breadcrumbParts as part, idx}
         <span class="text-slate-600">/</span>
@@ -262,13 +288,22 @@
           {/if}
 
           {#each filteredItems as item}
-            <tr class="hover:bg-slate-900/50 transition group">
+            <tr
+              class="hover:bg-slate-900/50 transition group cursor-pointer"
+              ondblclick={() => {
+                if (item.is_directory) {
+                  navigateToSubfolder(item.path);
+                } else {
+                  addToQueue(item, false);
+                }
+              }}
+            >
               <!-- Name / Folder -->
               <td class="py-1.5 px-3 min-w-0">
                 {#if item.is_directory}
                   <button
                     type="button"
-                    onclick={() => navigateToSubfolder(item.path)}
+                    onclick={(e) => { e.stopPropagation(); navigateToSubfolder(item.path); }}
                     class="flex items-center gap-2 font-medium text-slate-200 hover:text-audiophile-cyan transition cursor-pointer text-left truncate w-full"
                   >
                     <Folder size={14} class="text-amber-400 shrink-0" />
@@ -293,7 +328,7 @@
                   <div class="flex items-center justify-end gap-1 opacity-70 group-hover:opacity-100">
                     <button
                       type="button"
-                      onclick={() => addToQueue(item, true)}
+                      onclick={(e) => { e.stopPropagation(); addToQueue(item, true); }}
                       class="p-1 rounded bg-slate-800 text-slate-200 hover:bg-audiophile-cyan hover:text-black transition cursor-pointer"
                       title="Reproducir ahora en MusicX"
                     >
@@ -301,7 +336,7 @@
                     </button>
                     <button
                       type="button"
-                      onclick={() => addToQueue(item, false)}
+                      onclick={(e) => { e.stopPropagation(); addToQueue(item, false); }}
                       class="px-1.5 py-0.5 rounded bg-slate-800 text-[10px] font-semibold text-slate-300 hover:text-white transition cursor-pointer"
                       title="Añadir a la cola"
                     >
@@ -309,7 +344,7 @@
                     </button>
                     <button
                       type="button"
-                      onclick={() => void downloadItem(item)}
+                      onclick={(e) => { e.stopPropagation(); void downloadItem(item); }}
                       class="p-1 rounded bg-slate-800 text-emerald-400 hover:bg-emerald-500 hover:text-black transition cursor-pointer"
                       title="Descargar a local"
                     >
@@ -319,7 +354,7 @@
                 {:else}
                   <button
                     type="button"
-                    onclick={() => navigateToSubfolder(item.path)}
+                    onclick={(e) => { e.stopPropagation(); navigateToSubfolder(item.path); }}
                     class="text-[10px] font-mono font-semibold text-slate-400 hover:text-audiophile-cyan transition cursor-pointer"
                   >
                     Abrir

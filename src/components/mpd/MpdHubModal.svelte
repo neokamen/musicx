@@ -30,6 +30,17 @@
     Folder,
     ArrowUpDown,
     Radio,
+    Repeat,
+    Shuffle,
+    Trash2,
+    Columns,
+    List,
+    Speaker,
+    SlidersHorizontal,
+    Music,
+    ArrowRight,
+    ArrowLeft,
+    Check,
   } from "@lucide/svelte";
   import { open } from "@tauri-apps/plugin-dialog";
   import { listen } from "@tauri-apps/api/event";
@@ -44,6 +55,8 @@
     MpdServerStatus,
     MpdDiscoveredServer,
     MpdDirectoryItem,
+    MpdSongItem,
+    MpdOutputDevice,
     LibraryDiffResult,
     MpdTransferProgress,
   } from "../../types/mpd";
@@ -57,6 +70,11 @@
     mpdCompareLibraries,
     mpdTransferFiles,
     resolveMpdTrackPath,
+    mpdGetPlaylistInfo,
+    mpdGetOutputs,
+    mpdResolveBasePath,
+    mpdDeleteItem,
+    extractMpdRelativeBase,
   } from "../../services/mpdService";
 
   const appearance = $derived($appearanceStore);
@@ -64,7 +82,7 @@
   const isOpen = $derived($isMpdHubOpenStore);
 
   // Tabs
-  type Tab = "server" | "explorer" | "sync";
+  type Tab = "server" | "control" | "explorer" | "sync";
   let activeTab = $state<Tab>("server");
 
   // Configuration state
@@ -74,6 +92,14 @@
   let isDiscovering = $state(false);
   let discoveredServers = $state<MpdDiscoveredServer[]>([]);
   let autoRefreshTimer: number | null = null;
+
+  // Control tab state
+  let mpdPlaylist = $state<MpdSongItem[]>([]);
+  let mpdOutputs = $state<MpdOutputDevice[]>([]);
+  let isLoadingPlaylist = $state(false);
+  let isLoadingOutputs = $state(false);
+  let crossfadeSecs = $state(0);
+  let isUpdatingDb = $state(false);
 
   // Explorer state
   let currentDirectory = $state("");
@@ -87,6 +113,17 @@
   let diffFilter = $state<"all" | "only_mpd" | "only_local" | "modified" | "in_sync">("all");
   let diffSearch = $state("");
   let selectedDiffPaths = $state<Set<string>>(new Set());
+  let syncViewMode = $state<"list" | "filezilla">("filezilla");
+  let syncLocalSearch = $state("");
+  let syncRemoteSearch = $state("");
+
+  // Deletion modal state
+  let deleteConfirmModal = $state<{
+    target: "local" | "remote";
+    path: string;
+    name: string;
+    isDirectory: boolean;
+  } | null>(null);
 
   // Transfer state
   let isTransferring = $state(false);
@@ -247,6 +284,102 @@
       remoteVolume = 0;
       isMuted = true;
       await handleMpdCommand("setvol", "0");
+    }
+  }
+
+  async function loadControlData() {
+    if (!serverStatus?.connected) return;
+    isLoadingPlaylist = true;
+    isLoadingOutputs = true;
+    try {
+      const [playlist, outputs] = await Promise.all([
+        mpdGetPlaylistInfo(config.host, config.port, config.password),
+        mpdGetOutputs(config.host, config.port, config.password),
+      ]);
+      mpdPlaylist = playlist;
+      mpdOutputs = outputs;
+    } catch (e) {
+      console.error("Error loading MPD control data:", e);
+    } finally {
+      isLoadingPlaylist = false;
+      isLoadingOutputs = false;
+    }
+  }
+
+  async function toggleOutput(out: MpdOutputDevice) {
+    const cmd = out.enabled ? "disableoutput" : "enableoutput";
+    await handleMpdCommand(cmd, String(out.id));
+    await loadControlData();
+  }
+
+  async function setCrossfade(seconds: number) {
+    crossfadeSecs = seconds;
+    await handleMpdCommand("crossfade", String(seconds));
+  }
+
+  async function setVolumePreset(pct: number) {
+    remoteVolume = pct;
+    isMuted = false;
+    await handleMpdCommand("setvol", String(pct));
+  }
+
+  function handleTimelineSeek(e: MouseEvent) {
+    if (!serverStatus?.current_song || !serverStatus.duration) return;
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    const clickX = e.clientX - rect.left;
+    const ratio = Math.max(0, Math.min(1, clickX / rect.width));
+    const targetSec = Math.floor(ratio * serverStatus.duration);
+    void handleMpdCommand("seek", String(targetSec));
+  }
+
+  async function initializeExplorerBase(force = false) {
+    if (force || !currentDirectory) {
+      isLoadingDirectory = true;
+      try {
+        const base = await mpdResolveBasePath(config);
+        const initial = base || extractMpdRelativeBase(config.path_strip_prefix || config.remote_mount_path);
+        await loadDirectory(initial);
+      } catch {
+        await loadDirectory("");
+      } finally {
+        isLoadingDirectory = false;
+      }
+    }
+  }
+
+  function handleExplorerItemDblClick(item: MpdDirectoryItem) {
+    if (item.is_directory) {
+      navigateToSubfolder(item.path);
+    } else {
+      addToMusicXQueue(item, false);
+      showToast(`Añadida a la cola: ${item.title || item.name}`, "success");
+    }
+  }
+
+  function promptDeleteItem(target: "local" | "remote", path: string, name: string, isDirectory: boolean) {
+    deleteConfirmModal = { target, path, name, isDirectory };
+  }
+
+  async function executeDeletion() {
+    if (!deleteConfirmModal) return;
+    const { target, path, isDirectory, name } = deleteConfirmModal;
+    deleteConfirmModal = null;
+    try {
+      await mpdDeleteItem(
+        target,
+        path,
+        isDirectory,
+        config,
+        librarySettings.musicFolder
+      );
+      showToast(`Eliminado correctamente: ${name}`, "success");
+      if (activeTab === "explorer") {
+        void loadDirectory(currentDirectory);
+      } else if (activeTab === "sync") {
+        void runLibraryMatch();
+      }
+    } catch (e: any) {
+      showToast(`Error al eliminar: ${e?.message || e}`, "error");
     }
   }
 
@@ -475,6 +608,38 @@
     });
   });
 
+  // Filtered local items for FileZilla split view
+  const filteredLocalItems = $derived.by(() => {
+    if (!diffResult) return [];
+    return diffResult.items.filter((item) => {
+      if (item.status === "only_mpd") return false;
+      if (!syncLocalSearch.trim()) return true;
+      const q = syncLocalSearch.toLowerCase();
+      return (
+        item.relative_path.toLowerCase().includes(q) ||
+        item.title.toLowerCase().includes(q) ||
+        item.artist.toLowerCase().includes(q) ||
+        item.album.toLowerCase().includes(q)
+      );
+    });
+  });
+
+  // Filtered remote items for FileZilla split view
+  const filteredRemoteItems = $derived.by(() => {
+    if (!diffResult) return [];
+    return diffResult.items.filter((item) => {
+      if (item.status === "only_local") return false;
+      if (!syncRemoteSearch.trim()) return true;
+      const q = syncRemoteSearch.toLowerCase();
+      return (
+        item.relative_path.toLowerCase().includes(q) ||
+        item.title.toLowerCase().includes(q) ||
+        item.artist.toLowerCase().includes(q) ||
+        item.album.toLowerCase().includes(q)
+      );
+    });
+  });
+
   // Breadcrumbs
   const breadcrumbParts = $derived(
     currentDirectory ? currentDirectory.split("/").filter(Boolean) : []
@@ -557,12 +722,22 @@
             style={activeTab === 'server' ? `color: ${appearance.accentColor || '#06b6d4'}; border: 1px solid ${appearance.accentColor || '#06b6d4'}40;` : ''}
           >
             <Server size={14} />
-            <span>Servidor & Control</span>
+            <span>Servidor</span>
           </button>
 
           <button
             type="button"
-            onclick={() => { activeTab = "explorer"; if (directoryItems.length === 0) loadDirectory(""); }}
+            onclick={() => { activeTab = "control"; void loadControlData(); }}
+            class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer {activeTab === 'control' ? 'bg-audiophile-surface text-white shadow-sm' : 'text-slate-400 hover:text-slate-200'}"
+            style={activeTab === 'control' ? `color: ${appearance.accentColor || '#06b6d4'}; border: 1px solid ${appearance.accentColor || '#06b6d4'}40;` : ''}
+          >
+            <Play size={14} />
+            <span>Control Remoto</span>
+          </button>
+
+          <button
+            type="button"
+            onclick={() => { activeTab = "explorer"; void initializeExplorerBase(); }}
             class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer {activeTab === 'explorer' ? 'bg-audiophile-surface text-white shadow-sm' : 'text-slate-400 hover:text-slate-200'}"
             style={activeTab === 'explorer' ? `color: ${appearance.accentColor || '#06b6d4'}; border: 1px solid ${appearance.accentColor || '#06b6d4'}40;` : ''}
           >
@@ -904,112 +1079,479 @@
                 {/if}
               </div>
 
-              <!-- Remote Playback Control Card -->
+              <!-- Remote Control Shortcut & Quick Status Card -->
               <div class="p-4 rounded-xl border border-audiophile-border bg-slate-900/60 space-y-3">
-                <h3 class="text-sm font-bold text-white flex items-center gap-2">
-                  <Play size={16} class="text-audiophile-cyan" />
-                  <span>Control de Reproducción Remota de MPD</span>
-                </h3>
+                <div class="flex items-center justify-between">
+                  <h3 class="text-sm font-bold text-white flex items-center gap-2">
+                    <Play size={16} class="text-audiophile-cyan" />
+                    <span>Control Remoto & Salidas de Audio</span>
+                  </h3>
+                  {#if serverStatus?.connected}
+                    <span class="text-[10px] font-mono text-emerald-400 font-bold uppercase">{serverStatus.state}</span>
+                  {/if}
+                </div>
 
                 {#if serverStatus?.connected}
-                  <div class="p-3 rounded-lg bg-slate-950 border border-slate-800 space-y-2">
+                  <div class="p-3 rounded-lg bg-slate-950 border border-slate-800 space-y-3">
                     <div class="flex items-center justify-between text-xs">
-                      <span class="text-slate-400 truncate max-w-[70%] font-semibold">
-                        {serverStatus.current_song?.title || serverStatus.current_song?.file || "Sin reproducción activa"}
+                      <span class="text-slate-300 font-semibold truncate max-w-[70%]">
+                        {serverStatus.current_song?.title || serverStatus.current_song?.file || "Sin pista activa"}
                       </span>
-                      <span class="text-audiophile-cyan font-mono text-[11px] uppercase">
-                        {serverStatus.state}
-                      </span>
-                    </div>
-
-                    <div class="text-[11px] text-slate-500 truncate">
-                      {serverStatus.current_song?.artist || "Desconocido"} • {serverStatus.current_song?.album || "Álbum"}
-                    </div>
-
-                    <!-- Remote Playback Buttons -->
-                    <div class="flex items-center justify-center gap-3 pt-2">
-                      <button
-                        type="button"
-                        onclick={() => handleMpdCommand("previous")}
-                        class="p-2 rounded-lg bg-slate-800 text-slate-300 hover:text-white hover:bg-slate-700 transition cursor-pointer"
-                        title="Pista anterior en MPD"
-                      >
-                        <SkipBack size={15} />
-                      </button>
-
-                      {#if serverStatus.state === "play"}
-                        <button
-                          type="button"
-                          onclick={() => handleMpdCommand("pause")}
-                          class="p-2.5 rounded-xl bg-audiophile-cyan text-black font-bold hover:scale-105 transition cursor-pointer"
-                          title="Pausar MPD"
-                        >
-                          <Pause size={17} />
-                        </button>
-                      {:else}
-                        <button
-                          type="button"
-                          onclick={() => handleMpdCommand("resume")}
-                          class="p-2.5 rounded-xl bg-audiophile-cyan text-black font-bold hover:scale-105 transition cursor-pointer"
-                          title="Reproducir MPD"
-                        >
-                          <Play size={17} />
-                        </button>
-                      {/if}
-
-                      <button
-                        type="button"
-                        onclick={() => handleMpdCommand("stop")}
-                        class="p-2 rounded-lg bg-slate-800 text-slate-300 hover:text-white hover:bg-slate-700 transition cursor-pointer"
-                        title="Detener MPD"
-                      >
-                        <Square size={15} />
-                      </button>
-
-                      <button
-                        type="button"
-                        onclick={() => handleMpdCommand("next")}
-                        class="p-2 rounded-lg bg-slate-800 text-slate-300 hover:text-white hover:bg-slate-700 transition cursor-pointer"
-                        title="Siguiente pista en MPD"
-                      >
-                        <SkipForward size={15} />
-                      </button>
-                    </div>
-
-                    <!-- Remote Volume Control -->
-                    <div class="flex items-center justify-center gap-3 pt-3 border-t border-slate-800/80 px-2 text-xs">
-                      <button
-                        type="button"
-                        onclick={toggleMute}
-                        class="text-slate-400 hover:text-white transition cursor-pointer"
-                        title={isMuted ? "Restaurar volumen" : "Silenciar MPD"}
-                      >
-                        {#if isMuted || remoteVolume === 0}
-                          <VolumeX size={15} class="text-rose-400" />
-                        {:else}
-                          <Volume2 size={15} class="text-audiophile-cyan" />
-                        {/if}
-                      </button>
-
-                      <input
-                        type="range"
-                        min="0"
-                        max="100"
-                        value={remoteVolume}
-                        oninput={handleVolumeChange}
-                        class="flex-1 h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-cyan-400"
-                      />
-
-                      <span class="font-mono text-xs text-slate-400 w-9 text-right font-semibold">
-                        {remoteVolume}%
+                      <span class="text-audiophile-cyan font-mono text-[11px] font-bold">
+                        {serverStatus.volume >= 0 ? `${serverStatus.volume}% vol` : "Volumen fijo"}
                       </span>
                     </div>
+
+                    <p class="text-xs text-slate-400 leading-relaxed">
+                      La nueva pestaña de <strong>Control Remoto</strong> incluye un scrubber interactivo, salidas de audio ALSA/Bluetooth, modos single/consume, crossfade y gestión completa de la cola de MPD.
+                    </p>
+
+                    <button
+                      type="button"
+                      onclick={() => { activeTab = "control"; void loadControlData(); }}
+                      class="w-full py-2.5 px-3 rounded-xl font-bold text-xs flex items-center justify-center gap-2 transition cursor-pointer text-black hover:opacity-95 shadow-md"
+                      style="background: {appearance.accentColor || '#06b6d4'};"
+                    >
+                      <Play size={14} class="fill-current" />
+                      <span>Abrir Centro de Control Remoto MPD →</span>
+                    </button>
                   </div>
                 {:else}
                   <div class="py-4 text-center text-xs text-slate-500">
-                    Conéctate al servidor MPD para controlar la reproducción remota.
+                    Conéctate al servidor MPD para controlar la reproducción y gestionar salidas.
                   </div>
                 {/if}
+              </div>
+            </div>
+          </div>
+        {/if}
+
+        <!-- ================================================================= -->
+        <!-- TAB 2: ADVANCED MPD REMOTE CONTROL CENTER -->
+        <!-- ================================================================= -->
+        {#if activeTab === "control"}
+          <div class="space-y-6">
+            <!-- Hero Card: Now Playing & Transport -->
+            <div class="p-5 rounded-2xl border border-audiophile-border bg-slate-900/70 shadow-lg space-y-4">
+              <!-- Header Info -->
+              <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800 pb-3">
+                <div class="flex items-center gap-3 min-w-0">
+                  <div
+                    class="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 border border-audiophile-border shadow-inner"
+                    style="background: {appearance.accentColor || '#06b6d4'}22; color: {appearance.accentColor || '#06b6d4'};"
+                  >
+                    <Music size={20} />
+                  </div>
+                  <div class="min-w-0">
+                    <h3 class="text-sm sm:text-base font-bold text-white truncate">
+                      {serverStatus?.current_song?.title || serverStatus?.current_song?.file?.split("/").pop() || "Sin reproducción activa en MPD"}
+                    </h3>
+                    <p class="text-xs text-slate-400 truncate">
+                      {serverStatus?.current_song?.artist || "Servidor MPD"}
+                      {#if serverStatus?.current_song?.album}
+                        {" · "}{serverStatus.current_song.album}
+                      {/if}
+                    </p>
+                  </div>
+                </div>
+
+                <div class="flex items-center gap-2">
+                  {#if serverStatus?.current_song?.format}
+                    <span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-slate-800 border border-slate-700 text-slate-300">
+                      {serverStatus.current_song.format}
+                    </span>
+                  {/if}
+                  {#if serverStatus?.bitrate}
+                    <span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-slate-800 border border-slate-700 text-audiophile-cyan">
+                      {serverStatus.bitrate} kbps
+                    </span>
+                  {/if}
+                  <span class="px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold uppercase {serverStatus?.state === 'play' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : serverStatus?.state === 'pause' ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30' : 'bg-slate-800 text-slate-400'}">
+                    {serverStatus?.state || "stop"}
+                  </span>
+                </div>
+              </div>
+
+              <!-- Interactive Timeline / Seekbar -->
+              <div class="space-y-1.5">
+                <!-- svelte-ignore a11y_click_events_have_key_events -->
+                <!-- svelte-ignore a11y_no_static_element_interactions -->
+                <div
+                  class="relative h-2.5 w-full bg-slate-950 rounded-full border border-slate-800 cursor-pointer overflow-hidden group"
+                  onclick={handleTimelineSeek}
+                  title="Haz clic para saltar a esta posición en MPD"
+                >
+                  <div
+                    class="h-full bg-gradient-to-r from-cyan-500 to-emerald-400 transition-all duration-150"
+                    style="width: {serverStatus?.duration ? Math.min(100, ((serverStatus.elapsed / serverStatus.duration) * 100)) : 0}%"
+                  ></div>
+                  <!-- Hover effect bar -->
+                  <div class="absolute inset-0 bg-white/5 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"></div>
+                </div>
+
+                <div class="flex justify-between text-[11px] font-mono text-slate-400">
+                  <span>
+                    {Math.floor((serverStatus?.elapsed || 0) / 60)}:{(Math.floor((serverStatus?.elapsed || 0) % 60)).toString().padStart(2, "0")}
+                  </span>
+                  <span class="text-slate-500 text-[10px]">
+                    {serverStatus?.duration ? `${Math.round(((serverStatus.elapsed || 0) / serverStatus.duration) * 100)}%` : ""}
+                  </span>
+                  <span>
+                    {Math.floor((serverStatus?.duration || 0) / 60)}:{(Math.floor((serverStatus?.duration || 0) % 60)).toString().padStart(2, "0")}
+                  </span>
+                </div>
+              </div>
+
+              <!-- Primary Transport & Mode Controls -->
+              <div class="flex flex-wrap items-center justify-between gap-4 pt-2">
+                <!-- Modes: Repeat, Random, Single, Consume -->
+                <div class="flex items-center gap-1.5 bg-slate-950 p-1 rounded-xl border border-slate-800">
+                  <button
+                    type="button"
+                    onclick={() => handleMpdCommand("repeat", serverStatus?.repeat ? "0" : "1")}
+                    class="p-2 rounded-lg text-xs transition cursor-pointer {serverStatus?.repeat ? 'bg-audiophile-cyan/20 text-audiophile-cyan border border-audiophile-cyan/40' : 'text-slate-500 hover:text-slate-300'}"
+                    title="Repetir (Repeat)"
+                  >
+                    <Repeat size={14} />
+                  </button>
+
+                  <button
+                    type="button"
+                    onclick={() => handleMpdCommand("random", serverStatus?.random ? "0" : "1")}
+                    class="p-2 rounded-lg text-xs transition cursor-pointer {serverStatus?.random ? 'bg-audiophile-cyan/20 text-audiophile-cyan border border-audiophile-cyan/40' : 'text-slate-500 hover:text-slate-300'}"
+                    title="Aleatorio (Random)"
+                  >
+                    <Shuffle size={14} />
+                  </button>
+
+                  <button
+                    type="button"
+                    onclick={() => handleMpdCommand("single", serverStatus?.single ? "0" : "1")}
+                    class="px-2 py-1.5 rounded-lg text-[11px] font-mono font-bold transition cursor-pointer {serverStatus?.single ? 'bg-audiophile-cyan/20 text-audiophile-cyan border border-audiophile-cyan/40' : 'text-slate-500 hover:text-slate-300'}"
+                    title="Single Mode: para tras reproducir la pista actual"
+                  >
+                    1x Single
+                  </button>
+
+                  <button
+                    type="button"
+                    onclick={() => handleMpdCommand("consume", serverStatus?.consume ? "0" : "1")}
+                    class="px-2 py-1.5 rounded-lg text-[11px] font-mono font-bold transition cursor-pointer {serverStatus?.consume ? 'bg-audiophile-cyan/20 text-audiophile-cyan border border-audiophile-cyan/40' : 'text-slate-500 hover:text-slate-300'}"
+                    title="Consume Mode: quita la pista de la lista tras reproducirla"
+                  >
+                    Consume
+                  </button>
+                </div>
+
+                <!-- Main Transport Buttons -->
+                <div class="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onclick={() => handleMpdCommand("previous")}
+                    class="p-2.5 rounded-xl bg-slate-800 text-slate-300 hover:text-white hover:bg-slate-700 transition cursor-pointer shadow-sm"
+                    title="Pista anterior"
+                  >
+                    <SkipBack size={16} />
+                  </button>
+
+                  {#if serverStatus?.state === "play"}
+                    <button
+                      type="button"
+                      onclick={() => handleMpdCommand("pause")}
+                      class="p-3 rounded-2xl bg-audiophile-cyan text-black font-bold hover:scale-105 transition cursor-pointer shadow-lg"
+                      title="Pausar MPD"
+                    >
+                      <Pause size={20} />
+                    </button>
+                  {:else}
+                    <button
+                      type="button"
+                      onclick={() => handleMpdCommand("resume")}
+                      class="p-3 rounded-2xl bg-audiophile-cyan text-black font-bold hover:scale-105 transition cursor-pointer shadow-lg"
+                      title="Reproducir MPD"
+                    >
+                      <Play size={20} class="fill-current" />
+                    </button>
+                  {/if}
+
+                  <button
+                    type="button"
+                    onclick={() => handleMpdCommand("stop")}
+                    class="p-2.5 rounded-xl bg-slate-800 text-slate-300 hover:text-white hover:bg-slate-700 transition cursor-pointer shadow-sm"
+                    title="Detener MPD"
+                  >
+                    <Square size={16} />
+                  </button>
+
+                  <button
+                    type="button"
+                    onclick={() => handleMpdCommand("next")}
+                    class="p-2.5 rounded-xl bg-slate-800 text-slate-300 hover:text-white hover:bg-slate-700 transition cursor-pointer shadow-sm"
+                    title="Siguiente pista"
+                  >
+                    <SkipForward size={16} />
+                  </button>
+                </div>
+
+                <!-- Volume & Presets -->
+                <div class="flex items-center gap-2 bg-slate-950 p-1.5 rounded-xl border border-slate-800">
+                  <button
+                    type="button"
+                    onclick={toggleMute}
+                    class="p-1.5 text-slate-400 hover:text-white transition cursor-pointer"
+                    title={isMuted ? "Restaurar volumen" : "Silenciar"}
+                  >
+                    {#if isMuted || remoteVolume === 0}
+                      <VolumeX size={16} class="text-rose-400" />
+                    {:else}
+                      <Volume2 size={16} class="text-audiophile-cyan" />
+                    {/if}
+                  </button>
+
+                  <input
+                    type="range"
+                    min="0"
+                    max="100"
+                    value={remoteVolume}
+                    oninput={handleVolumeChange}
+                    class="w-24 sm:w-28 h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-cyan-400"
+                  />
+
+                  <span class="font-mono text-xs text-white font-bold w-9 text-right">
+                    {remoteVolume}%
+                  </span>
+
+                  <!-- Quick volume presets -->
+                  <div class="hidden sm:flex items-center gap-1 border-l border-slate-800 pl-2">
+                    {#each [25, 50, 75, 100] as vol}
+                      <button
+                        type="button"
+                        onclick={() => setVolumePreset(vol)}
+                        class="px-1.5 py-0.5 rounded text-[10px] font-mono {remoteVolume === vol ? 'bg-audiophile-cyan text-black font-bold' : 'text-slate-400 hover:text-white hover:bg-slate-850'} transition cursor-pointer"
+                      >
+                        {vol}
+                      </button>
+                    {/each}
+                  </div>
+                </div>
+              </div>
+
+              <!-- Crossfade Slider -->
+              <div class="flex items-center justify-between gap-4 pt-2 border-t border-slate-800/80 text-xs">
+                <div class="flex items-center gap-2 text-slate-400">
+                  <SlidersHorizontal size={14} class="text-audiophile-cyan" />
+                  <span>Transición suave / Crossfade:</span>
+                  <span class="font-mono text-white font-bold">{crossfadeSecs} s</span>
+                </div>
+                <div class="flex items-center gap-2 w-48">
+                  <input
+                    type="range"
+                    min="0"
+                    max="15"
+                    value={crossfadeSecs}
+                    oninput={(e) => setCrossfade(Number((e.currentTarget as HTMLInputElement).value))}
+                    class="flex-1 h-1.5 bg-slate-950 rounded appearance-none cursor-pointer accent-cyan-400"
+                  />
+                  <span class="font-mono text-[10px] text-slate-500">15s</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Two Column Detail Section: Audio Outputs & MPD Active Queue -->
+            <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+              <!-- Left Column: Audio Outputs Manager -->
+              <div class="lg:col-span-5 space-y-4">
+                <div class="p-4 rounded-xl border border-audiophile-border bg-slate-900/60 space-y-3">
+                  <div class="flex items-center justify-between">
+                    <h4 class="text-xs font-bold text-white flex items-center gap-2">
+                      <Speaker size={15} class="text-audiophile-cyan" />
+                      <span>Salidas de Audio MPD (Outputs)</span>
+                    </h4>
+                    <button
+                      type="button"
+                      onclick={loadControlData}
+                      disabled={isLoadingOutputs}
+                      class="text-[11px] font-semibold text-audiophile-cyan hover:underline transition cursor-pointer"
+                    >
+                      Refrescar
+                    </button>
+                  </div>
+                  <p class="text-[11px] text-slate-400">
+                    Activa o desactiva dispositivos de salida (ALSA, Bluetooth, Servidor HTTP) conectados a tu MPD.
+                  </p>
+
+                  <div class="space-y-2 max-h-64 overflow-y-auto">
+                    {#if isLoadingOutputs}
+                      <div class="py-6 text-center text-xs text-slate-500">Cargando salidas de audio...</div>
+                    {:else if mpdOutputs.length === 0}
+                      <div class="py-6 text-center text-xs text-slate-500">No se detectaron salidas adicionales o no requiere selector.</div>
+                    {:else}
+                      {#each mpdOutputs as out}
+                        <div class="flex items-center justify-between p-2.5 rounded-lg bg-slate-950 border border-slate-800 text-xs">
+                          <div class="flex items-center gap-2.5 min-w-0">
+                            <span class="w-2 h-2 rounded-full {out.enabled ? 'bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.6)]' : 'bg-slate-600'}"></span>
+                            <div class="min-w-0">
+                              <span class="font-semibold text-white block truncate">{out.name}</span>
+                              <span class="text-[10px] font-mono text-slate-500">Plugin: {out.plugin} · ID: {out.id}</span>
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            onclick={() => toggleOutput(out)}
+                            class="px-2.5 py-1 rounded text-xs font-bold transition cursor-pointer {out.enabled ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 hover:bg-emerald-500/30' : 'bg-slate-800 text-slate-400 hover:text-white'}"
+                          >
+                            {out.enabled ? "Activo" : "Activar"}
+                          </button>
+                        </div>
+                      {/each}
+                    {/if}
+                  </div>
+                </div>
+
+                <!-- Database Maintenance Card -->
+                <div class="p-4 rounded-xl border border-audiophile-border bg-slate-900/60 space-y-3">
+                  <div class="flex items-center justify-between">
+                    <h4 class="text-xs font-bold text-white flex items-center gap-2">
+                      <HardDrive size={15} class="text-audiophile-cyan" />
+                      <span>Base de Datos del Servidor</span>
+                    </h4>
+                    <button
+                      type="button"
+                      onclick={async () => {
+                        isUpdatingDb = true;
+                        await handleMpdCommand("update");
+                        showToast("MPD está re-escaneando los archivos de música...", "info");
+                        setTimeout(() => { isUpdatingDb = false; }, 3000);
+                      }}
+                      disabled={isUpdatingDb}
+                      class="flex items-center gap-1 px-2.5 py-1 rounded text-xs font-semibold bg-audiophile-cyan/20 text-audiophile-cyan hover:bg-audiophile-cyan hover:text-black transition cursor-pointer disabled:opacity-50"
+                    >
+                      <RefreshCw size={11} class={isUpdatingDb ? "animate-spin" : ""} />
+                      <span>{isUpdatingDb ? "Actualizando..." : "Actualizar DB (update)"}</span>
+                    </button>
+                  </div>
+                  <p class="text-[11px] text-slate-400">
+                    Última actualización de base de datos: <span class="text-slate-300 font-mono">{serverStatus?.stats ? new Date(serverStatus.stats.db_update * 1000).toLocaleString() : "—"}</span>
+                  </p>
+                </div>
+              </div>
+
+              <!-- Right Column: MPD Remote Playlist / Queue Viewer -->
+              <div class="lg:col-span-7 space-y-4">
+                <div class="p-4 rounded-xl border border-audiophile-border bg-slate-900/60 flex flex-col h-[420px]">
+                  <div class="flex items-center justify-between border-b border-slate-800 pb-2.5 shrink-0">
+                    <div class="flex items-center gap-2">
+                      <List size={16} class="text-audiophile-cyan" />
+                      <h4 class="text-xs font-bold text-white">Cola de Reproducción Remota de MPD</h4>
+                      <span class="px-2 py-0.5 rounded-full text-[10px] font-mono bg-slate-800 text-slate-300">
+                        {mpdPlaylist.length} pistas
+                      </span>
+                    </div>
+
+                    <div class="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onclick={() => handleMpdCommand("shuffle")}
+                        class="px-2 py-1 rounded text-[11px] font-semibold bg-slate-800 text-slate-300 hover:text-white transition cursor-pointer"
+                        title="Desordenar lista de MPD"
+                      >
+                        <Shuffle size={12} class="inline mr-1" />
+                        Desordenar
+                      </button>
+
+                      <button
+                        type="button"
+                        onclick={() => handleMpdCommand("clear")}
+                        class="px-2 py-1 rounded text-[11px] font-semibold bg-slate-800 text-rose-400 hover:bg-rose-950/40 transition cursor-pointer"
+                        title="Vaciar cola de MPD"
+                      >
+                        <Trash2 size={12} class="inline mr-1" />
+                        Vaciar
+                      </button>
+
+                      <button
+                        type="button"
+                        onclick={loadControlData}
+                        class="p-1 rounded text-slate-400 hover:text-white transition cursor-pointer"
+                        title="Refrescar lista"
+                      >
+                        <RefreshCw size={12} />
+                      </button>
+                    </div>
+                  </div>
+
+                  <!-- Playlist Table -->
+                  <div class="flex-1 overflow-y-auto min-h-0 pt-2">
+                    {#if isLoadingPlaylist}
+                      <div class="py-12 text-center text-xs text-slate-500">Cargando cola remota...</div>
+                    {:else if mpdPlaylist.length === 0}
+                      <div class="py-12 text-center text-xs text-slate-500 space-y-1">
+                        <p>La cola de reproducción de MPD está vacía.</p>
+                        <p class="text-[11px] text-slate-600">Añade pistas desde la pestaña "Explorador en Red" con el botón "+ MPD".</p>
+                      </div>
+                    {:else}
+                      <table class="w-full text-left text-xs border-collapse">
+                        <tbody class="divide-y divide-slate-850">
+                          {#each mpdPlaylist as song, idx}
+                            {@const isCurrentSong = serverStatus?.current_song?.file === song.file}
+                            <tr class="hover:bg-slate-850/60 transition group {isCurrentSong ? 'bg-audiophile-cyan/10' : ''}">
+                              <!-- Pos / Play indicator -->
+                              <td class="py-1.5 px-2 w-8 text-center font-mono text-[11px] text-slate-500">
+                                {#if isCurrentSong}
+                                  <span class="text-audiophile-cyan font-bold">▶</span>
+                                {:else}
+                                  <span>{idx + 1}</span>
+                                {/if}
+                              </td>
+
+                              <!-- Title & Artist -->
+                              <td class="py-1.5 px-2 min-w-0">
+                                <span class="font-semibold block truncate {isCurrentSong ? 'text-audiophile-cyan' : 'text-slate-200'}">
+                                  {song.title || song.file.split("/").pop()}
+                                </span>
+                                <span class="text-[10px] text-slate-500 truncate block">
+                                  {song.artist || "Desconocido"}
+                                  {#if song.album}
+                                    {" · "}{song.album}
+                                  {/if}
+                                </span>
+                              </td>
+
+                              <!-- Duration -->
+                              <td class="py-1.5 px-2 text-right font-mono text-[11px] text-slate-400 w-16">
+                                {Math.floor(song.duration / 60)}:{(Math.floor(song.duration % 60)).toString().padStart(2, "0")}
+                              </td>
+
+                              <!-- Actions -->
+                              <td class="py-1.5 px-2 text-right w-16 whitespace-nowrap">
+                                <div class="flex items-center justify-end gap-1 opacity-60 group-hover:opacity-100">
+                                  {#if song.id !== undefined}
+                                    <button
+                                      type="button"
+                                      onclick={() => handleMpdCommand("playid", String(song.id))}
+                                      class="p-1 rounded text-slate-400 hover:text-audiophile-cyan transition cursor-pointer"
+                                      title="Reproducir esta pista en MPD"
+                                    >
+                                      <Play size={11} />
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onclick={() => handleMpdCommand("deleteid", String(song.id))}
+                                      class="p-1 rounded text-slate-400 hover:text-rose-400 transition cursor-pointer"
+                                      title="Quitar de la cola MPD"
+                                    >
+                                      <X size={11} />
+                                    </button>
+                                  {/if}
+                                </div>
+                              </td>
+                            </tr>
+                          {/each}
+                        </tbody>
+                      </table>
+                    {/if}
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -1029,7 +1571,16 @@
                   onclick={() => navigateBreadcrumb(-1, [])}
                   class="px-2 py-1 rounded hover:bg-slate-800 text-slate-300 hover:text-white font-semibold transition cursor-pointer"
                 >
-                  Raíz (Disco Red)
+                  Raíz
+                </button>
+                <button
+                  type="button"
+                  onclick={() => void initializeExplorerBase(true)}
+                  class="flex items-center gap-1 px-2 py-1 rounded hover:bg-slate-800 text-audiophile-cyan hover:text-white font-semibold transition cursor-pointer"
+                  title="Ir directamente a la carpeta de música de MPD"
+                >
+                  <Folder size={12} class="text-audiophile-cyan" />
+                  <span>Música Base</span>
                 </button>
                 {#each breadcrumbParts as part, idx}
                   <span class="text-slate-600">/</span>
@@ -1118,13 +1669,16 @@
                       </tr>
                     {/if}
                     {#each filteredDirectoryItems as item}
-                      <tr class="hover:bg-slate-900/60 transition group">
+                      <tr
+                        class="hover:bg-slate-900/60 transition group cursor-pointer"
+                        ondblclick={() => handleExplorerItemDblClick(item)}
+                      >
                         <!-- Name & Icon -->
                         <td class="py-2 px-3">
                           {#if item.is_directory}
                             <button
                               type="button"
-                              onclick={() => navigateToSubfolder(item.path)}
+                              onclick={(e) => { e.stopPropagation(); navigateToSubfolder(item.path); }}
                               class="flex items-center gap-2 font-semibold text-slate-200 hover:text-audiophile-cyan transition cursor-pointer text-left"
                             >
                               <Folder size={15} class="text-amber-400 shrink-0" />
@@ -1182,7 +1736,7 @@
                               <!-- Play now in MusicX -->
                               <button
                                 type="button"
-                                onclick={() => addToMusicXQueue(item, true)}
+                                onclick={(e) => { e.stopPropagation(); addToMusicXQueue(item, true); }}
                                 class="p-1 rounded bg-slate-800 text-slate-200 hover:bg-audiophile-cyan hover:text-black transition cursor-pointer"
                                 title="Reproducir ahora en MusicX"
                               >
@@ -1192,7 +1746,7 @@
                               <!-- Add to MusicX Queue -->
                               <button
                                 type="button"
-                                onclick={() => addToMusicXQueue(item, false)}
+                                onclick={(e) => { e.stopPropagation(); addToMusicXQueue(item, false); }}
                                 class="px-1.5 py-1 rounded bg-slate-800 text-slate-300 hover:text-white transition cursor-pointer text-[10px] font-semibold"
                                 title="Añadir a cola de MusicX"
                               >
@@ -1202,7 +1756,7 @@
                               <!-- Add to MPD remote queue -->
                               <button
                                 type="button"
-                                onclick={() => handleMpdCommand("add", item.path)}
+                                onclick={(e) => { e.stopPropagation(); handleMpdCommand("add", item.path); }}
                                 class="px-1.5 py-1 rounded bg-slate-800 text-slate-300 hover:text-white transition cursor-pointer text-[10px] font-semibold font-mono"
                                 title="Añadir a la cola remota de MPD"
                               >
@@ -1213,22 +1767,43 @@
                               {#if config.remote_mount_path}
                                 <button
                                   type="button"
-                                  onclick={() => executeTransfer("download_from_mpd", [item.path])}
+                                  onclick={(e) => { e.stopPropagation(); executeTransfer("download_from_mpd", [item.path]); }}
                                   class="p-1 rounded bg-slate-800 text-emerald-400 hover:bg-emerald-500 hover:text-black transition cursor-pointer"
                                   title="Descargar pista a local"
                                 >
                                   <Download size={12} />
                                 </button>
                               {/if}
+
+                              <!-- Delete Remote File -->
+                              <button
+                                type="button"
+                                onclick={(e) => { e.stopPropagation(); promptDeleteItem("remote", item.path, item.title || item.name, false); }}
+                                class="p-1 rounded bg-slate-800 text-slate-400 hover:bg-rose-950/60 hover:text-rose-400 transition cursor-pointer"
+                                title="Eliminar archivo del servidor MPD"
+                              >
+                                <Trash2 size={12} />
+                              </button>
                             </div>
                           {:else}
-                            <button
-                              type="button"
-                              onclick={() => navigateToSubfolder(item.path)}
-                              class="px-2 py-0.5 rounded text-[11px] font-semibold text-slate-400 hover:text-audiophile-cyan transition cursor-pointer"
-                            >
-                              Abrir
-                            </button>
+                            <div class="flex items-center justify-end gap-1">
+                              <button
+                                type="button"
+                                onclick={(e) => { e.stopPropagation(); navigateToSubfolder(item.path); }}
+                                class="px-2 py-0.5 rounded text-[11px] font-semibold text-slate-400 hover:text-audiophile-cyan transition cursor-pointer"
+                              >
+                                Abrir
+                              </button>
+                              <!-- Delete Remote Folder -->
+                              <button
+                                type="button"
+                                onclick={(e) => { e.stopPropagation(); promptDeleteItem("remote", item.path, item.name, true); }}
+                                class="p-1 rounded bg-slate-800 text-slate-400 hover:bg-rose-950/60 hover:text-rose-400 transition cursor-pointer"
+                                title="Eliminar carpeta de MPD"
+                              >
+                                <Trash2 size={12} />
+                              </button>
+                            </div>
                           {/if}
                         </td>
                       </tr>
@@ -1332,230 +1907,486 @@
                 </div>
               </div>
 
-              <!-- Filter Tabs & Batch Buttons -->
-              <div class="flex flex-wrap items-center justify-between gap-3 pt-2">
-                <!-- Filters -->
+              <!-- View Mode Toggle & Manual Folder Deletion Shortcuts -->
+              <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800 pb-3">
+                <!-- View mode toggle: List View vs Split View (FileZilla) -->
                 <div class="flex items-center gap-1 bg-slate-900 p-1 rounded-xl border border-slate-800 text-xs">
                   <button
                     type="button"
-                    onclick={() => (diffFilter = "all")}
-                    class="px-2.5 py-1 rounded-lg font-semibold transition cursor-pointer {diffFilter === 'all' ? 'bg-slate-800 text-white' : 'text-slate-400 hover:text-white'}"
+                    onclick={() => (syncViewMode = "filezilla")}
+                    class="flex items-center gap-1.5 px-3 py-1 rounded-lg font-semibold transition cursor-pointer {syncViewMode === 'filezilla' ? 'bg-audiophile-cyan text-black font-bold shadow-sm' : 'text-slate-400 hover:text-white'}"
                   >
-                    Todos ({diffResult.items.length})
+                    <Columns size={13} />
+                    <span>Vista Dividida (FileZilla)</span>
                   </button>
-
                   <button
                     type="button"
-                    onclick={() => (diffFilter = "only_mpd")}
-                    class="px-2.5 py-1 rounded-lg font-semibold transition cursor-pointer {diffFilter === 'only_mpd' ? 'bg-cyan-500/20 text-cyan-300' : 'text-slate-400 hover:text-white'}"
+                    onclick={() => (syncViewMode = "list")}
+                    class="flex items-center gap-1.5 px-3 py-1 rounded-lg font-semibold transition cursor-pointer {syncViewMode === 'list' ? 'bg-audiophile-cyan text-black font-bold shadow-sm' : 'text-slate-400 hover:text-white'}"
                   >
-                    Solo MPD ({diffResult.count_only_mpd})
-                  </button>
-
-                  <button
-                    type="button"
-                    onclick={() => (diffFilter = "only_local")}
-                    class="px-2.5 py-1 rounded-lg font-semibold transition cursor-pointer {diffFilter === 'only_local' ? 'bg-purple-500/20 text-purple-300' : 'text-slate-400 hover:text-white'}"
-                  >
-                    Solo Local ({diffResult.count_only_local})
-                  </button>
-
-                  <button
-                    type="button"
-                    onclick={() => (diffFilter = "modified")}
-                    class="px-2.5 py-1 rounded-lg font-semibold transition cursor-pointer {diffFilter === 'modified' ? 'bg-amber-500/20 text-amber-300' : 'text-slate-400 hover:text-white'}"
-                  >
-                    Modificados ({diffResult.count_modified})
-                  </button>
-
-                  <button
-                    type="button"
-                    onclick={() => (diffFilter = "in_sync")}
-                    class="px-2.5 py-1 rounded-lg font-semibold transition cursor-pointer {diffFilter === 'in_sync' ? 'bg-emerald-500/20 text-emerald-300' : 'text-slate-400 hover:text-white'}"
-                  >
-                    Al día ({diffResult.count_in_sync})
+                    <List size={13} />
+                    <span>Vista Lista Unificada</span>
                   </button>
                 </div>
 
-                <!-- Batch Actions -->
+                <!-- Manual Folder Deletion Shortcuts -->
                 <div class="flex items-center gap-2">
-                  <div class="relative w-48">
-                    <Search size={13} class="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
-                    <input
-                      type="text"
-                      bind:value={diffSearch}
-                      placeholder="Buscar diferencia..."
-                      class="w-full pl-8 pr-3 py-1 rounded-lg border border-audiophile-border bg-slate-950 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-audiophile-cyan"
-                    />
+                  <button
+                    type="button"
+                    onclick={() => {
+                      const folder = window.prompt("Introduce la ruta de la carpeta que deseas eliminar en el servidor MPD:");
+                      if (folder && folder.trim()) {
+                        promptDeleteItem("remote", folder.trim(), folder.trim(), true);
+                      }
+                    }}
+                    class="flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold bg-slate-900 text-rose-300 border border-rose-900/40 hover:bg-rose-950/40 transition cursor-pointer"
+                    title="Eliminar una carpeta manualmente en el disco remoto MPD"
+                  >
+                    <Trash2 size={12} />
+                    <span>Borrar Carpeta Remota...</span>
+                  </button>
+                  <button
+                    type="button"
+                    onclick={() => {
+                      const folder = window.prompt("Introduce la ruta de la carpeta que deseas eliminar en Local:");
+                      if (folder && folder.trim()) {
+                        promptDeleteItem("local", folder.trim(), folder.trim(), true);
+                      }
+                    }}
+                    class="flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold bg-slate-900 text-rose-300 border border-rose-900/40 hover:bg-rose-950/40 transition cursor-pointer"
+                    title="Eliminar una carpeta manualmente en la biblioteca local"
+                  >
+                    <Trash2 size={12} />
+                    <span>Borrar Carpeta Local...</span>
+                  </button>
+                </div>
+              </div>
+
+              {#if syncViewMode === "filezilla"}
+                <!-- ========================================== -->
+                <!-- FILEZILLA STYLE SPLIT VIEW (LOCAL ⇄ REMOTE)-->
+                <!-- ========================================== -->
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 h-[420px]">
+                  <!-- Left Column: Local Library -->
+                  <div class="flex flex-col h-full rounded-xl border border-purple-500/30 bg-slate-950/90 overflow-hidden shadow-lg">
+                    <!-- Local Header -->
+                    <div class="p-3 border-b border-purple-500/20 bg-purple-950/20 shrink-0 space-y-2">
+                      <div class="flex items-center justify-between">
+                        <div class="flex items-center gap-2 min-w-0">
+                          <HardDrive size={15} class="text-purple-400 shrink-0" />
+                          <span class="text-xs font-bold text-white truncate">Local: {librarySettings.musicFolder || "No configurada"}</span>
+                        </div>
+                        <span class="px-2 py-0.5 rounded text-[10px] font-mono bg-purple-500/20 text-purple-300 font-bold shrink-0">
+                          {filteredLocalItems.length} archivos
+                        </span>
+                      </div>
+                      <div class="relative w-full">
+                        <Search size={12} class="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-500" />
+                        <input
+                          type="text"
+                          bind:value={syncLocalSearch}
+                          placeholder="Filtrar colección local..."
+                          class="w-full pl-7 pr-2 py-1 rounded-lg border border-purple-500/20 bg-slate-950 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-purple-400 font-mono"
+                        />
+                      </div>
+                    </div>
+
+                    <!-- Local Items Table -->
+                    <div class="flex-1 overflow-y-auto">
+                      <table class="w-full text-left text-xs border-collapse">
+                        <thead class="sticky top-0 bg-slate-900 border-b border-purple-500/20 text-[10px] font-mono text-purple-300/70 select-none">
+                          <tr>
+                            <th class="py-1.5 px-2.5">Pista / Archivo Local</th>
+                            <th class="py-1.5 px-2 w-16">Tam</th>
+                            <th class="py-1.5 px-2 w-20">Estado</th>
+                            <th class="py-1.5 px-2 w-24 text-right">Acción</th>
+                          </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-900 font-sans">
+                          {#each filteredLocalItems as item}
+                            <tr class="hover:bg-purple-950/20 transition group">
+                              <td class="py-1.5 px-2.5 min-w-0">
+                                <span class="font-medium text-slate-200 block truncate" title={item.relative_path}>
+                                  {item.title || item.relative_path.split("/").pop()}
+                                </span>
+                                <span class="text-[10px] font-mono text-slate-500 block truncate" title={item.relative_path}>
+                                  {item.relative_path}
+                                </span>
+                              </td>
+                              <td class="py-1.5 px-2 font-mono text-[10px] text-slate-400 whitespace-nowrap">
+                                {item.local_size ? `${(item.local_size / (1024 * 1024)).toFixed(1)}M` : "—"}
+                              </td>
+                              <td class="py-1.5 px-2 whitespace-nowrap">
+                                {#if item.status === "in_sync"}
+                                  <span class="px-1.5 py-0.5 rounded text-[9px] font-mono font-bold bg-emerald-500/20 text-emerald-400">
+                                    Al día
+                                  </span>
+                                {:else if item.status === "only_local"}
+                                  <span class="px-1.5 py-0.5 rounded text-[9px] font-mono font-bold bg-purple-500/20 text-purple-300">
+                                    Solo Local
+                                  </span>
+                                {:else}
+                                  <span class="px-1.5 py-0.5 rounded text-[9px] font-mono font-bold bg-amber-500/20 text-amber-400">
+                                    Modif.
+                                  </span>
+                                {/if}
+                              </td>
+                              <td class="py-1.5 px-2 text-right whitespace-nowrap">
+                                <div class="flex items-center justify-end gap-1 opacity-70 group-hover:opacity-100">
+                                  <button
+                                    type="button"
+                                    onclick={() => executeTransfer("upload_to_mpd", [item.relative_path])}
+                                    class="px-2 py-0.5 rounded text-[10px] font-bold bg-purple-600 hover:bg-purple-500 text-white transition cursor-pointer flex items-center gap-1"
+                                    title="Subir este archivo al disco en red de MPD"
+                                  >
+                                    <Upload size={10} />
+                                    <span>Subir →</span>
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onclick={() => promptDeleteItem("local", item.relative_path, item.title || item.relative_path, false)}
+                                    class="p-1 rounded bg-slate-800 text-slate-400 hover:bg-rose-950 hover:text-rose-400 transition cursor-pointer"
+                                    title="Eliminar este archivo de la biblioteca local"
+                                  >
+                                    <Trash2 size={11} />
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          {/each}
+                        </tbody>
+                      </table>
+                    </div>
                   </div>
 
-                  {#if selectedDiffPaths.size > 0}
+                  <!-- Right Column: MPD Remote Storage -->
+                  <div class="flex flex-col h-full rounded-xl border border-cyan-500/30 bg-slate-950/90 overflow-hidden shadow-lg">
+                    <!-- Remote Header -->
+                    <div class="p-3 border-b border-cyan-500/20 bg-cyan-950/20 shrink-0 space-y-2">
+                      <div class="flex items-center justify-between">
+                        <div class="flex items-center gap-2 min-w-0">
+                          <Server size={15} class="text-cyan-400 shrink-0" />
+                          <span class="text-xs font-bold text-white truncate">MPD Remoto: {config.remote_mount_path || config.path_strip_prefix || "Disco en Red"}</span>
+                        </div>
+                        <span class="px-2 py-0.5 rounded text-[10px] font-mono bg-cyan-500/20 text-cyan-300 font-bold shrink-0">
+                          {filteredRemoteItems.length} archivos
+                        </span>
+                      </div>
+                      <div class="relative w-full">
+                        <Search size={12} class="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-500" />
+                        <input
+                          type="text"
+                          bind:value={syncRemoteSearch}
+                          placeholder="Filtrar archivos MPD..."
+                          class="w-full pl-7 pr-2 py-1 rounded-lg border border-cyan-500/20 bg-slate-950 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-cyan-400 font-mono"
+                        />
+                      </div>
+                    </div>
+
+                    <!-- Remote Items Table -->
+                    <div class="flex-1 overflow-y-auto">
+                      <table class="w-full text-left text-xs border-collapse">
+                        <thead class="sticky top-0 bg-slate-900 border-b border-cyan-500/20 text-[10px] font-mono text-cyan-300/70 select-none">
+                          <tr>
+                            <th class="py-1.5 px-2.5">Pista / Archivo Remoto MPD</th>
+                            <th class="py-1.5 px-2 w-16">Tam</th>
+                            <th class="py-1.5 px-2 w-20">Estado</th>
+                            <th class="py-1.5 px-2 w-24 text-right">Acción</th>
+                          </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-900 font-sans">
+                          {#each filteredRemoteItems as item}
+                            <tr class="hover:bg-cyan-950/20 transition group">
+                              <td class="py-1.5 px-2.5 min-w-0">
+                                <span class="font-medium text-slate-200 block truncate" title={item.relative_path}>
+                                  {item.title || item.relative_path.split("/").pop()}
+                                </span>
+                                <span class="text-[10px] font-mono text-slate-500 block truncate" title={item.relative_path}>
+                                  {item.relative_path}
+                                </span>
+                              </td>
+                              <td class="py-1.5 px-2 font-mono text-[10px] text-slate-400 whitespace-nowrap">
+                                {item.mpd_size ? `${(item.mpd_size / (1024 * 1024)).toFixed(1)}M` : "—"}
+                              </td>
+                              <td class="py-1.5 px-2 whitespace-nowrap">
+                                {#if item.status === "in_sync"}
+                                  <span class="px-1.5 py-0.5 rounded text-[9px] font-mono font-bold bg-emerald-500/20 text-emerald-400">
+                                    Al día
+                                  </span>
+                                {:else if item.status === "only_mpd"}
+                                  <span class="px-1.5 py-0.5 rounded text-[9px] font-mono font-bold bg-cyan-500/20 text-cyan-400">
+                                    Solo MPD
+                                  </span>
+                                {:else}
+                                  <span class="px-1.5 py-0.5 rounded text-[9px] font-mono font-bold bg-amber-500/20 text-amber-400">
+                                    Modif.
+                                  </span>
+                                {/if}
+                              </td>
+                              <td class="py-1.5 px-2 text-right whitespace-nowrap">
+                                <div class="flex items-center justify-end gap-1 opacity-70 group-hover:opacity-100">
+                                  <button
+                                    type="button"
+                                    onclick={() => executeTransfer("download_from_mpd", [item.relative_path])}
+                                    class="px-2 py-0.5 rounded text-[10px] font-bold bg-cyan-600 hover:bg-cyan-500 text-black transition cursor-pointer flex items-center gap-1"
+                                    title="Descargar este archivo al almacenamiento local"
+                                  >
+                                    <Download size={10} />
+                                    <span>← Bajar</span>
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onclick={() => promptDeleteItem("remote", item.relative_path, item.title || item.relative_path, false)}
+                                    class="p-1 rounded bg-slate-800 text-slate-400 hover:bg-rose-950 hover:text-rose-400 transition cursor-pointer"
+                                    title="Eliminar este archivo del servidor MPD"
+                                  >
+                                    <Trash2 size={11} />
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          {/each}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+              {:else}
+                <!-- Filter Tabs & Batch Buttons -->
+                <div class="flex flex-wrap items-center justify-between gap-3 pt-2">
+                  <!-- Filters -->
+                  <div class="flex items-center gap-1 bg-slate-900 p-1 rounded-xl border border-slate-800 text-xs">
                     <button
                       type="button"
-                      onclick={() => executeTransfer("download_from_mpd")}
-                      class="flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-bold bg-cyan-500 text-black hover:bg-cyan-400 transition cursor-pointer"
+                      onclick={() => (diffFilter = "all")}
+                      class="px-2.5 py-1 rounded-lg font-semibold transition cursor-pointer {diffFilter === 'all' ? 'bg-slate-800 text-white' : 'text-slate-400 hover:text-white'}"
                     >
-                      <Download size={13} />
-                      <span>Descargar ({selectedDiffPaths.size})</span>
+                      Todos ({diffResult.items.length})
                     </button>
 
                     <button
                       type="button"
-                      onclick={() => executeTransfer("upload_to_mpd")}
-                      class="flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-bold bg-purple-500 text-white hover:bg-purple-400 transition cursor-pointer"
+                      onclick={() => (diffFilter = "only_mpd")}
+                      class="px-2.5 py-1 rounded-lg font-semibold transition cursor-pointer {diffFilter === 'only_mpd' ? 'bg-cyan-500/20 text-cyan-300' : 'text-slate-400 hover:text-white'}"
                     >
-                      <Upload size={13} />
-                      <span>Subir ({selectedDiffPaths.size})</span>
+                      Solo MPD ({diffResult.count_only_mpd})
                     </button>
 
                     <button
                       type="button"
-                      onclick={clearDiffSelection}
-                      class="px-2 py-1 text-xs text-slate-400 hover:text-white transition cursor-pointer"
+                      onclick={() => (diffFilter = "only_local")}
+                      class="px-2.5 py-1 rounded-lg font-semibold transition cursor-pointer {diffFilter === 'only_local' ? 'bg-purple-500/20 text-purple-300' : 'text-slate-400 hover:text-white'}"
                     >
-                      Limpiar
+                      Solo Local ({diffResult.count_only_local})
                     </button>
-                  {:else}
-                    {#if diffResult.count_only_mpd > 0}
+
+                    <button
+                      type="button"
+                      onclick={() => (diffFilter = "modified")}
+                      class="px-2.5 py-1 rounded-lg font-semibold transition cursor-pointer {diffFilter === 'modified' ? 'bg-amber-500/20 text-amber-300' : 'text-slate-400 hover:text-white'}"
+                    >
+                      Modificados ({diffResult.count_modified})
+                    </button>
+
+                    <button
+                      type="button"
+                      onclick={() => (diffFilter = "in_sync")}
+                      class="px-2.5 py-1 rounded-lg font-semibold transition cursor-pointer {diffFilter === 'in_sync' ? 'bg-emerald-500/20 text-emerald-300' : 'text-slate-400 hover:text-white'}"
+                    >
+                      Al día ({diffResult.count_in_sync})
+                    </button>
+                  </div>
+
+                  <!-- Batch Actions -->
+                  <div class="flex items-center gap-2">
+                    <div class="relative w-48">
+                      <Search size={13} class="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                      <input
+                        type="text"
+                        bind:value={diffSearch}
+                        placeholder="Buscar diferencia..."
+                        class="w-full pl-8 pr-3 py-1 rounded-lg border border-audiophile-border bg-slate-950 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-audiophile-cyan"
+                      />
+                    </div>
+
+                    {#if selectedDiffPaths.size > 0}
                       <button
                         type="button"
                         onclick={() => executeTransfer("download_from_mpd")}
-                        class="flex items-center gap-1 px-3 py-1 rounded-lg text-xs font-bold bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 hover:bg-cyan-500 hover:text-black transition cursor-pointer"
+                        class="flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-bold bg-cyan-500 text-black hover:bg-cyan-400 transition cursor-pointer"
                       >
                         <Download size={13} />
-                        <span>Descargar todo de MPD ({diffResult.count_only_mpd})</span>
+                        <span>Descargar ({selectedDiffPaths.size})</span>
                       </button>
-                    {/if}
 
-                    {#if diffResult.count_only_local > 0}
                       <button
                         type="button"
                         onclick={() => executeTransfer("upload_to_mpd")}
-                        class="flex items-center gap-1 px-3 py-1 rounded-lg text-xs font-bold bg-purple-500/20 text-purple-300 border border-purple-500/40 hover:bg-purple-500 hover:text-white transition cursor-pointer"
+                        class="flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-bold bg-purple-500 text-white hover:bg-purple-400 transition cursor-pointer"
                       >
                         <Upload size={13} />
-                        <span>Subir todo a MPD ({diffResult.count_only_local})</span>
+                        <span>Subir ({selectedDiffPaths.size})</span>
                       </button>
-                    {/if}
-                  {/if}
-                </div>
-              </div>
 
-              <!-- Differences Table -->
-              <div class="rounded-xl border border-audiophile-border bg-slate-950/80 overflow-y-auto max-h-[360px]">
-                <table class="w-full text-left text-xs border-collapse">
-                  <thead class="sticky top-0 bg-slate-900 border-b border-audiophile-border text-[11px] font-mono text-slate-400 select-none">
-                    <tr>
-                      <th class="py-2 px-3 w-8">
-                        <input
-                          type="checkbox"
-                          checked={selectedDiffPaths.size > 0 && selectedDiffPaths.size === filteredDiffItems.length}
-                          onchange={(e) => {
-                            if ((e.currentTarget as HTMLInputElement).checked) {
-                              selectAllFilteredDiff();
-                            } else {
-                              clearDiffSelection();
-                            }
-                          }}
-                          class="rounded bg-slate-800 border-slate-700 text-audiophile-cyan focus:ring-0 cursor-pointer"
-                        />
-                      </th>
-                      <th class="py-2 px-3">Ruta Relativa / Canción</th>
-                      <th class="py-2 px-3 w-28">Estado</th>
-                      <th class="py-2 px-3 w-36">Última Mod. MPD</th>
-                      <th class="py-2 px-3 w-36">Última Mod. Local</th>
-                      <th class="py-2 px-3 w-28 text-right">Acción</th>
-                    </tr>
-                  </thead>
-                  <tbody class="divide-y divide-slate-900 font-sans">
-                    {#each filteredDiffItems as item}
-                      <tr class="hover:bg-slate-900/60 transition group {selectedDiffPaths.has(item.relative_path) ? 'bg-slate-900/40' : ''}">
-                        <!-- Selection Checkbox -->
-                        <td class="py-2 px-3">
+                      <button
+                        type="button"
+                        onclick={clearDiffSelection}
+                        class="px-2 py-1 text-xs text-slate-400 hover:text-white transition cursor-pointer"
+                      >
+                        Limpiar
+                      </button>
+                    {:else}
+                      {#if diffResult.count_only_mpd > 0}
+                        <button
+                          type="button"
+                          onclick={() => executeTransfer("download_from_mpd")}
+                          class="flex items-center gap-1 px-3 py-1 rounded-lg text-xs font-bold bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 hover:bg-cyan-500 hover:text-black transition cursor-pointer"
+                        >
+                          <Download size={13} />
+                          <span>Descargar todo de MPD ({diffResult.count_only_mpd})</span>
+                        </button>
+                      {/if}
+
+                      {#if diffResult.count_only_local > 0}
+                        <button
+                          type="button"
+                          onclick={() => executeTransfer("upload_to_mpd")}
+                          class="flex items-center gap-1 px-3 py-1 rounded-lg text-xs font-bold bg-purple-500/20 text-purple-300 border border-purple-500/40 hover:bg-purple-500 hover:text-white transition cursor-pointer"
+                        >
+                          <Upload size={13} />
+                          <span>Subir todo a MPD ({diffResult.count_only_local})</span>
+                        </button>
+                      {/if}
+                    {/if}
+                  </div>
+                </div>
+
+                <!-- Differences Table -->
+                <div class="rounded-xl border border-audiophile-border bg-slate-950/80 overflow-y-auto max-h-[360px]">
+                  <table class="w-full text-left text-xs border-collapse">
+                    <thead class="sticky top-0 bg-slate-900 border-b border-audiophile-border text-[11px] font-mono text-slate-400 select-none">
+                      <tr>
+                        <th class="py-2 px-3 w-8">
                           <input
                             type="checkbox"
-                            checked={selectedDiffPaths.has(item.relative_path)}
-                            onchange={() => toggleSelectDiff(item.relative_path)}
+                            checked={selectedDiffPaths.size > 0 && selectedDiffPaths.size === filteredDiffItems.length}
+                            onchange={(e) => {
+                              if ((e.currentTarget as HTMLInputElement).checked) {
+                                selectAllFilteredDiff();
+                              } else {
+                                clearDiffSelection();
+                              }
+                            }}
                             class="rounded bg-slate-800 border-slate-700 text-audiophile-cyan focus:ring-0 cursor-pointer"
                           />
-                        </td>
-
-                        <!-- Relative Path / Title -->
-                        <td class="py-2 px-3">
-                          <div class="font-medium text-slate-200 truncate max-w-[340px]">
-                            {item.title}
-                          </div>
-                          <div class="text-[11px] font-mono text-slate-500 truncate max-w-[340px]">
-                            {item.relative_path}
-                          </div>
-                        </td>
-
-                        <!-- Status Badge -->
-                        <td class="py-2 px-3">
-                          {#if item.status === "in_sync"}
-                            <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-mono font-semibold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
-                              Al día
-                            </span>
-                          {:else if item.status === "only_mpd"}
-                            <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-mono font-semibold bg-cyan-500/15 text-cyan-400 border border-cyan-500/30">
-                              Solo en MPD
-                            </span>
-                          {:else if item.status === "only_local"}
-                            <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-mono font-semibold bg-purple-500/15 text-purple-400 border border-purple-500/30">
-                              Solo en Local
-                            </span>
-                          {:else if item.status === "modified"}
-                            <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-mono font-semibold bg-amber-500/15 text-amber-400 border border-amber-500/30">
-                              Modificado ({item.newer_side === 'mpd' ? 'MPD +' : item.newer_side === 'local' ? 'Local +' : 'Tam'})
-                            </span>
-                          {/if}
-                        </td>
-
-                        <!-- MPD Timestamp & Size -->
-                        <td class="py-2 px-3 font-mono text-slate-400 text-[11px]">
-                          <div>{item.mpd_mtime_str || "—"}</div>
-                          {#if item.mpd_size}
-                            <div class="text-[10px] text-slate-600">{(item.mpd_size / (1024 * 1024)).toFixed(1)} MB</div>
-                          {/if}
-                        </td>
-
-                        <!-- Local Timestamp & Size -->
-                        <td class="py-2 px-3 font-mono text-slate-400 text-[11px]">
-                          <div>{item.local_mtime_str || "—"}</div>
-                          {#if item.local_size}
-                            <div class="text-[10px] text-slate-600">{(item.local_size / (1024 * 1024)).toFixed(1)} MB</div>
-                          {/if}
-                        </td>
-
-                        <!-- Quick Single Action -->
-                        <td class="py-2 px-3 text-right">
-                          {#if item.status === "only_mpd" || (item.status === "modified" && item.newer_side === "mpd")}
-                            <button
-                              type="button"
-                              onclick={() => executeTransfer("download_from_mpd", [item.relative_path])}
-                              class="px-2 py-1 rounded text-[11px] font-semibold bg-cyan-500/20 text-cyan-300 hover:bg-cyan-500 hover:text-black transition cursor-pointer"
-                              title="Descargar este archivo de MPD a local"
-                            >
-                              Descargar
-                            </button>
-                          {:else if item.status === "only_local" || (item.status === "modified" && item.newer_side === "local")}
-                            <button
-                              type="button"
-                              onclick={() => executeTransfer("upload_to_mpd", [item.relative_path])}
-                              class="px-2 py-1 rounded text-[11px] font-semibold bg-purple-500/20 text-purple-300 hover:bg-purple-500 hover:text-white transition cursor-pointer"
-                              title="Subir este archivo de local a MPD"
-                            >
-                              Subir
-                            </button>
-                          {:else}
-                            <span class="text-slate-600 text-xs">—</span>
-                          {/if}
-                        </td>
+                        </th>
+                        <th class="py-2 px-3">Ruta Relativa / Canción</th>
+                        <th class="py-2 px-3 w-28">Estado</th>
+                        <th class="py-2 px-3 w-36">Última Mod. MPD</th>
+                        <th class="py-2 px-3 w-36">Última Mod. Local</th>
+                        <th class="py-2 px-3 w-28 text-right">Acción</th>
                       </tr>
-                    {/each}
-                  </tbody>
-                </table>
-              </div>
+                    </thead>
+                    <tbody class="divide-y divide-slate-900 font-sans">
+                      {#each filteredDiffItems as item}
+                        <tr class="hover:bg-slate-900/60 transition group {selectedDiffPaths.has(item.relative_path) ? 'bg-slate-900/40' : ''}">
+                          <!-- Selection Checkbox -->
+                          <td class="py-2 px-3">
+                            <input
+                              type="checkbox"
+                              checked={selectedDiffPaths.has(item.relative_path)}
+                              onchange={() => toggleSelectDiff(item.relative_path)}
+                              class="rounded bg-slate-800 border-slate-700 text-audiophile-cyan focus:ring-0 cursor-pointer"
+                            />
+                          </td>
+
+                          <!-- Relative Path / Title -->
+                          <td class="py-2 px-3">
+                            <div class="font-medium text-slate-200 truncate max-w-[340px]">
+                              {item.title}
+                            </div>
+                            <div class="text-[11px] font-mono text-slate-500 truncate max-w-[340px]">
+                              {item.relative_path}
+                            </div>
+                          </td>
+
+                          <!-- Status Badge -->
+                          <td class="py-2 px-3">
+                            {#if item.status === "in_sync"}
+                              <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-mono font-semibold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
+                                Al día
+                              </span>
+                            {:else if item.status === "only_mpd"}
+                              <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-mono font-semibold bg-cyan-500/15 text-cyan-400 border border-cyan-500/30">
+                                Solo en MPD
+                              </span>
+                            {:else if item.status === "only_local"}
+                              <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-mono font-semibold bg-purple-500/15 text-purple-400 border border-purple-500/30">
+                                Solo en Local
+                              </span>
+                            {:else if item.status === "modified"}
+                              <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-mono font-semibold bg-amber-500/15 text-amber-400 border border-amber-500/30">
+                                Modificado ({item.newer_side === 'mpd' ? 'MPD +' : item.newer_side === 'local' ? 'Local +' : 'Tam'})
+                              </span>
+                            {/if}
+                          </td>
+
+                          <!-- MPD Timestamp & Size -->
+                          <td class="py-2 px-3 font-mono text-slate-400 text-[11px]">
+                            <div>{item.mpd_mtime_str || "—"}</div>
+                            {#if item.mpd_size}
+                              <div class="text-[10px] text-slate-600">{(item.mpd_size / (1024 * 1024)).toFixed(1)} MB</div>
+                            {/if}
+                          </td>
+
+                          <!-- Local Timestamp & Size -->
+                          <td class="py-2 px-3 font-mono text-slate-400 text-[11px]">
+                            <div>{item.local_mtime_str || "—"}</div>
+                            {#if item.local_size}
+                              <div class="text-[10px] text-slate-600">{(item.local_size / (1024 * 1024)).toFixed(1)} MB</div>
+                            {/if}
+                          </td>
+
+                          <!-- Quick Single Action -->
+                          <td class="py-2 px-3 text-right">
+                            <div class="flex items-center justify-end gap-1">
+                              {#if item.status === "only_mpd" || (item.status === "modified" && item.newer_side === "mpd")}
+                                <button
+                                  type="button"
+                                  onclick={() => executeTransfer("download_from_mpd", [item.relative_path])}
+                                  class="px-2 py-1 rounded text-[11px] font-semibold bg-cyan-500/20 text-cyan-300 hover:bg-cyan-500 hover:text-black transition cursor-pointer"
+                                  title="Descargar este archivo de MPD a local"
+                                >
+                                  Descargar
+                                </button>
+                              {:else if item.status === "only_local" || (item.status === "modified" && item.newer_side === "local")}
+                                <button
+                                  type="button"
+                                  onclick={() => executeTransfer("upload_to_mpd", [item.relative_path])}
+                                  class="px-2 py-1 rounded text-[11px] font-semibold bg-purple-500/20 text-purple-300 hover:bg-purple-500 hover:text-white transition cursor-pointer"
+                                  title="Subir este archivo de local a MPD"
+                                >
+                                  Subir
+                                </button>
+                              {:else}
+                                <span class="text-slate-600 text-xs">—</span>
+                              {/if}
+                              <button
+                                type="button"
+                                onclick={() => promptDeleteItem(item.status === 'only_local' ? 'local' : 'remote', item.relative_path, item.title, false)}
+                                class="p-1 rounded bg-slate-800 text-slate-400 hover:bg-rose-950 hover:text-rose-400 transition cursor-pointer"
+                                title="Eliminar archivo"
+                              >
+                                <Trash2 size={11} />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      {/each}
+                    </tbody>
+                  </table>
+                </div>
+              {/if}
             {:else}
               <div class="py-16 text-center text-slate-500 space-y-2">
                 <ArrowUpDown size={32} class="mx-auto opacity-30 text-audiophile-cyan" />
@@ -1589,4 +2420,53 @@
       </div>
     </div>
   </div>
+
+  <!-- Delete Confirmation Modal -->
+  {#if deleteConfirmModal}
+    <div class="fixed inset-0 z-60 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+      <div class="w-full max-w-md p-6 rounded-2xl border border-rose-800/80 bg-slate-950 shadow-2xl space-y-4 text-slate-100">
+        <div class="flex items-center gap-3 text-rose-400">
+          <div class="p-2.5 rounded-xl bg-rose-950/80 border border-rose-800/60">
+            <Trash2 size={24} />
+          </div>
+          <div>
+            <h3 class="text-base font-bold text-white">Confirmar Eliminación</h3>
+            <p class="text-xs text-rose-400/90 font-mono">
+              {deleteConfirmModal.target === "remote" ? "Servidor MPD (Disco en Red)" : "Almacenamiento Local"}
+            </p>
+          </div>
+        </div>
+
+        <div class="p-3.5 rounded-xl bg-slate-900 border border-slate-800 text-xs space-y-2">
+          <p class="text-slate-300">
+            ¿Estás seguro de que deseas eliminar permanentemente {deleteConfirmModal.isDirectory ? "la carpeta completa y todo su contenido" : "el archivo"}?
+          </p>
+          <p class="font-mono text-[11px] text-rose-300 break-all bg-black/50 p-2 rounded border border-slate-800">
+            {deleteConfirmModal.path}
+          </p>
+          <p class="text-[10px] text-amber-400/90">
+            ⚠️ Esta acción es irreversible. {deleteConfirmModal.target === 'remote' ? 'Se notificará a MPD para actualizar la base de datos automáticamente.' : ''}
+          </p>
+        </div>
+
+        <div class="flex items-center justify-end gap-2 pt-2">
+          <button
+            type="button"
+            onclick={() => (deleteConfirmModal = null)}
+            class="px-4 py-2 rounded-xl text-xs font-semibold bg-slate-850 hover:bg-slate-800 text-slate-300 transition cursor-pointer"
+          >
+            Cancelar
+          </button>
+
+          <button
+            type="button"
+            onclick={executeDeletion}
+            class="px-4 py-2 rounded-xl text-xs font-bold bg-rose-600 hover:bg-rose-500 text-white transition cursor-pointer shadow-lg shadow-rose-950/50"
+          >
+            Eliminar Definitivamente
+          </button>
+        </div>
+      </div>
+    </div>
+  {/if}
 {/if}

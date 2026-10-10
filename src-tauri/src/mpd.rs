@@ -101,6 +101,14 @@ pub struct MpdDiscoveredServer {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MpdOutputDevice {
+    pub id: u32,
+    pub name: String,
+    pub plugin: String,
+    pub enabled: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MpdDirectoryItem {
     pub is_directory: bool,
     pub path: String,
@@ -453,6 +461,27 @@ pub async fn ping_and_get_status(
     }
 }
 
+pub fn is_audio_or_cover_file(path_str: &str) -> bool {
+    let p = Path::new(path_str);
+    if let Some(name) = p.file_name().and_then(|n| n.to_str()) {
+        if name.starts_with('.') {
+            return false;
+        }
+    }
+    for comp in p.components() {
+        let s = comp.as_os_str().to_string_lossy();
+        if s.starts_with('.') || s == "lost+found" || s == "__MACOSX" || s == "System Volume Information" {
+            return false;
+        }
+    }
+    let ext = p.extension().and_then(|e| e.to_str()).unwrap_or("").to_lowercase();
+    matches!(
+        ext.as_str(),
+        "mp3" | "flac" | "wav" | "ogg" | "m4a" | "aac" | "opus" | "alac" | "wma" | "aiff" | "dsf" | "dff"
+        | "jpg" | "jpeg" | "png" | "webp"
+    )
+}
+
 // List contents of a remote directory via `lsinfo`
 pub async fn list_directory(
     host: &str,
@@ -462,15 +491,57 @@ pub async fn list_directory(
 ) -> Result<Vec<MpdDirectoryItem>, String> {
     let (mut reader, _) = connect_mpd(host, port, password, 3000).await?;
 
-    let cmd = if dir_path.trim().is_empty() {
-        "lsinfo\n".to_string()
+    let clean_dir = if dir_path.starts_with("smb://") {
+        let without = dir_path.trim_start_matches("smb://");
+        let parts: Vec<&str> = without.split('/').filter(|s| !s.is_empty()).collect();
+        if parts.len() > 1 {
+            parts[1..].join("/")
+        } else {
+            parts.join("/")
+        }
     } else {
-        format!("lsinfo \"{}\"\n", dir_path.replace('\"', "\\\""))
+        dir_path.replace('\\', "/").trim_matches('/').to_string()
     };
 
-    let lines = execute_command(&mut reader, &cmd).await?;
-    let mut items = Vec::new();
+    let lines = if clean_dir.is_empty() {
+        execute_command(&mut reader, "lsinfo\n").await?
+    } else {
+        let cmd = format!("lsinfo \"{}\"\n", clean_dir.replace('\"', "\\\""));
+        match execute_command(&mut reader, &cmd).await {
+            Ok(lines) => lines,
+            Err(_) => {
+                // If not found, try prepending "USB/" if not already starting with USB
+                let usb_cmd = format!("lsinfo \"USB/{}\"\n", clean_dir.replace('\"', "\\\""));
+                match execute_command(&mut reader, &usb_cmd).await {
+                    Ok(lines) => lines,
+                    Err(_) => {
+                        // Check top-level directories in MPD root to find where clean_dir exists
+                        let mut found = None;
+                        if let Ok(root_lines) = execute_command(&mut reader, "lsinfo\n").await {
+                            for r_line in root_lines {
+                                if let Some((k, v)) = r_line.split_once(": ") {
+                                    if k.trim().to_lowercase() == "directory" {
+                                        let cand = format!("{}/{}", v.trim(), clean_dir);
+                                        let cand_cmd = format!("lsinfo \"{}\"\n", cand.replace('\"', "\\\""));
+                                        if let Ok(cand_lines) = execute_command(&mut reader, &cand_cmd).await {
+                                            found = Some(cand_lines);
+                                            break;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        match found {
+                            Some(l) => l,
+                            None => return Err(format!("Directorio no encontrado en MPD: {}", dir_path)),
+                        }
+                    }
+                }
+            }
+        }
+    };
 
+    let mut items = Vec::new();
     let mut current_item: Option<MpdDirectoryItem> = None;
 
     for line in lines {
@@ -501,6 +572,9 @@ pub async fn list_directory(
                     last_modified_timestamp: 0,
                 });
             } else if key == "file" {
+                if !is_audio_or_cover_file(&val) {
+                    continue;
+                }
                 if let Some(item) = current_item.take() {
                     items.push(item);
                 }
@@ -666,16 +740,197 @@ pub async fn send_playback_command(
         ("random", Some(val)) => format!("random {}\n", val),
         ("single", Some(val)) => format!("single {}\n", val),
         ("consume", Some(val)) => format!("consume {}\n", val),
+        ("crossfade", Some(val)) => format!("crossfade {}\n", val),
+        ("playid", Some(id)) => format!("playid {}\n", id),
+        ("deleteid", Some(id)) => format!("deleteid {}\n", id),
+        ("shuffle", _) => "shuffle\n".to_string(),
+        ("enableoutput", Some(id)) => format!("enableoutput {}\n", id),
+        ("disableoutput", Some(id)) => format!("disableoutput {}\n", id),
         ("add", Some(uri)) => format!("add \"{}\"\n", uri.replace('\"', "\\\"")),
         ("delete", Some(pos)) => format!("delete {}\n", pos),
         ("clear", _) => "clear\n".to_string(),
         ("update", Some(uri)) => format!("update \"{}\"\n", uri.replace('\"', "\\\"")),
         ("update", None) => "update\n".to_string(),
-        _ => return Err(format!("Comando desconocido: {}", command)),
+        (cmd, Some(a)) => format!("{} {}\n", cmd, a),
+        (cmd, None) => format!("{}\n", cmd),
     };
 
     execute_command(&mut reader, &cmd_str).await?;
     Ok("OK".to_string())
+}
+
+// Fetch current active queue / playlist info from MPD
+pub async fn get_playlist_info(
+    host: &str,
+    port: u16,
+    password: Option<&str>,
+) -> Result<Vec<MpdSongItem>, String> {
+    let (mut reader, _) = connect_mpd(host, port, password, 3000).await?;
+    let lines = execute_command(&mut reader, "playlistinfo\n").await?;
+    let mut songs = Vec::new();
+    let mut current_song: Option<MpdSongItem> = None;
+
+    for line in lines {
+        if let Some((k, v)) = line.split_once(": ") {
+            let key = k.trim().to_lowercase();
+            let val = v.trim().to_string();
+
+            if key == "file" {
+                if let Some(s) = current_song.take() {
+                    songs.push(s);
+                }
+                current_song = Some(MpdSongItem {
+                    file: val,
+                    title: None,
+                    artist: None,
+                    album: None,
+                    track: None,
+                    duration: 0.0,
+                    format: None,
+                    size: 0,
+                    last_modified: None,
+                    last_modified_timestamp: 0,
+                    pos: None,
+                    id: None,
+                });
+            } else if let Some(ref mut song) = current_song {
+                match key.as_str() {
+                    "title" => song.title = Some(val),
+                    "artist" => song.artist = Some(val),
+                    "album" => song.album = Some(val),
+                    "track" => song.track = Some(val),
+                    "time" | "duration" => {
+                        if let Ok(d) = val.parse::<f64>() {
+                            song.duration = d;
+                        }
+                    }
+                    "pos" => {
+                        if let Ok(p) = val.parse::<u32>() {
+                            song.pos = Some(p);
+                        }
+                    }
+                    "id" => {
+                        if let Ok(i) = val.parse::<u32>() {
+                            song.id = Some(i);
+                        }
+                    }
+                    "size" => {
+                        if let Ok(sz) = val.parse::<u64>() {
+                            song.size = sz;
+                        }
+                    }
+                    "format" => song.format = Some(val),
+                    _ => {}
+                }
+            }
+        }
+    }
+
+    if let Some(s) = current_song {
+        songs.push(s);
+    }
+
+    Ok(songs)
+}
+
+// Fetch audio output devices configured in MPD
+pub async fn get_outputs(
+    host: &str,
+    port: u16,
+    password: Option<&str>,
+) -> Result<Vec<MpdOutputDevice>, String> {
+    let (mut reader, _) = connect_mpd(host, port, password, 3000).await?;
+    let lines = execute_command(&mut reader, "outputs\n").await?;
+    let mut outputs = Vec::new();
+    let mut current_output: Option<MpdOutputDevice> = None;
+
+    for line in lines {
+        if let Some((k, v)) = line.split_once(": ") {
+            let key = k.trim().to_lowercase();
+            let val = v.trim().to_string();
+
+            if key == "outputid" {
+                if let Some(out) = current_output.take() {
+                    outputs.push(out);
+                }
+                current_output = Some(MpdOutputDevice {
+                    id: val.parse::<u32>().unwrap_or(0),
+                    name: String::new(),
+                    plugin: String::new(),
+                    enabled: false,
+                });
+            } else if let Some(ref mut out) = current_output {
+                match key.as_str() {
+                    "outputname" => out.name = val,
+                    "plugin" => out.plugin = val,
+                    "outputenabled" => out.enabled = val == "1",
+                    _ => {}
+                }
+            }
+        }
+    }
+
+    if let Some(out) = current_output {
+        outputs.push(out);
+    }
+
+    Ok(outputs)
+}
+
+// Auto-resolves MPD base directory from config (e.g. rootfs/mnt/SDCARD -> USB/rootfs/mnt/SDCARD)
+pub async fn resolve_base_path(config: &MpdConfig) -> Result<String, String> {
+    let (mut reader, _) = connect_mpd(&config.host, config.port, config.password.as_deref(), 3000).await?;
+    
+    let candidates = [
+        config.path_strip_prefix.as_deref(),
+        config.remote_mount_path.as_deref(),
+    ];
+
+    for cand_opt in candidates {
+        if let Some(cand) = cand_opt {
+            let clean = cand.replace('\\', "/").replace("smb://", "");
+            let parts: Vec<&str> = clean.split('/').filter(|s| !s.is_empty()).collect();
+            let desired = if cand.starts_with("smb://") && parts.len() >= 2 {
+                parts[1..].join("/")
+            } else {
+                parts.join("/")
+            };
+
+            if desired.is_empty() {
+                continue;
+            }
+
+            // Test 1: exact
+            let cmd1 = format!("lsinfo \"{}\"\n", desired.replace('\"', "\\\""));
+            if execute_command(&mut reader, &cmd1).await.is_ok() {
+                return Ok(desired);
+            }
+
+            // Test 2: with USB/
+            let cand_usb = format!("USB/{}", desired);
+            let cmd2 = format!("lsinfo \"{}\"\n", cand_usb.replace('\"', "\\\""));
+            if execute_command(&mut reader, &cmd2).await.is_ok() {
+                return Ok(cand_usb);
+            }
+
+            // Test 3: check root dirs
+            if let Ok(root_lines) = execute_command(&mut reader, "lsinfo\n").await {
+                for line in root_lines {
+                    if let Some((k, v)) = line.split_once(": ") {
+                        if k.trim().to_lowercase() == "directory" {
+                            let test_cand = format!("{}/{}", v.trim(), desired);
+                            let test_cmd = format!("lsinfo \"{}\"\n", test_cand.replace('\"', "\\\""));
+                            if execute_command(&mut reader, &test_cmd).await.is_ok() {
+                                return Ok(test_cand);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    Ok(String::new())
 }
 
 // LAN auto-discovery: probes local subnet on port 6600
@@ -773,9 +1028,41 @@ pub async fn compare_libraries(
     )
     .await?;
 
+    // Determine candidate prefix to strip from MPD file paths (e.g. rootfs/mnt/SDCARD or USB/rootfs/mnt/SDCARD)
+    let mut strip_pattern: Option<String> = None;
+    for cand in [config.path_strip_prefix.as_deref(), config.remote_mount_path.as_deref()].into_iter().flatten() {
+        let clean = cand.replace('\\', "/").replace("smb://", "");
+        let parts: Vec<&str> = clean.split('/').filter(|s| !s.is_empty()).collect();
+        if cand.starts_with("smb://") && parts.len() >= 2 {
+            strip_pattern = Some(parts[1..].join("/"));
+            break;
+        } else if !parts.is_empty() {
+            strip_pattern = Some(parts.join("/"));
+            break;
+        }
+    }
+
     let mut mpd_map: HashMap<String, MpdSongItem> = HashMap::new();
     for song in mpd_songs {
-        let norm_key = song.file.replace('\\', "/").trim_start_matches('/').to_string();
+        // FILTER: Keep only valid audio and cover image files
+        if !is_audio_or_cover_file(&song.file) {
+            continue;
+        }
+
+        let clean_file = song.file.replace('\\', "/").trim_start_matches('/').to_string();
+        let norm_key = if let Some(ref pat) = strip_pattern {
+            let pat_with_slash = format!("{}/", pat.trim_matches('/'));
+            if let Some(idx) = clean_file.find(&pat_with_slash) {
+                clean_file[idx + pat_with_slash.len()..].to_string()
+            } else if clean_file.starts_with(pat.trim_matches('/')) {
+                clean_file[pat.trim_matches('/').len()..].trim_start_matches('/').to_string()
+            } else {
+                clean_file
+            }
+        } else {
+            clean_file
+        };
+
         mpd_map.insert(norm_key, song);
     }
 
@@ -794,15 +1081,9 @@ pub async fn compare_libraries(
             if let Ok(ent) = entry {
                 if ent.file_type().is_file() {
                     let path = ent.path();
-                    let ext = path
-                        .extension()
-                        .and_then(|e| e.to_str())
-                        .unwrap_or("")
-                        .to_lowercase();
-                    if matches!(
-                        ext.as_str(),
-                        "mp3" | "flac" | "wav" | "ogg" | "m4a" | "aac" | "opus" | "alac" | "wma" | "aiff"
-                    ) {
+                    let path_str = path.to_string_lossy();
+                    // FILTER: Keep only valid audio and cover image files
+                    if is_audio_or_cover_file(&path_str) {
                         if let Ok(rel) = path.strip_prefix(local_base) {
                             let rel_str = rel
                                 .to_string_lossy()
@@ -1268,6 +1549,147 @@ pub fn mpd_save_config(
         }
     }
     Ok(())
+}
+
+#[tauri::command]
+pub async fn mpd_get_playlist_info(
+    host: String,
+    port: u16,
+    password: Option<String>,
+) -> Result<Vec<MpdSongItem>, String> {
+    get_playlist_info(&host, port, password.as_deref()).await
+}
+
+#[tauri::command]
+pub async fn mpd_get_outputs(
+    host: String,
+    port: u16,
+    password: Option<String>,
+) -> Result<Vec<MpdOutputDevice>, String> {
+    get_outputs(&host, port, password.as_deref()).await
+}
+
+#[tauri::command]
+pub async fn mpd_resolve_base_path(config: MpdConfig) -> Result<String, String> {
+    resolve_base_path(&config).await
+}
+
+#[tauri::command]
+pub async fn mpd_delete_item(
+    target: String, // "local" | "remote"
+    relative_path: String,
+    is_directory: bool,
+    config: Option<MpdConfig>,
+    local_base_dir: Option<String>,
+) -> Result<(), String> {
+    let clean_rel = relative_path.replace('\\', "/").trim_matches('/').to_string();
+    if clean_rel.is_empty() || clean_rel.contains("..") {
+        return Err("Ruta no válida o no permitida".to_string());
+    }
+
+    if target == "local" {
+        let base_str = local_base_dir.ok_or_else(|| "No se especificó la carpeta local".to_string())?;
+        let base_path = Path::new(&base_str);
+        if !base_path.exists() {
+            return Err("La carpeta local no existe".to_string());
+        }
+        let target_path = base_path.join(&clean_rel);
+        if !target_path.exists() {
+            return Err(format!("El elemento local no existe: {:?}", target_path));
+        }
+        if is_directory {
+            std::fs::remove_dir_all(&target_path)
+                .map_err(|e| format!("Error al eliminar carpeta local: {}", e))?;
+        } else {
+            std::fs::remove_file(&target_path)
+                .map_err(|e| format!("Error al eliminar archivo local: {}", e))?;
+        }
+        Ok(())
+    } else {
+        let cfg = config.ok_or_else(|| "No se proporcionó configuración MPD".to_string())?;
+        
+        // If mounted locally:
+        if let Some(ref mount) = cfg.remote_mount_path {
+            if !mount.starts_with("smb://") {
+                let mount_path = Path::new(mount);
+                if mount_path.exists() {
+                    let target_path = mount_path.join(&clean_rel);
+                    if target_path.exists() {
+                        if is_directory {
+                            std::fs::remove_dir_all(&target_path)
+                                .map_err(|e| format!("Error al eliminar carpeta remota: {}", e))?;
+                        } else {
+                            std::fs::remove_file(&target_path)
+                                .map_err(|e| format!("Error al eliminar archivo remoto: {}", e))?;
+                        }
+                        let _ = send_playback_command(&cfg.host, cfg.port, cfg.password.as_deref(), "update", None).await;
+                        return Ok(());
+                    }
+                }
+            }
+        }
+
+        // Remote deletion via smbclient
+        let host = cfg.host.as_str();
+        let user = cfg.smb_user.as_deref();
+        let pass = cfg.smb_password.as_deref();
+        let domain = cfg.smb_domain.as_deref();
+
+        let (server, share, rel_in_share) = if let Some(ref cand) = cfg.remote_mount_path.as_ref().or(cfg.path_strip_prefix.as_ref()) {
+            if cand.starts_with("smb://") {
+                let without = cand.trim_start_matches("smb://");
+                let parts: Vec<&str> = without.split('/').filter(|s| !s.is_empty()).collect();
+                let srv = parts.first().copied().unwrap_or(host).to_string();
+                let sh = parts.get(1).copied().unwrap_or("rootfs").to_string();
+                let base_sub = if parts.len() > 2 { parts[2..].join("/") } else { String::new() };
+                let full_rel = if base_sub.is_empty() {
+                    clean_rel.clone()
+                } else if clean_rel.starts_with(&base_sub) {
+                    clean_rel.clone()
+                } else {
+                    format!("{}/{}", base_sub.trim_matches('/'), clean_rel.trim_matches('/'))
+                };
+                (srv, sh, full_rel)
+            } else {
+                (host.to_string(), "rootfs".to_string(), clean_rel.clone())
+            }
+        } else {
+            (host.to_string(), "rootfs".to_string(), clean_rel.clone())
+        };
+
+        let smb_target = format!("//{}/{}", server, share);
+        let mut cmd = std::process::Command::new("smbclient");
+        cmd.arg(&smb_target);
+        if let Some(u) = user {
+            if let Some(p) = pass {
+                cmd.arg("-U").arg(format!("{}%{}", u, p));
+            } else {
+                cmd.arg("-U").arg(u);
+            }
+        } else {
+            cmd.arg("-N");
+        }
+        if let Some(d) = domain {
+            cmd.arg("-W").arg(d);
+        }
+
+        let smb_action = if is_directory {
+            format!("rmdir \"{}\"", rel_in_share.replace('\"', "\\\""))
+        } else {
+            format!("del \"{}\"", rel_in_share.replace('\"', "\\\""))
+        };
+        cmd.arg("-c").arg(&smb_action);
+
+        let output = cmd.output().map_err(|e| format!("Error al invocar smbclient para borrar: {}", e))?;
+        if !output.status.success() {
+            let err_msg = String::from_utf8_lossy(&output.stderr);
+            return Err(format!("Error de smbclient al eliminar: {}", err_msg.trim()));
+        }
+
+        // Trigger MPD update so the removed item disappears from database
+        let _ = send_playback_command(&cfg.host, cfg.port, cfg.password.as_deref(), "update", None).await;
+        Ok(())
+    }
 }
 
 /// Resolves a remote MPD or SMB track into a local cached audio file

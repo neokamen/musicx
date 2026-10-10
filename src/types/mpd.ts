@@ -64,6 +64,13 @@ export interface MpdDiscoveredServer {
   name: string;
 }
 
+export interface MpdOutputDevice {
+  id: number;
+  name: string;
+  plugin: string;
+  enabled: boolean;
+}
+
 export interface MpdDirectoryItem {
   is_directory: boolean;
   path: string;

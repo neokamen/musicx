@@ -4,6 +4,8 @@ import type {
   MpdServerStatus,
   MpdDiscoveredServer,
   MpdDirectoryItem,
+  MpdSongItem,
+  MpdOutputDevice,
   LibraryDiffResult,
 } from "../types/mpd";
 
@@ -191,5 +193,66 @@ export async function mpdTransferFiles(
     remoteMountPath,
     mpdConfig: mpdConfig || null,
   });
+}
+
+export async function mpdGetPlaylistInfo(
+  host: string,
+  port: number,
+  password?: string | null
+): Promise<MpdSongItem[]> {
+  return await invoke<MpdSongItem[]>("mpd_get_playlist_info", {
+    host,
+    port,
+    password: password || null,
+  });
+}
+
+export async function mpdGetOutputs(
+  host: string,
+  port: number,
+  password?: string | null
+): Promise<MpdOutputDevice[]> {
+  return await invoke<MpdOutputDevice[]>("mpd_get_outputs", {
+    host,
+    port,
+    password: password || null,
+  });
+}
+
+export async function mpdResolveBasePath(config: MpdConfig): Promise<string> {
+  try {
+    return await invoke<string>("mpd_resolve_base_path", { config });
+  } catch {
+    return "";
+  }
+}
+
+export async function mpdDeleteItem(
+  target: "local" | "remote",
+  relativePath: string,
+  isDirectory: boolean,
+  config?: MpdConfig | null,
+  localBaseDir?: string | null
+): Promise<void> {
+  await invoke("mpd_delete_item", {
+    target,
+    relativePath,
+    isDirectory,
+    config: config || null,
+    localBaseDir: localBaseDir || null,
+  });
+}
+
+export function extractMpdRelativeBase(input: string | null | undefined): string {
+  if (!input || !input.trim()) return "";
+  let clean = input.trim().replace(/\\/g, "/");
+  if (clean.startsWith("smb://")) {
+    const withoutScheme = clean.slice(6);
+    const parts = withoutScheme.split("/").filter(Boolean);
+    if (parts.length > 1) {
+      clean = parts.slice(1).join("/");
+    }
+  }
+  return clean.replace(/^\/+|\/+$/g, "");
 }
 

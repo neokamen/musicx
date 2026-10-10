@@ -243,6 +243,10 @@ pub fn run() {
             mpd::mpd_compare_libraries,
             mpd::mpd_transfer_files,
             mpd::mpd_save_config,
+            mpd::mpd_get_playlist_info,
+            mpd::mpd_get_outputs,
+            mpd::mpd_resolve_base_path,
+            mpd::mpd_delete_item,
         ])
         .run(tauri::generate_context!())
         .expect("error while running musicx audio player application");
