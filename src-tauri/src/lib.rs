@@ -9,6 +9,7 @@ pub mod mpris;
 pub mod radio_relay;
 pub mod tagger;
 pub mod ytdlp;
+pub mod mpd;
 
 use audio::AudioEngineHandle;
 use commands::AppState;
@@ -224,6 +225,13 @@ pub fn run() {
             tagger::generate_spectrogram,
             tagger::fetch_online_metadata,
             commands::frontend_log,
+            // ── MPD (Music Player Daemon) Integration ──
+            mpd::mpd_get_status,
+            mpd::mpd_discover_servers,
+            mpd::mpd_list_directory,
+            mpd::mpd_send_command,
+            mpd::mpd_compare_libraries,
+            mpd::mpd_transfer_files,
         ])
         .run(tauri::generate_context!())
         .expect("error while running musicx audio player application");

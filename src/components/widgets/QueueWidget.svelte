@@ -35,6 +35,7 @@
   }
 
   function queueFormatLabel(track: Track): string {
+    if (track.stream_source === "MPD") return "MPD";
     if (isStreamTrack(track)) return "STREAM";
     const fmt = (track.format || "").toUpperCase();
     return fmt || "AUDIO";

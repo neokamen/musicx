@@ -71,5 +71,6 @@ export const FORMAT_COLORS: Record<string, string> = {
   OPUS: "#22d3ee",
   M4A: "#fb923c",
   WMA: "#94a3b8",
+  MPD: "#06b6d4",
 };
 

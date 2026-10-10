@@ -5,7 +5,7 @@ A modern, high-fidelity modular audio player for Linux and Windows. Seamlessly c
 Powered by a high-performance **Rust** audio core (**Tauri v2**) and a reactive **Svelte 5** + **TypeScript** frontend.
 
 - **Repository**: [https://github.com/neokamen/musicx](https://github.com/neokamen/musicx)
-- **Current Version**: **0.5.3**
+- **Current Version**: **0.5.4**
 - **License**: MIT
 
 ---
@@ -36,6 +36,13 @@ Powered by a high-performance **Rust** audio core (**Tauri v2**) and a reactive 
 ### Playback Queue & Analytical Studio HUD
 - Virtualized playlist with sortable columns (format, bitrate, sample rate, duration), drag-and-drop reordering, and batch actions.
 - Bottom HUD monitor box featuring 12 selectable real-time analytical monitors (Session telemetry, Buffer health, FFTW3 vector curve, FFTW3 frequency monitor, CAVA, Waveform, Signal analytics, etc.).
+
+### MPD & Network Hard Drive Integration
+- **Zero-Config Auto-Discovery & Manual TCP**: Fast subnet probing and mDNS discovery on port 6600, or manual host/port/password connection.
+- **Remote Network Drive Explorer**: Deep navigation of files and folders directly from the network storage (`lsinfo`), with instant addition to the local playback queue or remote MPD queue.
+- **Library Match & Diff Engine**: Real-time comparison between local music folders and the remote MPD drive, identifying in-sync, missing, and modified files with timestamp and size analytics.
+- **Bi-directional Synchronization**: Download tracks from MPD or upload to MPD with live progress reporting, preserving file modification dates and automatically triggering MPD database updates.
+- **Remote Playback Controls**: Full control over remote MPD transport (Play, Pause, Stop, Seek, Next/Previous, Volume, Queue management, and Database update).
 
 ### Library & Filesystem Explorer
 - Embedded SQLite database with Write-Ahead Logging (WAL) and multithreaded incremental indexer ([`jwalk`](https://github.com/jessegrosjean/jwalk)) with live progress reporting.

@@ -15,6 +15,8 @@ export interface TranslationDictionary {
   streamMusic: string;
   radio: string;
   tagEditor: string;
+  mpd: string;
+  mpdHub: string;
   audioEqPro: string;
   editLayout: string;
   saveLayout: string;
@@ -139,6 +141,8 @@ export const translations: Record<Language, TranslationDictionary> = {
     streamMusic: 'Stream Music',
     radio: 'Radio',
     tagEditor: 'Tags & Carátulas',
+    mpd: 'MPD Red',
+    mpdHub: 'MPD & Disco Duro en Red',
     audioEqPro: 'Audio EQ PRO',
     editLayout: 'Editar Interfaz',
     saveLayout: 'Guardar Layout',
@@ -262,6 +266,8 @@ export const translations: Record<Language, TranslationDictionary> = {
     streamMusic: 'Stream Music',
     radio: 'Ràdio',
     tagEditor: 'Tags & Caràtules',
+    mpd: 'MPD Xarxa',
+    mpdHub: 'MPD i Disc Dur en Xarxa',
     audioEqPro: 'Àudio EQ PRO',
     editLayout: 'Editar Interfície',
     saveLayout: 'Desar Interfície',
@@ -385,6 +391,8 @@ export const translations: Record<Language, TranslationDictionary> = {
     streamMusic: 'Stream Music',
     radio: 'Radio',
     tagEditor: 'Tags & Covers',
+    mpd: 'MPD Network',
+    mpdHub: 'MPD & Network Hard Drive',
     audioEqPro: 'Audio EQ PRO',
     editLayout: 'Edit Layout',
     saveLayout: 'Save Layout',
