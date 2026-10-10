@@ -813,55 +813,12 @@
       <!-- Modal Body Content -->
       <div class="flex-1 overflow-y-auto p-6 space-y-6">
         <!-- ================================================================= -->
-        <!-- TAB 1: SERVER & CONTROLS -->
+        <!-- TAB 1: SERVER SETTINGS & NETWORK -->
         <!-- ================================================================= -->
         {#if activeTab === "server"}
           <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
-            <!-- Left Column: Connection Settings & Auto-discovery -->
+            <!-- Left Column: Manual Connection Configuration -->
             <div class="lg:col-span-6 space-y-5">
-              <!-- Auto-Detection Card -->
-              <div class="p-4 rounded-xl border border-audiophile-border bg-slate-900/60 space-y-3">
-                <div class="flex items-center justify-between">
-                  <div class="flex items-center gap-2">
-                    <Wifi size={16} class="text-audiophile-cyan" />
-                    <h3 class="text-sm font-bold text-white">Detección Automática de Servidores MPD</h3>
-                  </div>
-                  <button
-                    type="button"
-                    onclick={runAutoDiscovery}
-                    disabled={isDiscovering}
-                    class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-audiophile-surface2 border border-audiophile-border text-white hover:border-audiophile-cyan transition cursor-pointer disabled:opacity-50"
-                  >
-                    <RefreshCw size={12} class={isDiscovering ? "animate-spin text-audiophile-cyan" : ""} />
-                    <span>{isDiscovering ? "Escaneando LAN..." : "Escanear Red LAN"}</span>
-                  </button>
-                </div>
-                <p class="text-xs text-slate-400 leading-relaxed">
-                  Sondea automáticamente la subred local en el puerto 6600 para localizar servidores MPD activos (NAS, Raspberry Pi, etc.).
-                </p>
-
-                {#if discoveredServers.length > 0}
-                  <div class="mt-2 space-y-1.5 max-h-36 overflow-y-auto">
-                    {#each discoveredServers as s}
-                      <div class="flex items-center justify-between p-2 rounded-lg bg-slate-850 border border-slate-800 text-xs">
-                        <div class="flex items-center gap-2">
-                          <CheckCircle2 size={14} class="text-emerald-400" />
-                          <span class="font-mono font-bold text-white">{s.host}:{s.port}</span>
-                          <span class="text-slate-400 text-[11px]">(MPD {s.version})</span>
-                        </div>
-                        <button
-                          type="button"
-                          onclick={() => selectDiscoveredServer(s)}
-                          class="px-2.5 py-1 rounded text-xs font-semibold bg-audiophile-cyan/20 text-audiophile-cyan border border-audiophile-cyan/40 hover:bg-audiophile-cyan hover:text-black transition cursor-pointer"
-                        >
-                          Usar este
-                        </button>
-                      </div>
-                    {/each}
-                  </div>
-                {/if}
-              </div>
-
               <!-- Manual Configuration Card -->
               <div class="p-4 rounded-xl border border-audiophile-border bg-slate-900/60 space-y-4">
                 <h3 class="text-sm font-bold text-white flex items-center gap-2">
@@ -1013,8 +970,51 @@
               </div>
             </div>
 
-            <!-- Right Column: MPD Status & Remote Playback Controls -->
+            <!-- Right Column: Auto-Discovery & Server Stats -->
             <div class="lg:col-span-6 space-y-5">
+              <!-- Auto-Detection Card -->
+              <div class="p-4 rounded-xl border border-audiophile-border bg-slate-900/60 space-y-3">
+                <div class="flex items-center justify-between">
+                  <div class="flex items-center gap-2">
+                    <Wifi size={16} class="text-audiophile-cyan" />
+                    <h3 class="text-sm font-bold text-white">Detección Automática de Servidores MPD</h3>
+                  </div>
+                  <button
+                    type="button"
+                    onclick={runAutoDiscovery}
+                    disabled={isDiscovering}
+                    class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-audiophile-surface2 border border-audiophile-border text-white hover:border-audiophile-cyan transition cursor-pointer disabled:opacity-50"
+                  >
+                    <RefreshCw size={12} class={isDiscovering ? "animate-spin text-audiophile-cyan" : ""} />
+                    <span>{isDiscovering ? "Escaneando LAN..." : "Escanear Red LAN"}</span>
+                  </button>
+                </div>
+                <p class="text-xs text-slate-400 leading-relaxed">
+                  Sondea automáticamente la subred local en el puerto 6600 para localizar servidores MPD activos (NAS, Raspberry Pi, etc.).
+                </p>
+
+                {#if discoveredServers.length > 0}
+                  <div class="mt-2 space-y-1.5 max-h-36 overflow-y-auto">
+                    {#each discoveredServers as s}
+                      <div class="flex items-center justify-between p-2 rounded-lg bg-slate-850 border border-slate-800 text-xs">
+                        <div class="flex items-center gap-2">
+                          <CheckCircle2 size={14} class="text-emerald-400" />
+                          <span class="font-mono font-bold text-white">{s.host}:{s.port}</span>
+                          <span class="text-slate-400 text-[11px]">(MPD {s.version})</span>
+                        </div>
+                        <button
+                          type="button"
+                          onclick={() => selectDiscoveredServer(s)}
+                          class="px-2.5 py-1 rounded text-xs font-semibold bg-audiophile-cyan/20 text-audiophile-cyan border border-audiophile-cyan/40 hover:bg-audiophile-cyan hover:text-black transition cursor-pointer"
+                        >
+                          Usar este
+                        </button>
+                      </div>
+                    {/each}
+                  </div>
+                {/if}
+              </div>
+
               <!-- Server Status & Stats Card -->
               <div class="p-4 rounded-xl border border-audiophile-border bg-slate-900/60 space-y-4">
                 <div class="flex items-center justify-between">
@@ -1071,54 +1071,14 @@
                       <span>Cola remota MPD:</span>
                       <span class="text-white">{serverStatus.playlist_length} canciones</span>
                     </div>
+                    <div class="flex justify-between text-slate-400">
+                      <span>Último re-escaneo:</span>
+                      <span class="text-slate-300">{serverStatus.stats ? new Date(serverStatus.stats.db_update * 1000).toLocaleString() : "—"}</span>
+                    </div>
                   </div>
                 {:else}
                   <div class="py-6 text-center text-xs text-slate-500">
                     Servidor no conectado. Configura el host y haz clic en "Probar Conexión".
-                  </div>
-                {/if}
-              </div>
-
-              <!-- Remote Control Shortcut & Quick Status Card -->
-              <div class="p-4 rounded-xl border border-audiophile-border bg-slate-900/60 space-y-3">
-                <div class="flex items-center justify-between">
-                  <h3 class="text-sm font-bold text-white flex items-center gap-2">
-                    <Play size={16} class="text-audiophile-cyan" />
-                    <span>Control Remoto & Salidas de Audio</span>
-                  </h3>
-                  {#if serverStatus?.connected}
-                    <span class="text-[10px] font-mono text-emerald-400 font-bold uppercase">{serverStatus.state}</span>
-                  {/if}
-                </div>
-
-                {#if serverStatus?.connected}
-                  <div class="p-3 rounded-lg bg-slate-950 border border-slate-800 space-y-3">
-                    <div class="flex items-center justify-between text-xs">
-                      <span class="text-slate-300 font-semibold truncate max-w-[70%]">
-                        {serverStatus.current_song?.title || serverStatus.current_song?.file || "Sin pista activa"}
-                      </span>
-                      <span class="text-audiophile-cyan font-mono text-[11px] font-bold">
-                        {serverStatus.volume >= 0 ? `${serverStatus.volume}% vol` : "Volumen fijo"}
-                      </span>
-                    </div>
-
-                    <p class="text-xs text-slate-400 leading-relaxed">
-                      La nueva pestaña de <strong>Control Remoto</strong> incluye un scrubber interactivo, salidas de audio ALSA/Bluetooth, modos single/consume, crossfade y gestión completa de la cola de MPD.
-                    </p>
-
-                    <button
-                      type="button"
-                      onclick={() => { activeTab = "control"; void loadControlData(); }}
-                      class="w-full py-2.5 px-3 rounded-xl font-bold text-xs flex items-center justify-center gap-2 transition cursor-pointer text-black hover:opacity-95 shadow-md"
-                      style="background: {appearance.accentColor || '#06b6d4'};"
-                    >
-                      <Play size={14} class="fill-current" />
-                      <span>Abrir Centro de Control Remoto MPD →</span>
-                    </button>
-                  </div>
-                {:else}
-                  <div class="py-4 text-center text-xs text-slate-500">
-                    Conéctate al servidor MPD para controlar la reproducción y gestionar salidas.
                   </div>
                 {/if}
               </div>
@@ -1357,12 +1317,85 @@
               </div>
             </div>
 
+            <!-- Server Status & Database Statistics Card in Remote Control -->
+            <div class="p-4 rounded-2xl border border-audiophile-border bg-slate-900/60 shadow-md space-y-3">
+              <div class="flex items-center justify-between">
+                <h4 class="text-xs font-bold text-white flex items-center gap-2">
+                  <HardDrive size={15} class="text-audiophile-cyan" />
+                  <span>Estadísticas de la Base de Datos MPD</span>
+                </h4>
+                {#if serverStatus?.connected}
+                  <div class="flex items-center gap-3 text-[11px] font-mono text-slate-400">
+                    <span class="flex items-center gap-1">
+                      <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                      MPD v{serverStatus.version}
+                    </span>
+                    <span>•</span>
+                    <span class="text-emerald-400 font-bold">{serverStatus.ping_ms} ms</span>
+                    <span>•</span>
+                    <button
+                      type="button"
+                      onclick={async () => {
+                        isUpdatingDb = true;
+                        await handleMpdCommand("update");
+                        showToast("MPD está re-escaneando los archivos de música...", "info");
+                        setTimeout(() => { isUpdatingDb = false; }, 3000);
+                      }}
+                      disabled={isUpdatingDb}
+                      class="flex items-center gap-1 text-audiophile-cyan hover:underline transition cursor-pointer disabled:opacity-50"
+                      title="Re-escanear base de datos de música"
+                    >
+                      <RefreshCw size={10} class={isUpdatingDb ? "animate-spin" : ""} />
+                      <span>{isUpdatingDb ? "Actualizando..." : "Actualizar DB"}</span>
+                    </button>
+                  </div>
+                {/if}
+              </div>
+
+              {#if serverStatus?.connected}
+                <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  <div class="p-2.5 rounded-xl bg-slate-950 border border-slate-800">
+                    <span class="block text-[10px] text-slate-400 font-mono">Canciones</span>
+                    <span class="text-base font-bold text-white font-mono">{serverStatus.stats.songs.toLocaleString()}</span>
+                  </div>
+
+                  <div class="p-2.5 rounded-xl bg-slate-950 border border-slate-800">
+                    <span class="block text-[10px] text-slate-400 font-mono">Álbumes</span>
+                    <span class="text-base font-bold text-white font-mono">{serverStatus.stats.albums.toLocaleString()}</span>
+                  </div>
+
+                  <div class="p-2.5 rounded-xl bg-slate-950 border border-slate-800">
+                    <span class="block text-[10px] text-slate-400 font-mono">Artistas</span>
+                    <span class="text-base font-bold text-white font-mono">{serverStatus.stats.artists.toLocaleString()}</span>
+                  </div>
+
+                  <div class="p-2.5 rounded-xl bg-slate-950 border border-slate-800">
+                    <span class="block text-[10px] text-slate-400 font-mono">Tiempo Total DB</span>
+                    <span class="text-base font-bold text-white font-mono">
+                      {Math.floor(serverStatus.stats.db_playtime / 3600)}h
+                    </span>
+                  </div>
+                </div>
+
+                <div class="flex items-center justify-between text-[11px] font-mono text-slate-400 pt-1 border-t border-slate-800/60">
+                  <span>Última actualización de la biblioteca:</span>
+                  <span class="text-slate-300">
+                    {serverStatus.stats ? new Date(serverStatus.stats.db_update * 1000).toLocaleString() : "—"}
+                  </span>
+                </div>
+              {:else}
+                <div class="py-3 text-center text-xs text-slate-500">
+                  Servidor MPD no conectado. Conéctate en la pestaña Servidor para ver estadísticas.
+                </div>
+              {/if}
+            </div>
+
             <!-- Two Column Detail Section: Audio Outputs & MPD Active Queue -->
             <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
               <!-- Left Column: Audio Outputs Manager -->
               <div class="lg:col-span-5 space-y-4">
-                <div class="p-4 rounded-xl border border-audiophile-border bg-slate-900/60 space-y-3">
-                  <div class="flex items-center justify-between">
+                <div class="p-4 rounded-xl border border-audiophile-border bg-slate-900/60 space-y-3 flex flex-col h-[420px]">
+                  <div class="flex items-center justify-between border-b border-slate-800 pb-2.5 shrink-0">
                     <h4 class="text-xs font-bold text-white flex items-center gap-2">
                       <Speaker size={15} class="text-audiophile-cyan" />
                       <span>Salidas de Audio MPD (Outputs)</span>
@@ -1376,11 +1409,11 @@
                       Refrescar
                     </button>
                   </div>
-                  <p class="text-[11px] text-slate-400">
+                  <p class="text-[11px] text-slate-400 shrink-0">
                     Activa o desactiva dispositivos de salida (ALSA, Bluetooth, Servidor HTTP) conectados a tu MPD.
                   </p>
 
-                  <div class="space-y-2 max-h-64 overflow-y-auto">
+                  <div class="space-y-2 flex-1 overflow-y-auto">
                     {#if isLoadingOutputs}
                       <div class="py-6 text-center text-xs text-slate-500">Cargando salidas de audio...</div>
                     {:else if mpdOutputs.length === 0}
@@ -1406,33 +1439,6 @@
                       {/each}
                     {/if}
                   </div>
-                </div>
-
-                <!-- Database Maintenance Card -->
-                <div class="p-4 rounded-xl border border-audiophile-border bg-slate-900/60 space-y-3">
-                  <div class="flex items-center justify-between">
-                    <h4 class="text-xs font-bold text-white flex items-center gap-2">
-                      <HardDrive size={15} class="text-audiophile-cyan" />
-                      <span>Base de Datos del Servidor</span>
-                    </h4>
-                    <button
-                      type="button"
-                      onclick={async () => {
-                        isUpdatingDb = true;
-                        await handleMpdCommand("update");
-                        showToast("MPD está re-escaneando los archivos de música...", "info");
-                        setTimeout(() => { isUpdatingDb = false; }, 3000);
-                      }}
-                      disabled={isUpdatingDb}
-                      class="flex items-center gap-1 px-2.5 py-1 rounded text-xs font-semibold bg-audiophile-cyan/20 text-audiophile-cyan hover:bg-audiophile-cyan hover:text-black transition cursor-pointer disabled:opacity-50"
-                    >
-                      <RefreshCw size={11} class={isUpdatingDb ? "animate-spin" : ""} />
-                      <span>{isUpdatingDb ? "Actualizando..." : "Actualizar DB (update)"}</span>
-                    </button>
-                  </div>
-                  <p class="text-[11px] text-slate-400">
-                    Última actualización de base de datos: <span class="text-slate-300 font-mono">{serverStatus?.stats ? new Date(serverStatus.stats.db_update * 1000).toLocaleString() : "—"}</span>
-                  </p>
                 </div>
               </div>
 
