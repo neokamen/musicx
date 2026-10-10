@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { Check, Globe, Minimize2, Radio as RadioIcon, Settings, SlidersHorizontal } from "@lucide/svelte";
+  import { Check, Globe, Minimize2, Radio as RadioIcon, Settings, SlidersHorizontal, Tag } from "@lucide/svelte";
   import LayoutManager from "./components/layout/LayoutManager.svelte";
   import HiFiPlayerBar from "./components/player/HiFiPlayerBar.svelte";
   import MiniPlayer from "./components/player/MiniPlayer.svelte";
@@ -9,6 +9,7 @@
   import AudioEQModal from "./components/audio/AudioEQModal.svelte";
   import RadioHubModal from "./components/radio/RadioHubModal.svelte";
   import StreamMusicModal from "./components/widgets/StreamMusicModal.svelte";
+  import TagAndCoverEditorModal from "./components/tagger/TagAndCoverEditorModal.svelte";
   import {
     useMusicStore,
     AUDIO_ENGINES,
@@ -22,6 +23,7 @@
     languageStore,
     isStreamMusicOpenStore,
     isRadioHubOpenStore,
+    isTagEditorOpenStore,
     bitPerfectModeStore,
     triggerFullBackupSync,
   } from "./store/index";
@@ -571,6 +573,16 @@
         </button>
 
         <button
+          onclick={() => useMusicStore.getState().setTagEditorOpen(true)}
+          class="flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-lg border font-sans font-semibold transition cursor-pointer relative"
+          style="border-color: {appearance.accentColor || '#06b6d4'}50; background-color: {appearance.accentColor || '#06b6d4'}15; color: {appearance.accentColor || '#06b6d4'};"
+          title="Editor de Tags ID3 & Carátulas (Soundix)"
+        >
+          <Tag size={13} />
+          <span>{t('tagEditor', lang)}</span>
+        </button>
+
+        <button
           onclick={() => { isAudioEqOpen = true; }}
           class="flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-lg border font-sans font-semibold transition cursor-pointer"
           style="border-color: {appearance.accentColor || '#06b6d4'}50; background-color: {appearance.accentColor || '#06b6d4'}15; color: {appearance.accentColor || '#06b6d4'};"
@@ -628,4 +640,5 @@
   <RadioHubModal isOpen={isRadioHubOpen} onClose={() => useMusicStore.getState().setRadioHubOpen(false)} />
   <SettingsModal />
   <AudioEQModal isOpen={isAudioEqOpen} onClose={() => { isAudioEqOpen = false; }} />
+  <TagAndCoverEditorModal isOpen={$isTagEditorOpenStore} onClose={() => useMusicStore.getState().setTagEditorOpen(false)} />
 </div>

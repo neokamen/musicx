@@ -7,6 +7,7 @@ pub mod models;
 #[cfg(target_os = "linux")]
 pub mod mpris;
 pub mod radio_relay;
+pub mod tagger;
 pub mod ytdlp;
 
 use audio::AudioEngineHandle;
@@ -213,6 +214,15 @@ pub fn run() {
             ytdlp::update_ytdlp,
             ytdlp::get_runtime_deps_status,
             ytdlp::install_or_update_runtime_deps,
+            // ── ID3 Tag Editor & Cover Studio (ported and unified from Soundix) ──
+            tagger::read_single_track_tags,
+            tagger::read_folder_tracks,
+            tagger::write_track_tags,
+            tagger::batch_write_folder_tags,
+            tagger::search_online_covers,
+            tagger::load_image_data_url,
+            tagger::generate_spectrogram,
+            tagger::fetch_online_metadata,
             commands::frontend_log,
         ])
         .run(tauri::generate_context!())

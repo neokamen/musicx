@@ -170,20 +170,16 @@
     const labelSession = lang === "ca" ? "Sessió & Rendiment" : lang === "en" ? "Session & Stats" : "Sesión & Rendimiento";
     const labelHardware = lang === "ca" ? "Hardware & DSP" : lang === "en" ? "Hardware & DSP" : "Hardware & DSP";
     const labelQueue = lang === "ca" ? "Cua de Reproducció" : lang === "en" ? "Playback Queue" : "Cola de Reproducción";
-    const labelSignal = lang === "ca" ? "Senyal Hi-Fi & DAC" : lang === "en" ? "Hi-Fi Signal & DAC" : "Señal Hi-Fi & DAC";
     const labelWaveform = lang === "ca" ? "Ones de la Cançó (HD)" : lang === "en" ? "Song Waveform (HD)" : "Ondas de la Canción (HD)";
     const labelVuMeter = lang === "ca" ? "Vúmetre Estèreo Balístic dB" : lang === "en" ? "Stereo Ballistic VU Meter dB" : "Vúmetro Estéreo Balístico dB";
     const labelCavaFluid = lang === "ca" ? "CAVA: Ona Fluida" : lang === "en" ? "CAVA: Fluid Wave" : "CAVA: Onda Fluida";
     const labelCavaDots = lang === "ca" ? "CAVA: Punts" : lang === "en" ? "CAVA: Dots" : "CAVA: Puntos";
-    const labelCavaLines = lang === "ca" ? "CAVA: Línies" : lang === "en" ? "CAVA: Lines" : "CAVA: Líneas";
     const labelLiveMatrix = lang === "ca" ? "En Viu: Matriu LED" : lang === "en" ? "Live: LED Matrix" : "En Vivo: Matriz LED";
     const labelLivePeakFall = lang === "ca" ? "En Viu: Caiguda de Pics" : lang === "en" ? "Live: Peak Fall" : "En Vivo: Caída de Picos";
 
     const liveTelemetry = useMusicStore.getState().telemetry;
     const isCurrent = currentTrack && liveTelemetry.filepath && currentTrack.filepath === liveTelemetry.filepath;
     const curDur = isCurrent && liveTelemetry.duration > 0 ? liveTelemetry.duration : (currentTrack?.duration_seconds || 0);
-    const curSr = isCurrent && liveTelemetry.sample_rate > 0 ? liveTelemetry.sample_rate : (currentTrack?.sample_rate || 0);
-    const curBr = isCurrent && liveTelemetry.bitrate > 0 ? liveTelemetry.bitrate : (currentTrack?.bitrate_kbps || 0);
 
     return [
       {
@@ -220,15 +216,11 @@
         ],
       },
       {
-        id: "signal",
-        label: labelSignal,
-        type: "cells" as const,
-        cells: [
-          { k: "Formato", v: currentTrack ? queueFormatLabel(currentTrack) : "—" },
-          { k: "Calidad", v: currentTrack ? queueQualityLabel(currentTrack) : "—" },
-          { k: "Muestreo", v: curSr > 0 ? `${(curSr / 1000).toFixed(1)} kHz` : "—" },
-          { k: "Bitrate", v: curBr > 0 ? `${curBr} kbps` : "—" },
-        ],
+        id: "fftw3_vector",
+        label: lang === "ca" ? "FFTW3: Curba Vectorial" : lang === "en" ? "FFTW3: Vector Curve" : "FFTW3: Curva Vectorial",
+        type: "visualizer" as const,
+        mode: "fftw3_vector" as const,
+        cells: [],
       },
       {
         id: "waveform",
@@ -266,10 +258,10 @@
         cells: [],
       },
       {
-        id: "cava_lines",
-        label: labelCavaLines,
+        id: "fftw3_monitor",
+        label: lang === "ca" ? "FFTW3: Monitor de Freqüència" : lang === "en" ? "FFTW3: Frequency Monitor" : "FFTW3: Monitor de Frecuencia",
         type: "visualizer" as const,
-        mode: "cava_lines" as const,
+        mode: "fftw3_monitor" as const,
         cells: [],
       },
       {

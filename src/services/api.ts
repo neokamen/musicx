@@ -295,3 +295,100 @@ export async function getSavedWindowState(): Promise<SavedWindowState | null> {
 export async function saveWindowState(state: SavedWindowState): Promise<void> {
   return invoke<void>("save_window_state", { state }).catch(() => {});
 }
+
+// ── ID3 Tag Editor & Cover Studio (ported and unified from Soundix) ──
+
+export interface TrackTagInfo {
+  path: string;
+  filename: string;
+  ext: string;
+  title?: string | null;
+  artist?: string | null;
+  album?: string | null;
+  year?: string | null;
+  track?: string | null;
+  genre?: string | null;
+  comment?: string | null;
+  duration: number;
+  bitRate: number;
+  hasCover: boolean;
+}
+
+export interface TrackTagUpdate {
+  title?: string | null;
+  artist?: string | null;
+  album?: string | null;
+  year?: string | null;
+  track?: string | null;
+  genre?: string | null;
+  comment?: string | null;
+}
+
+export interface BatchTagItem {
+  filePath: string;
+  tags: TrackTagUpdate;
+  coverUrl?: string | null;
+}
+
+export interface OnlineCoverResult {
+  id: string;
+  title: string;
+  artist: string;
+  album: string;
+  coverUrl: string;
+  thumbnailUrl: string;
+  source: string;
+}
+
+export interface OnlineMetadataResult {
+  title: string;
+  artist: string;
+  album: string;
+  year: string;
+  genre: string;
+}
+
+export async function readSingleTrackTags(filePath: string): Promise<TrackTagInfo> {
+  return invoke<TrackTagInfo>("read_single_track_tags", { filePath });
+}
+
+export async function readFolderTracks(folderPath: string): Promise<TrackTagInfo[]> {
+  return invoke<TrackTagInfo[]>("read_folder_tracks", { folderPath });
+}
+
+export async function writeTrackTags(
+  filePath: string,
+  tags: TrackTagUpdate,
+  coverUrl?: string | null,
+): Promise<void> {
+  return invoke<void>("write_track_tags", { filePath, tags, coverUrl: coverUrl ?? null });
+}
+
+export async function batchWriteFolderTags(requests: BatchTagItem[]): Promise<void> {
+  return invoke<void>("batch_write_folder_tags", { requests });
+}
+
+export async function searchOnlineCovers(
+  query: string,
+  source?: string,
+): Promise<OnlineCoverResult[]> {
+  return invoke<OnlineCoverResult[]>("search_online_covers", { query, source: source ?? null });
+}
+
+export async function loadImageDataUrl(path: string): Promise<string> {
+  return invoke<string>("load_image_data_url", { path });
+}
+
+export async function generateSpectrogram(
+  inputPath: string,
+  palette?: string,
+): Promise<string> {
+  return invoke<string>("generate_spectrogram", { inputPath, palette: palette ?? null });
+}
+
+export async function fetchOnlineMetadata(
+  query: string,
+): Promise<OnlineMetadataResult | null> {
+  return invoke<OnlineMetadataResult | null>("fetch_online_metadata", { query });
+}
+

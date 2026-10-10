@@ -14,6 +14,7 @@ export interface TranslationDictionary {
   appLanguage: string;
   streamMusic: string;
   radio: string;
+  tagEditor: string;
   audioEqPro: string;
   editLayout: string;
   saveLayout: string;
@@ -137,6 +138,7 @@ export const translations: Record<Language, TranslationDictionary> = {
     appLanguage: 'Idioma de la aplicación',
     streamMusic: 'Stream Music',
     radio: 'Radio',
+    tagEditor: 'Tags & Carátulas',
     audioEqPro: 'Audio EQ PRO',
     editLayout: 'Editar Interfaz',
     saveLayout: 'Guardar Layout',
@@ -259,6 +261,7 @@ export const translations: Record<Language, TranslationDictionary> = {
     appLanguage: "Idioma de l'aplicació",
     streamMusic: 'Stream Music',
     radio: 'Ràdio',
+    tagEditor: 'Tags & Caràtules',
     audioEqPro: 'Àudio EQ PRO',
     editLayout: 'Editar Interfície',
     saveLayout: 'Desar Interfície',
@@ -381,6 +384,7 @@ export const translations: Record<Language, TranslationDictionary> = {
     appLanguage: 'Application Language',
     streamMusic: 'Stream Music',
     radio: 'Radio',
+    tagEditor: 'Tags & Covers',
     audioEqPro: 'Audio EQ PRO',
     editLayout: 'Edit Layout',
     saveLayout: 'Save Layout',

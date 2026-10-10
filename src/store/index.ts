@@ -157,6 +157,7 @@ export interface MusicPlayerStore {
   isRadioPlaying: boolean;
   isRadioHubOpen: boolean;
   isStreamMusicOpen: boolean;
+  isTagEditorOpen: boolean;
 
   telemetry: AudioTelemetry;
   availableDevices: string[];
@@ -208,6 +209,7 @@ export interface MusicPlayerStore {
   stopRadio: () => void;
   setRadioHubOpen: (open: boolean) => void;
   setStreamMusicOpen: (open: boolean) => void;
+  setTagEditorOpen: (open: boolean) => void;
 
   setBitPerfectMode: (enabled: boolean) => Promise<void>;
   setOutputDevice: (deviceName: string) => Promise<void>;
@@ -794,6 +796,7 @@ export const useMusicStore = create<MusicPlayerStore>((set, get) => ({
   isRadioPlaying: false,
   isRadioHubOpen: false,
   isStreamMusicOpen: false,
+  isTagEditorOpen: false,
 
   telemetry: {
     ...initialTelemetry,
@@ -1097,6 +1100,7 @@ export const useMusicStore = create<MusicPlayerStore>((set, get) => ({
 
   setRadioHubOpen: (open: boolean) => set({ isRadioHubOpen: open }),
   setStreamMusicOpen: (open: boolean) => set({ isStreamMusicOpen: open }),
+  setTagEditorOpen: (open: boolean) => set({ isTagEditorOpen: open }),
 
   nextTrack: async () => {
     const { queue, queueIndex, currentTrack, shuffle, repeat, play } = get();
@@ -2089,6 +2093,7 @@ export const explorerStore = select((s) => s.explorer);
 export const librarySettingsStore = select((s) => s.librarySettings);
 export const isStreamMusicOpenStore = select((s) => s.isStreamMusicOpen);
 export const isRadioHubOpenStore = select((s) => s.isRadioHubOpen);
+export const isTagEditorOpenStore = select((s) => s.isTagEditorOpen);
 export const isSettingsOpenStore = select((s) => s.isSettingsOpen);
 export const audioFormatStore = select(
   (s) => ({

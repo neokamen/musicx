@@ -10,7 +10,9 @@
     | "cava_lines"
     | "live_led_matrix"
     | "live_peak_fall"
-    | "live_fluid_wave";
+    | "live_fluid_wave"
+    | "fftw3_vector"
+    | "fftw3_monitor";
 
   interface Props {
     mode?: QueueHudMode;
@@ -45,6 +47,10 @@
     const liveLevels = new Float32Array(48);
     const livePeaks = new Float32Array(48);
     const liveVelocities = new Float32Array(48);
+
+    const fftwLevels = new Float32Array(48);
+    const fftwPeaks = new Float32Array(48);
+    const fftwVelocities = new Float32Array(48);
 
     const resize = () => {
       if (!canvas) return;
@@ -539,6 +545,139 @@
         ctx.strokeStyle = "#ffffff";
         ctx.lineWidth = 0.6;
         ctx.stroke();
+      }
+
+      // =========================================================================
+      // 9. FFTW3: CURVA VECTORIAL (fftw3_vector) - Estudio analítico puro, trazo continuo sin relleno
+      // =========================================================================
+      else if (mode === "fftw3_vector") {
+        const specLeft = tele.spectrum_left?.length ? tele.spectrum_left : tele.spectrum || [];
+        const specRight = tele.spectrum_right?.length ? tele.spectrum_right : tele.spectrum || [];
+        const numBands = 48;
+        const maxLen = Math.max(specLeft.length, specRight.length);
+
+        for (let i = 0; i < numBands; i++) {
+          let raw = 0;
+          if (isPlaying && maxLen > 0) {
+            const idx = Math.floor((i / numBands) * maxLen);
+            const valL = specLeft[idx] || 0;
+            const valR = specRight[idx] || 0;
+            raw = Math.max(valL, valR);
+          }
+          fftwLevels[i] += (raw - fftwLevels[i]) * 0.42;
+        }
+
+        // Reference dB lines
+        ctx.strokeStyle = "rgba(148, 163, 184, 0.12)";
+        ctx.lineWidth = 1;
+        const dbFractions = [0.20, 0.46, 0.72];
+        for (const frac of dbFractions) {
+          const y = height * frac;
+          ctx.beginPath();
+          ctx.moveTo(0, y);
+          ctx.lineTo(width, y);
+          ctx.stroke();
+        }
+
+        const usableH = height - 4;
+        const points: { x: number; y: number }[] = [];
+        for (let i = 0; i < numBands; i++) {
+          const x = (i / (numBands - 1)) * width;
+          const val = fftwLevels[i];
+          const y = Math.max(2, usableH - val * (usableH - 3));
+          points.push({ x, y });
+        }
+
+        if (points.length > 1) {
+          // Main vector curve (100% stroke only, NO underfill)
+          ctx.beginPath();
+          ctx.moveTo(points[0].x, points[0].y);
+          for (let i = 0; i < points.length - 1; i++) {
+            const xc = (points[i].x + points[i + 1].x) / 2;
+            const yc = (points[i].y + points[i + 1].y) / 2;
+            ctx.quadraticCurveTo(points[i].x, points[i].y, xc, yc);
+          }
+          ctx.lineTo(points[points.length - 1].x, points[points.length - 1].y);
+
+          ctx.strokeStyle = accentColor;
+          ctx.lineWidth = 2.0;
+          ctx.stroke();
+
+          // White filament optical core
+          ctx.strokeStyle = "rgba(255, 255, 255, 0.85)";
+          ctx.lineWidth = 0.7;
+          ctx.stroke();
+        }
+
+        // Discrete baseline
+        ctx.fillStyle = `${accentColor}25`;
+        ctx.fillRect(0, height - 1, width, 1);
+      }
+
+      // =========================================================================
+      // 10. FFTW3: MONITOR DE FRECUENCIA (fftw3_monitor) - Matriz espectral de precisión y dB
+      // =========================================================================
+      else if (mode === "fftw3_monitor") {
+        const spec = tele.spectrum || [];
+        const numBands = 44;
+        const slotW = width / numBands;
+        const barW = Math.max(1.4, slotW - 1.2);
+        const gap = slotW - barW;
+        const labelAreaH = 9;
+        const usableH = height - labelAreaH - 3;
+        const segH = 2.5;
+        const segGap = 1.2;
+        const maxSegments = Math.max(1, Math.floor(usableH / (segH + segGap)));
+
+        for (let i = 0; i < numBands; i++) {
+          const raw = isPlaying && spec.length ? (spec[Math.floor((i / numBands) * spec.length)] || 0) : 0;
+          fftwLevels[i] += (raw - fftwLevels[i]) * 0.44;
+
+          if (fftwLevels[i] > fftwPeaks[i]) {
+            fftwPeaks[i] = fftwLevels[i];
+            fftwVelocities[i] = 0;
+          } else {
+            fftwVelocities[i] += dt * 1.6;
+            fftwPeaks[i] = Math.max(0, fftwPeaks[i] - fftwVelocities[i] * dt);
+          }
+
+          const val = fftwLevels[i];
+          const litSegments = Math.min(maxSegments, Math.floor(val * maxSegments));
+          const x = i * slotW + gap / 2;
+
+          // Render discrete phosphor segments
+          for (let s = 0; s < litSegments; s++) {
+            const segY = usableH - (s + 1) * (segH + segGap);
+            const frac = s / maxSegments;
+            const segColor = frac > 0.85 ? "#f43f5e" : frac > 0.65 ? "#f59e0b" : accentColor;
+            ctx.fillStyle = segColor;
+            ctx.fillRect(x, segY, barW, segH);
+          }
+
+          // Peak needle
+          if (fftwPeaks[i] > 0.03) {
+            const peakSeg = Math.min(maxSegments - 1, Math.floor(fftwPeaks[i] * maxSegments));
+            const peakY = usableH - (peakSeg + 1) * (segH + segGap);
+            ctx.fillStyle = fftwPeaks[i] > 0.85 ? "#f43f5e" : "#ffffff";
+            ctx.fillRect(x, peakY - 0.5, barW, 1.5);
+          }
+        }
+
+        // Ticks and micro frequency indicators
+        ctx.font = "7px monospace";
+        ctx.fillStyle = "rgba(148, 163, 184, 0.65)";
+        const freqIndicators = [
+          { t: "32", norm: 0.04 },
+          { t: "125", norm: 0.22 },
+          { t: "500", norm: 0.45 },
+          { t: "2k", norm: 0.68 },
+          { t: "8k", norm: 0.86 },
+          { t: "16k", norm: 0.97 },
+        ];
+        for (const ind of freqIndicators) {
+          const tx = ind.norm * width;
+          ctx.fillText(ind.t, Math.max(1, tx - 6), height - 1);
+        }
       }
     };
 

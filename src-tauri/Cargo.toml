@@ -1,6 +1,6 @@
 [package]
 name = "musicx"
-version = "0.5.0"
+version = "0.5.1"
 description = "Musicx - The Audio Player"
 authors = ["musicx team"]
 edition = "2021"
@@ -22,6 +22,7 @@ reqwest = { version = "0.12", features = ["json", "gzip", "stream"] }
 regex = "1"
 url = "2"
 tokio = { version = "1", features = ["full"] }
+tempfile = "3"
 
 # Hi-Fi Audio playback & decoding
 symphonia = { version = "0.5", features = ["all"] }
