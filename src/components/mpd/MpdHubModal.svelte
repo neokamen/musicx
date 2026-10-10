@@ -13,6 +13,11 @@
     Square,
     SkipForward,
     SkipBack,
+    CornerLeftUp,
+    Volume2,
+    VolumeX,
+    Sparkles,
+    Network,
     Plus,
     Search,
     FolderOpen,
@@ -51,6 +56,7 @@
     mpdSendCommand,
     mpdCompareLibraries,
     mpdTransferFiles,
+    resolveMpdTrackPath,
   } from "../../services/mpdService";
 
   const appearance = $derived($appearanceStore);
@@ -85,6 +91,17 @@
   // Transfer state
   let isTransferring = $state(false);
   let transferProgress = $state<MpdTransferProgress | null>(null);
+
+  // Volume state
+  let remoteVolume = $state(50);
+  let isMuted = $state(false);
+  let prevVolume = 50;
+
+  $effect(() => {
+    if (serverStatus?.connected && serverStatus.volume >= 0 && !isMuted) {
+      remoteVolume = serverStatus.volume;
+    }
+  });
 
   // Status message banner
   let toastMessage = $state<{ text: string; type: "success" | "error" | "info" } | null>(null);
@@ -196,6 +213,13 @@
     }
   }
 
+  function navigateToParent() {
+    if (!currentDirectory) return;
+    const parts = currentDirectory.split("/").filter(Boolean);
+    parts.pop();
+    void loadDirectory(parts.join("/"));
+  }
+
   // Remote MPD playback commands
   async function handleMpdCommand(cmd: string, arg?: string) {
     try {
@@ -206,22 +230,30 @@
     }
   }
 
+  async function handleVolumeChange(e: Event) {
+    const val = Number((e.currentTarget as HTMLInputElement).value);
+    remoteVolume = val;
+    isMuted = false;
+    await handleMpdCommand("setvol", String(val));
+  }
+
+  async function toggleMute() {
+    if (isMuted) {
+      remoteVolume = prevVolume;
+      isMuted = false;
+      await handleMpdCommand("setvol", String(prevVolume));
+    } else {
+      prevVolume = remoteVolume;
+      remoteVolume = 0;
+      isMuted = true;
+      await handleMpdCommand("setvol", "0");
+    }
+  }
+
   // Add MPD file or folder to local MusicX queue
   function addToMusicXQueue(item: MpdDirectoryItem, playImmediately = false) {
     const store = useMusicStore.getState();
-
-    // If network mount is configured, use direct file path
-    // Else if HTTP stream is configured, use stream
-    let resolvedPath = "";
-    if (config.remote_mount_path) {
-      const trimmedMount = config.remote_mount_path.replace(/\/+$/, "");
-      const trimmedPath = item.path.replace(/^\/+/, "");
-      resolvedPath = `${trimmedMount}/${trimmedPath}`;
-    } else if (config.http_stream_url) {
-      resolvedPath = config.http_stream_url;
-    } else {
-      resolvedPath = item.path;
-    }
+    const resolvedPath = resolveMpdTrackPath(item.path, config);
 
     const newTrack = {
       filepath: resolvedPath,
@@ -255,25 +287,20 @@
       return;
     }
 
-    const trimmedMount = (config.remote_mount_path || "").replace(/\/+$/, "");
-    const tracks = audioItems.map((item) => {
-      const trimmedPath = item.path.replace(/^\/+/, "");
-      const resolvedPath = trimmedMount ? `${trimmedMount}/${trimmedPath}` : item.path;
-      return {
-        filepath: resolvedPath,
-        title: item.title || item.name.replace(/\.[^/.]+$/, ""),
-        artist: item.artist || "MPD Network",
-        album: item.album || "Red MPD",
-        duration_seconds: item.duration || 0,
-        format: item.format || "MPD",
-        bitrate_kbps: 0,
-        sample_rate: 44100,
-        bit_depth: 16,
-        file_size: item.size,
-        mtime: item.last_modified_timestamp,
-        stream_source: "MPD",
-      };
-    });
+    const tracks = audioItems.map((item) => ({
+      filepath: resolveMpdTrackPath(item.path, config),
+      title: item.title || item.name.replace(/\.[^/.]+$/, ""),
+      artist: item.artist || "MPD Network",
+      album: item.album || "Red MPD",
+      duration_seconds: item.duration || 0,
+      format: item.format || "MPD",
+      bitrate_kbps: 0,
+      sample_rate: 44100,
+      bit_depth: 16,
+      file_size: item.size,
+      mtime: item.last_modified_timestamp,
+      stream_source: "MPD",
+    }));
 
     useMusicStore.getState().addToQueue(tracks as any);
     showToast(`Se añadieron ${tracks.length} canciones a la cola de MusicX`, "success");
@@ -387,6 +414,26 @@
     } finally {
       isTransferring = false;
       transferProgress = null;
+    }
+  }
+
+  // 1-Click Smart Sync
+  async function runSmartSync() {
+    if (!diffResult) {
+      showToast("Ejecuta primero el match de biblioteca", "info");
+      return;
+    }
+    const downloadCount = diffResult.count_only_mpd;
+    const uploadCount = diffResult.count_only_local;
+    if (downloadCount === 0 && uploadCount === 0) {
+      showToast("¡Las bibliotecas ya están sincronizadas al 100%!", "success");
+      return;
+    }
+    if (downloadCount > 0) {
+      await executeTransfer("download_from_mpd");
+    }
+    if (uploadCount > 0) {
+      await executeTransfer("upload_to_mpd");
     }
   }
 
@@ -709,6 +756,64 @@
                   </p>
                 </div>
 
+                <!-- Strip Prefix -->
+                <div class="space-y-1">
+                  <label for="mpd-prefix-input" class="text-xs font-medium text-slate-300 flex items-center justify-between">
+                    <span>Prefijo a descartar de rutas MPD (opcional)</span>
+                    <span class="text-[10px] text-audiophile-cyan">Para rutas relativas o montajes directos</span>
+                  </label>
+                  <input
+                    id="mpd-prefix-input"
+                    type="text"
+                    bind:value={config.path_strip_prefix}
+                    placeholder="ej: USB/ o USB/rootfs/mnt/SDCARD/"
+                    class="w-full px-3 py-1.5 rounded-lg border border-audiophile-border bg-slate-950 font-mono text-xs text-white focus:outline-none focus:border-audiophile-cyan"
+                  />
+                  <p class="text-[11px] text-slate-500">
+                    Si MPD devuelve rutas internas que no coinciden con la raíz de tu carpeta montada, indica aquí el prefijo a omitir al reproducir o transferir.
+                  </p>
+                </div>
+
+                <!-- SMB / Network Share Credentials -->
+                <div class="p-3 rounded-lg bg-slate-950/70 border border-slate-800 space-y-2">
+                  <div class="text-xs font-semibold text-slate-200 flex items-center gap-1.5">
+                    <Network size={14} class="text-audiophile-cyan" />
+                    <span>Credenciales de Red / SMB (opcional)</span>
+                  </div>
+                  <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                    <div class="space-y-1">
+                      <label for="mpd-smb-user" class="text-[10px] text-slate-400">Usuario SMB</label>
+                      <input
+                        id="mpd-smb-user"
+                        type="text"
+                        bind:value={config.smb_user}
+                        placeholder="ej: guest"
+                        class="w-full px-2.5 py-1 rounded border border-audiophile-border bg-slate-900 font-mono text-xs text-white focus:outline-none focus:border-audiophile-cyan"
+                      />
+                    </div>
+                    <div class="space-y-1">
+                      <label for="mpd-smb-pass" class="text-[10px] text-slate-400">Contraseña SMB</label>
+                      <input
+                        id="mpd-smb-pass"
+                        type="password"
+                        bind:value={config.smb_password}
+                        placeholder="••••••••"
+                        class="w-full px-2.5 py-1 rounded border border-audiophile-border bg-slate-900 font-mono text-xs text-white focus:outline-none focus:border-audiophile-cyan"
+                      />
+                    </div>
+                    <div class="space-y-1">
+                      <label for="mpd-smb-domain" class="text-[10px] text-slate-400">Grupo / Dominio</label>
+                      <input
+                        id="mpd-smb-domain"
+                        type="text"
+                        bind:value={config.smb_domain}
+                        placeholder="WORKGROUP"
+                        class="w-full px-2.5 py-1 rounded border border-audiophile-border bg-slate-900 font-mono text-xs text-white focus:outline-none focus:border-audiophile-cyan"
+                      />
+                    </div>
+                  </div>
+                </div>
+
                 <!-- Action Buttons -->
                 <div class="flex items-center justify-end gap-2 pt-2 border-t border-slate-800">
                   <button
@@ -870,6 +975,35 @@
                         <SkipForward size={15} />
                       </button>
                     </div>
+
+                    <!-- Remote Volume Control -->
+                    <div class="flex items-center justify-center gap-3 pt-3 border-t border-slate-800/80 px-2 text-xs">
+                      <button
+                        type="button"
+                        onclick={toggleMute}
+                        class="text-slate-400 hover:text-white transition cursor-pointer"
+                        title={isMuted ? "Restaurar volumen" : "Silenciar MPD"}
+                      >
+                        {#if isMuted || remoteVolume === 0}
+                          <VolumeX size={15} class="text-rose-400" />
+                        {:else}
+                          <Volume2 size={15} class="text-audiophile-cyan" />
+                        {/if}
+                      </button>
+
+                      <input
+                        type="range"
+                        min="0"
+                        max="100"
+                        value={remoteVolume}
+                        oninput={handleVolumeChange}
+                        class="flex-1 h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-cyan-400"
+                      />
+
+                      <span class="font-mono text-xs text-slate-400 w-9 text-right font-semibold">
+                        {remoteVolume}%
+                      </span>
+                    </div>
                   </div>
                 {:else}
                   <div class="py-4 text-center text-xs text-slate-500">
@@ -949,7 +1083,7 @@
                   <RefreshCw size={16} class="animate-spin text-audiophile-cyan" />
                   <span>Cargando directorio del disco en red...</span>
                 </div>
-              {:else if filteredDirectoryItems.length === 0}
+              {:else if filteredDirectoryItems.length === 0 && !currentDirectory}
                 <div class="flex flex-col items-center justify-center py-20 text-slate-500 gap-2 text-xs">
                   <FolderOpen size={28} class="opacity-40" />
                   <span>Esta carpeta no contiene archivos o no coincide con la búsqueda.</span>
@@ -967,6 +1101,22 @@
                     </tr>
                   </thead>
                   <tbody class="divide-y divide-slate-900 font-sans">
+                    {#if currentDirectory}
+                      <tr
+                        class="hover:bg-slate-900/60 transition group cursor-pointer bg-slate-950/40 select-none"
+                        onclick={navigateToParent}
+                      >
+                        <td class="py-2 px-3 flex items-center gap-2 text-audiophile-cyan font-semibold">
+                          <CornerLeftUp size={15} class="shrink-0" />
+                          <span>.. (Carpeta anterior)</span>
+                        </td>
+                        <td class="py-2 px-3 text-slate-500 font-mono text-[10px]">Subir nivel</td>
+                        <td class="py-2 px-3 text-slate-600 font-mono text-[11px]">—</td>
+                        <td class="py-2 px-3 text-slate-600 font-mono text-[11px]">—</td>
+                        <td class="py-2 px-3 text-slate-600 font-mono text-[11px]">—</td>
+                        <td class="py-2 px-3 text-right text-slate-500 font-mono text-[11px]">Subir</td>
+                      </tr>
+                    {/if}
                     {#each filteredDirectoryItems as item}
                       <tr class="hover:bg-slate-900/60 transition group">
                         <!-- Name & Icon -->
@@ -1118,6 +1268,19 @@
                   <RefreshCw size={14} class={isComparing ? "animate-spin" : ""} />
                   <span>{isComparing ? "Analizando bibliotecas..." : "Ejecutar Match"}</span>
                 </button>
+
+                {#if diffResult && (diffResult.count_only_mpd > 0 || diffResult.count_only_local > 0)}
+                  <button
+                    type="button"
+                    onclick={runSmartSync}
+                    disabled={isTransferring}
+                    class="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-gradient-to-r from-emerald-500 to-cyan-500 text-black hover:opacity-95 transition cursor-pointer disabled:opacity-50 shadow-md"
+                    title="Sincronización Inteligente: descarga automáticamente lo que falte de MPD y sube lo que falte de local"
+                  >
+                    <Sparkles size={14} />
+                    <span>Sincronización Inteligente</span>
+                  </button>
+                {/if}
               </div>
             </div>
 

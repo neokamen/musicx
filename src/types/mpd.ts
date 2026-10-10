@@ -3,6 +3,10 @@ export interface MpdConfig {
   port: number;
   password?: string | null;
   remote_mount_path?: string | null;
+  path_strip_prefix?: string | null;
+  smb_user?: string | null;
+  smb_password?: string | null;
+  smb_domain?: string | null;
   http_stream_url?: string | null;
 }
 
@@ -115,3 +119,4 @@ export interface MpdTransferProgress {
   status: "in_progress" | "completed" | "error" | string;
   error?: string | null;
 }
+

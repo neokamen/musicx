@@ -19,6 +19,10 @@ pub struct MpdConfig {
     pub port: u16,
     pub password: Option<String>,
     pub remote_mount_path: Option<String>,
+    pub path_strip_prefix: Option<String>,
+    pub smb_user: Option<String>,
+    pub smb_password: Option<String>,
+    pub smb_domain: Option<String>,
     pub http_stream_url: Option<String>,
 }
 
@@ -29,6 +33,10 @@ impl Default for MpdConfig {
             port: 6600,
             password: None,
             remote_mount_path: None,
+            path_strip_prefix: None,
+            smb_user: None,
+            smb_password: None,
+            smb_domain: None,
             http_stream_url: None,
         }
     }
@@ -1016,10 +1024,55 @@ pub async fn transfer_files_direct(
     let mut copied_count = 0;
     let mut total_bytes = 0u64;
 
+    let strip_prefix = mpd_config.as_ref().and_then(|c| c.path_strip_prefix.as_deref());
+
+    // Resolve remote path (supporting smb:// mapping and prefix stripping)
+    let resolve_remote = |rel_path: &str| -> std::path::PathBuf {
+        let mut clean = rel_path.replace('\\', "/");
+        if let Some(prefix) = strip_prefix {
+            let p = prefix.trim().replace('\\', "/").trim_matches('/').to_string();
+            if !p.is_empty() {
+                if clean.starts_with(&format!("{}/", p)) {
+                    clean = clean[p.len() + 1..].to_string();
+                } else if clean.starts_with(&p) {
+                    clean = clean[p.len()..].to_string();
+                }
+            }
+        }
+        let clean = clean.trim_start_matches('/').to_string();
+
+        // Check if remote_mount_path is an smb:// url
+        let mut base = remote_base.to_path_buf();
+        let base_str = remote_mount_path.trim();
+        if base_str.starts_with("smb://") {
+            let without_scheme = &base_str[6..];
+            let parts: Vec<&str> = without_scheme.split('/').collect();
+            let server = parts.first().unwrap_or(&"");
+            let share = parts.get(1).unwrap_or(&"");
+            let subpath = if parts.len() > 2 { parts[2..].join("/") } else { String::new() };
+            let gvfs_dir = format!("/run/user/1000/gvfs/smb-share:server={},share={}", server, share);
+            let gvfs_path = std::path::PathBuf::from(if subpath.is_empty() { gvfs_dir } else { format!("{}/{}", gvfs_dir, subpath) });
+            if gvfs_path.exists() {
+                base = gvfs_path;
+            }
+        }
+
+        // Smart overlap check: if base ends with first component of clean, avoid duplicating
+        if let Some(first) = clean.split('/').next() {
+            if !first.is_empty() && base.ends_with(first) {
+                if let Some(after) = clean.strip_prefix(&format!("{}/", first)) {
+                    return base.join(after);
+                }
+            }
+        }
+
+        base.join(&clean)
+    };
+
     // Calculate total size first
     for rel in &relative_paths {
         let src = if is_download {
-            remote_base.join(rel)
+            resolve_remote(rel)
         } else {
             local_base.join(rel)
         };
@@ -1032,9 +1085,9 @@ pub async fn transfer_files_direct(
 
     for (idx, rel) in relative_paths.iter().enumerate() {
         let (src, dst) = if is_download {
-            (remote_base.join(rel), local_base.join(rel))
+            (resolve_remote(rel), local_base.join(rel))
         } else {
-            (local_base.join(rel), remote_base.join(rel))
+            (local_base.join(rel), resolve_remote(rel))
         };
 
         if !src.exists() {

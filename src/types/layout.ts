@@ -30,7 +30,10 @@ export type WidgetType =
   | "waveform_envelope"
   | "waveform_matrix"
   | "waveform_eco"
-  | "fftw_visualizer";
+  | "fftw_visualizer"
+  | "mpd_explorer"
+  | "mpd_control"
+  | "mpd_stats";
 
 export interface WidgetMeta {
   type: WidgetType;
@@ -198,6 +201,21 @@ export const AVAILABLE_WIDGETS: WidgetMeta[] = ([
     type: "waveform_eco",
     label: "Onda de Canción (Bajo Consumo)",
     description: "Onda de pista optimizada para mínimo consumo de CPU/GPU, interactiva para mover la canción",
+  },
+  {
+    type: "mpd_explorer",
+    label: "MPD Explorador de Red",
+    description: "Explorador de archivos del disco duro en red vía MPD",
+  },
+  {
+    type: "mpd_control",
+    label: "MPD Control Remoto",
+    description: "Control de reproducción y volumen del servidor MPD",
+  },
+  {
+    type: "mpd_stats",
+    label: "MPD Estadísticas de Base de Datos",
+    description: "Estadísticas en vivo de la biblioteca y servidor MPD",
   },
 ] satisfies WidgetMeta[]).sort((a, b) => a.label.localeCompare(b.label, "es", { sensitivity: "base" }));
 

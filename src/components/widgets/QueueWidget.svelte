@@ -13,10 +13,12 @@
     languageStore,
     audioSettingsStore,
   } from "../../store/index.ts";
-  import { ListMusic, Play, Trash2, X, Radio as RadioIcon, Globe, Volume2, Download, SlidersHorizontal } from "@lucide/svelte";
+  import { ListMusic, Play, Trash2, X, Radio as RadioIcon, Globe, Volume2, Download, SlidersHorizontal, Server } from "@lucide/svelte";
   import RadioHubModal from "../radio/RadioHubModal.svelte";
   import StreamMusicModal from "./StreamMusicModal.svelte";
   import SoundixDownloadDialog from "./SoundixDownloadDialog.svelte";
+  import MpdExplorerWidget from "./MpdExplorerWidget.svelte";
+  import MpdControlWidget from "./MpdControlWidget.svelte";
   import { trackToSoundixTrack, type NeoTrack } from "../../types/stream.ts";
   import ColumnResizeHandle from "./ColumnResizeHandle.svelte";
   import { isStreamTrack } from "../../lib/streamTracks.ts";
@@ -80,6 +82,7 @@
   let showRadio = $state(false);
   let queueHudMode = $state(0);
   let showStream = $state(false);
+  let showMpd = $state(false);
   let downloadTracks = $state<NeoTrack[] | null>(null);
   let isColMenuOpen = $state(false);
   let isFileDrag = $state(false);
@@ -289,6 +292,44 @@
   <RadioHubModal isOpen={true} onClose={() => { showRadio = false; }} embedded={true} onBackToLibrary={() => { showRadio = false; }} />
 {:else if showStream}
   <StreamMusicModal isOpen={true} onClose={() => { showStream = false; }} embedded={true} onBackToLibrary={() => { showStream = false; }} />
+{:else if showMpd}
+  <div class="relative flex flex-col h-full bg-audiophile-surface">
+    <!-- Header with Back button -->
+    <div
+      class="flex items-center justify-between gap-3 px-3 py-2 border-b shrink-0 select-none"
+      style="border-color: {appearance.accentColor}28; background: linear-gradient(180deg, {appearance.accentColor}12, transparent);"
+    >
+      <div class="flex items-center gap-2">
+        <div
+          class="w-7 h-7 rounded-lg flex items-center justify-center shrink-0"
+          style="background: {appearance.accentColor}22; color: {appearance.accentColor};"
+        >
+          <Server size={15} />
+        </div>
+        <div class="flex flex-col">
+          <span class="text-xs font-bold text-white tracking-wide">MPD & Disco en Red</span>
+          <span class="text-[10px] text-slate-400 font-mono">Explorador de archivos y control de reproducción</span>
+        </div>
+      </div>
+      <button
+        type="button"
+        onclick={() => { showMpd = false; }}
+        class="px-2.5 py-1 rounded-lg text-xs font-semibold bg-slate-800 text-slate-200 hover:text-white hover:bg-slate-700 transition cursor-pointer border border-slate-700"
+      >
+        {lang === 'ca' ? 'Tornar a la Cua' : lang === 'en' ? 'Back to Queue' : 'Volver a la Cola'}
+      </button>
+    </div>
+
+    <!-- MPD Explorer in main area -->
+    <div class="flex-1 min-h-0 overflow-hidden">
+      <MpdExplorerWidget />
+    </div>
+
+    <!-- MPD Control HUD in bottom area -->
+    <div class="h-44 border-t border-audiophile-border shrink-0 bg-audiophile-surface2">
+      <MpdControlWidget />
+    </div>
+  </div>
 {:else}
   <!-- svelte-ignore a11y_no_static_element_interactions -->
   <div
@@ -345,6 +386,14 @@
           title="Stream Music"
         >
           <Globe size={14} />
+        </button>
+        <button
+          type="button"
+          onclick={() => { showMpd = true; }}
+          class="p-1.5 rounded-md text-audiophile-muted hover:text-audiophile-text hover:bg-white/5"
+          title="MPD (Disco en Red)"
+        >
+          <Server size={14} />
         </button>
         <div class="relative">
           <button

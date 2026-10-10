@@ -30,6 +30,9 @@
   import WaveformMatrixWidget from "./WaveformMatrixWidget.svelte";
   import WaveformEcoWidget from "./WaveformEcoWidget.svelte";
   import FftwVisualizer from "./FftwVisualizer.svelte";
+  import MpdExplorerWidget from "./MpdExplorerWidget.svelte";
+  import MpdControlWidget from "./MpdControlWidget.svelte";
+  import MpdStatsWidget from "./MpdStatsWidget.svelte";
 
   interface Props {
     widget: WidgetType;
@@ -104,6 +107,12 @@
   <WaveformEcoWidget />
 {:else if widget === "fftw_visualizer"}
   <FftwVisualizer {nodeKey} {isEditing} />
+{:else if widget === "mpd_explorer"}
+  <MpdExplorerWidget />
+{:else if widget === "mpd_control"}
+  <MpdControlWidget />
+{:else if widget === "mpd_stats"}
+  <MpdStatsWidget />
 {:else}
   <div class="p-4 text-center text-audiophile-muted font-mono text-xs">
     Widget desconocido: {widget}
